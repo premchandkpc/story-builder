@@ -1,18 +1,26 @@
 import type {
+  Actor,
+  Casting,
   Character,
+  CharacterTrait,
+  CreateActorPayload,
   CreateCharacterPayload,
+  CreateCharacterTraitPayload,
+  CreateCastingPayload,
   CreateLocationPayload,
   CreateNodePayload,
   CreateStoryPayload,
   CreateEdgePayload,
-  EdgeType,
+  ElevateCheck,
   Generation,
   GraphEdge,
   GraphNode,
   Location,
   Lore,
   Story,
+  StorySummary,
   Topology,
+  TraitAssignment,
 } from "./types"
 
 const BASE = "/api/v1"
@@ -30,6 +38,22 @@ async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  // Actors
+  actors: {
+    list: () => fetchJSON<Actor[]>("/actors"),
+    get: (id: string) => fetchJSON<Actor>(`/actors/${id}`),
+    create: (data: CreateActorPayload) =>
+      fetchJSON<Actor>("/actors", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    update: (id: string, data: CreateActorPayload) =>
+      fetchJSON<Actor>(`/actors/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+  },
+
   // Characters
   characters: {
     list: () => fetchJSON<Character[]>("/characters"),
@@ -106,6 +130,25 @@ export const api = {
       }),
   },
 
+  // Node scene structure (convenience)
+  nodeScene: {
+    setStructure: (storyId: string, nodeId: string, ss: import("./types").SceneStructure) =>
+      fetchJSON<void>(`/stories/${storyId}/nodes/${nodeId}/scene/structure`, {
+        method: "PUT",
+        body: JSON.stringify({ scene_structure: ss }),
+      }),
+    getStructure: (storyId: string, nodeId: string) =>
+      fetchJSON<import("./types").SceneStructure>(`/stories/${storyId}/nodes/${nodeId}/scene/structure`),
+    start: (storyId: string, nodeId: string) =>
+      fetchJSON<import("./types").SceneTurn>(`/stories/${storyId}/nodes/${nodeId}/scene/start`, { method: "POST" }),
+    next: (storyId: string, nodeId: string) =>
+      fetchJSON<import("./types").SceneTurn>(`/stories/${storyId}/nodes/${nodeId}/scene/next`, { method: "POST" }),
+    finish: (storyId: string, nodeId: string) =>
+      fetchJSON<{ output: string }>(`/stories/${storyId}/nodes/${nodeId}/scene/finish`, { method: "POST" }),
+    turns: (storyId: string, nodeId: string) =>
+      fetchJSON<import("./types").SceneTurn[]>(`/stories/${storyId}/nodes/${nodeId}/scene/turns`),
+  },
+
   // Edges
   edges: {
     list: (storyId: string) =>
@@ -121,6 +164,55 @@ export const api = {
   topology: {
     get: (storyId: string) =>
       fetchJSON<Topology>(`/stories/${storyId}/topology`),
+  },
+
+  // Character Traits
+  characterTraits: {
+    list: () => fetchJSON<CharacterTrait[]>("/character-traits"),
+    get: (id: string) => fetchJSON<CharacterTrait>(`/character-traits/${id}`),
+    create: (data: CreateCharacterTraitPayload) =>
+      fetchJSON<CharacterTrait>("/character-traits", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    assign: (characterId: string, traitId: string, intensity: number, note?: string) =>
+      fetchJSON<void>(`/characters/${characterId}/traits/assign`, {
+        method: "POST",
+        body: JSON.stringify({ trait_id: traitId, intensity, note: note || "" }),
+      }),
+    unassign: (characterId: string, traitId: string) =>
+      fetchJSON<void>(`/characters/${characterId}/traits/${traitId}`, {
+        method: "DELETE",
+      }),
+    getAssignments: (characterId: string) =>
+      fetchJSON<TraitAssignment[]>(`/characters/${characterId}/traits`),
+  },
+
+  // Casting
+  casting: {
+    create: (storyId: string, data: CreateCastingPayload) =>
+      fetchJSON<Casting>(`/stories/${storyId}/casting`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    forStory: (storyId: string) =>
+      fetchJSON<Casting[]>(`/stories/${storyId}/casting`),
+    forActor: (actorId: string) =>
+      fetchJSON<Casting[]>(`/casting/actor/${actorId}`),
+    forCharacter: (characterId: string) =>
+      fetchJSON<Casting[]>(`/casting/character/${characterId}`),
+  },
+
+  // Hierarchical Summaries
+  summaries: {
+    byLevel: (storyId: string, level: "act" | "story") =>
+      fetchJSON<StorySummary>(`/stories/${storyId}/summaries/level?level=${level}`),
+    count: (storyId: string, level: "scene" | "act" | "story") =>
+      fetchJSON<{ count: number }>(`/stories/${storyId}/summaries/count?level=${level}`),
+    elevate: (storyId: string, level: string, threshold = 10) =>
+      fetchJSON<ElevateCheck>(`/stories/${storyId}/summaries/elevate?level=${level}&threshold=${threshold}`),
+    scene: (storyId: string, nodeId: string) =>
+      fetchJSON<StorySummary>(`/stories/${storyId}/summaries/nodes/${nodeId}`),
   },
 
   // Generations

@@ -9,14 +9,49 @@ import (
 	"github.com/pgvector/pgvector-go"
 )
 
+type Actor struct {
+	ID          pgtype.UUID        `json:"id"`
+	Name        string             `json:"name"`
+	Gender      string             `json:"gender"`
+	Ethnicity   string             `json:"ethnicity"`
+	Race        string             `json:"race"`
+	SkinTone    string             `json:"skin_tone"`
+	EyeColor    string             `json:"eye_color"`
+	HairColor   string             `json:"hair_color"`
+	HairStyle   string             `json:"hair_style"`
+	Build       string             `json:"build"`
+	HeightCm    int32              `json:"height_cm"`
+	WeightKg    int32              `json:"weight_kg"`
+	Age         int32              `json:"age"`
+	Nationality string             `json:"nationality"`
+	Traits      []byte             `json:"traits"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type Casting struct {
+	ID          pgtype.UUID        `json:"id"`
+	StoryID     pgtype.UUID        `json:"story_id"`
+	ActorID     pgtype.UUID        `json:"actor_id"`
+	CharacterID pgtype.UUID        `json:"character_id"`
+	RoleType    string             `json:"role_type"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type Character struct {
-	ID            pgtype.UUID        `json:"id"`
-	Version       int32              `json:"version"`
-	Name          string             `json:"name"`
-	Traits        []byte             `json:"traits"`
-	VoiceSamples  []string           `json:"voice_samples"`
-	Relationships []byte             `json:"relationships"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	ID             pgtype.UUID        `json:"id"`
+	Version        int32              `json:"version"`
+	Name           string             `json:"name"`
+	Traits         []byte             `json:"traits"`
+	VoiceSamples   []string           `json:"voice_samples"`
+	Relationships  []byte             `json:"relationships"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	Persona        string             `json:"persona"`
+	Backstory      string             `json:"backstory"`
+	MoralAlignment string             `json:"moral_alignment"`
+	Personality    []byte             `json:"personality"`
+	Flaws          []byte             `json:"flaws"`
+	Goals          []byte             `json:"goals"`
+	ParentID       pgtype.UUID        `json:"parent_id"`
 }
 
 type CharacterState struct {
@@ -25,6 +60,21 @@ type CharacterState struct {
 	AsOfNode    pgtype.UUID        `json:"as_of_node"`
 	State       []byte             `json:"state"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type CharacterTrait struct {
+	ID          pgtype.UUID        `json:"id"`
+	Name        string             `json:"name"`
+	Category    string             `json:"category"`
+	Description string             `json:"description"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type CharacterTraitAssignment struct {
+	CharacterID pgtype.UUID `json:"character_id"`
+	TraitID     pgtype.UUID `json:"trait_id"`
+	Intensity   int32       `json:"intensity"`
+	Note        string      `json:"note"`
 }
 
 type Edge struct {
@@ -46,13 +96,20 @@ type Generation struct {
 }
 
 type LatestCharacter struct {
-	ID            pgtype.UUID        `json:"id"`
-	Version       int32              `json:"version"`
-	Name          string             `json:"name"`
-	Traits        []byte             `json:"traits"`
-	VoiceSamples  []string           `json:"voice_samples"`
-	Relationships []byte             `json:"relationships"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	ID             pgtype.UUID        `json:"id"`
+	Version        int32              `json:"version"`
+	Name           string             `json:"name"`
+	Persona        string             `json:"persona"`
+	Backstory      string             `json:"backstory"`
+	MoralAlignment string             `json:"moral_alignment"`
+	Personality    []byte             `json:"personality"`
+	Flaws          []byte             `json:"flaws"`
+	Goals          []byte             `json:"goals"`
+	Traits         []byte             `json:"traits"`
+	VoiceSamples   []string           `json:"voice_samples"`
+	Relationships  []byte             `json:"relationships"`
+	ParentID       pgtype.UUID        `json:"parent_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type LatestLocation struct {
@@ -82,22 +139,45 @@ type Lore struct {
 }
 
 type Node struct {
-	ID            pgtype.UUID        `json:"id"`
-	StoryID       pgtype.UUID        `json:"story_id"`
-	BeatIntent    string             `json:"beat_intent"`
-	CharacterRefs []pgtype.UUID      `json:"character_refs"`
-	LocationRef   pgtype.UUID        `json:"location_ref"`
-	Pov           string             `json:"pov"`
-	Tone          string             `json:"tone"`
-	TargetWords   int32              `json:"target_words"`
-	Status        string             `json:"status"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	ID             pgtype.UUID        `json:"id"`
+	StoryID        pgtype.UUID        `json:"story_id"`
+	BeatIntent     string             `json:"beat_intent"`
+	CharacterRefs  []pgtype.UUID      `json:"character_refs"`
+	LocationRef    pgtype.UUID        `json:"location_ref"`
+	Pov            string             `json:"pov"`
+	Tone           string             `json:"tone"`
+	TargetWords    int32              `json:"target_words"`
+	Status         string             `json:"status"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	SceneStructure []byte             `json:"scene_structure"`
+}
+
+type SceneTurn struct {
+	ID         pgtype.UUID        `json:"id"`
+	NodeID     pgtype.UUID        `json:"node_id"`
+	TurnNumber int32              `json:"turn_number"`
+	ActorIds   []pgtype.UUID      `json:"actor_ids"`
+	Prompt     string             `json:"prompt"`
+	Output     string             `json:"output"`
+	Model      string             `json:"model"`
+	Status     string             `json:"status"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
 
 type Story struct {
 	ID        pgtype.UUID        `json:"id"`
 	Title     string             `json:"title"`
 	CanonPins []byte             `json:"canon_pins"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type StorySummary struct {
+	ID        pgtype.UUID        `json:"id"`
+	StoryID   pgtype.UUID        `json:"story_id"`
+	NodeID    pgtype.UUID        `json:"node_id"`
+	Level     string             `json:"level"`
+	Content   string             `json:"content"`
+	WordCount int32              `json:"word_count"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }

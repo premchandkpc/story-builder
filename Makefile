@@ -26,7 +26,7 @@ build:
 	cd web && npm run build
 
 sqlc:
-	cd sqlc && rm -rf ../internal/db && sqlc generate
+	sqlc generate -f sqlc/sqlc.yaml
 
 clean:
 	rm -rf web/dist

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -13,6 +15,7 @@ import (
 	"github.com/premchand/story-builder/internal/compiler"
 	"github.com/premchand/story-builder/internal/db"
 	"github.com/premchand/story-builder/internal/graph"
+	"github.com/premchand/story-builder/internal/scene"
 )
 
 func NewDBCharService(q *db.Queries) *dbCharService {
@@ -35,12 +38,26 @@ func jsonBytes(v interface{}) []byte {
 	return b
 }
 
-func (s *dbCharService) Create(name string, traits, voiceSamples []string, relationships map[string]string) (*canon.Character, error) {
+func (s *dbCharService) Create(name, persona, backstory, moralAlignment string, personality, flaws, goals, traits, voiceSamples []string, parentID *uuid.UUID, relationships map[string]string) (*canon.Character, error) {
+	if voiceSamples == nil {
+		voiceSamples = []string{}
+	}
+	var pid pgtype.UUID
+	if parentID != nil {
+		pid = toUUID(*parentID)
+	}
 	c, err := s.q.CreateCharacter(context.Background(), db.CreateCharacterParams{
-		Name:          name,
-		Traits:        jsonBytes(traits),
-		VoiceSamples:  voiceSamples,
-		Relationships: jsonBytes(relationships),
+		Name:           name,
+		Persona:        persona,
+		Backstory:      backstory,
+		MoralAlignment: moralAlignment,
+		Personality:    jsonBytes(personality),
+		Flaws:          jsonBytes(flaws),
+		Goals:          jsonBytes(goals),
+		Traits:         jsonBytes(traits),
+		VoiceSamples:   voiceSamples,
+		Relationships:  jsonBytes(relationships),
+		ParentID:       pid,
 	})
 	if err != nil {
 		return nil, err
@@ -66,12 +83,27 @@ func (s *dbCharService) Get(id uuid.UUID, version int) (*canon.Character, error)
 	return toDomainCharFromLatest(c), nil
 }
 
-func (s *dbCharService) Update(id uuid.UUID, traits, voiceSamples []string, relationships map[string]string) (*canon.Character, error) {
+func (s *dbCharService) Update(id uuid.UUID, name, persona, backstory, moralAlignment string, personality, flaws, goals, traits, voiceSamples []string, parentID *uuid.UUID, relationships map[string]string) (*canon.Character, error) {
+	if voiceSamples == nil {
+		voiceSamples = []string{}
+	}
+	var pid pgtype.UUID
+	if parentID != nil {
+		pid = toUUID(*parentID)
+	}
 	c, err := s.q.UpdateCharacter(context.Background(), db.UpdateCharacterParams{
-		ID:           toUUID(id),
-		Column2:      jsonBytes(traits),
-		VoiceSamples: voiceSamples,
-		Column4:      jsonBytes(relationships),
+		ID:             toUUID(id),
+		Name:           name,
+		Persona:        persona,
+		Backstory:      backstory,
+		MoralAlignment: moralAlignment,
+		Column6:        jsonBytes(personality),
+		Column7:        jsonBytes(flaws),
+		Column8:        jsonBytes(goals),
+		Column9:        jsonBytes(traits),
+		VoiceSamples:   voiceSamples,
+		Column11:       jsonBytes(relationships),
+		ParentID:       pid,
 	})
 	if err != nil {
 		return nil, err
@@ -94,32 +126,68 @@ func (s *dbCharService) List() ([]canon.Character, error) {
 func toDomainChar(c db.Character) *canon.Character {
 	var traits []string
 	json.Unmarshal(c.Traits, &traits)
+	var personality []string
+	json.Unmarshal(c.Personality, &personality)
+	var flaws []string
+	json.Unmarshal(c.Flaws, &flaws)
+	var goals []string
+	json.Unmarshal(c.Goals, &goals)
 	var rel map[string]string
 	json.Unmarshal(c.Relationships, &rel)
+	var parentID *uuid.UUID
+	if c.ParentID.Valid {
+		p := fromUUID(c.ParentID)
+		parentID = &p
+	}
 	return &canon.Character{
-		ID:            fromUUID(c.ID),
-		Version:       int(c.Version),
-		Name:          c.Name,
-		Traits:        traits,
-		VoiceSamples:  c.VoiceSamples,
-		Relationships: rel,
-		CreatedAt:     c.CreatedAt.Time,
+		ID:             fromUUID(c.ID),
+		Version:        int(c.Version),
+		Name:           c.Name,
+		Persona:        c.Persona,
+		Backstory:      c.Backstory,
+		MoralAlignment: c.MoralAlignment,
+		Personality:    personality,
+		Flaws:          flaws,
+		Goals:          goals,
+		Traits:         traits,
+		VoiceSamples:   c.VoiceSamples,
+		ParentID:       parentID,
+		Relationships:  rel,
+		CreatedAt:      c.CreatedAt.Time,
 	}
 }
 
 func toDomainCharFromLatest(c db.LatestCharacter) *canon.Character {
 	var traits []string
 	json.Unmarshal(c.Traits, &traits)
+	var personality []string
+	json.Unmarshal(c.Personality, &personality)
+	var flaws []string
+	json.Unmarshal(c.Flaws, &flaws)
+	var goals []string
+	json.Unmarshal(c.Goals, &goals)
 	var rel map[string]string
 	json.Unmarshal(c.Relationships, &rel)
+	var parentID *uuid.UUID
+	if c.ParentID.Valid {
+		p := fromUUID(c.ParentID)
+		parentID = &p
+	}
 	return &canon.Character{
-		ID:            fromUUID(c.ID),
-		Version:       int(c.Version),
-		Name:          c.Name,
-		Traits:        traits,
-		VoiceSamples:  c.VoiceSamples,
-		Relationships: rel,
-		CreatedAt:     c.CreatedAt.Time,
+		ID:             fromUUID(c.ID),
+		Version:        int(c.Version),
+		Name:           c.Name,
+		Persona:        c.Persona,
+		Backstory:      c.Backstory,
+		MoralAlignment: c.MoralAlignment,
+		Personality:    personality,
+		Flaws:          flaws,
+		Goals:          goals,
+		Traits:         traits,
+		VoiceSamples:   c.VoiceSamples,
+		ParentID:       parentID,
+		Relationships:  rel,
+		CreatedAt:      c.CreatedAt.Time,
 	}
 }
 
@@ -130,6 +198,9 @@ func NewDBLocService(q *db.Queries) *dbLocService {
 }
 
 func (s *dbLocService) Create(name, description string, props []string) (*canon.Location, error) {
+	if props == nil {
+		props = []string{}
+	}
 	l, err := s.q.CreateLocation(context.Background(), db.CreateLocationParams{
 		Name:        name,
 		Description: description,
@@ -216,6 +287,9 @@ func NewDBLoreService(q *db.Queries) *dbLoreService {
 }
 
 func (s *dbLoreService) Create(tags []string, content string) (*canon.Lore, error) {
+	if tags == nil {
+		tags = []string{}
+	}
 	l, err := s.q.CreateLore(context.Background(), db.CreateLoreParams{
 		Tags:    tags,
 		Content: content,
@@ -420,7 +494,7 @@ func (s *dbGraphNodeService) Get(id uuid.UUID) (*graph.Node, error) {
 	return getNode(s.q, id)
 }
 
-func (s *dbGraphNodeService) Update(id uuid.UUID, beatIntent string, characterRefs []uuid.UUID, locationRef *uuid.UUID, pov, tone string, targetWords int) (*graph.Node, error) {
+func (s *dbGraphNodeService) Update(id uuid.UUID, beatIntent string, characterRefs []uuid.UUID, locationRef *uuid.UUID, pov, tone string, targetWords int, sceneStructure *graph.SceneStructure) (*graph.Node, error) {
 	refs := make([]pgtype.UUID, len(characterRefs))
 	for i, r := range characterRefs {
 		refs[i] = toUUID(r)
@@ -429,19 +503,31 @@ func (s *dbGraphNodeService) Update(id uuid.UUID, beatIntent string, characterRe
 	if locationRef != nil {
 		locRef = toUUID(*locationRef)
 	}
+	ssBytes := jsonBytes(graph.SceneStructure{FlowType: graph.FlowMonologue, SituationFlow: ""})
+	if sceneStructure != nil {
+		ssBytes = jsonBytes(sceneStructure)
+	}
 	n, err := s.q.UpdateNode(context.Background(), db.UpdateNodeParams{
-		ID:            toUUID(id),
-		BeatIntent:    beatIntent,
-		CharacterRefs: refs,
-		LocationRef:   locRef,
-		Pov:           pov,
-		Tone:          tone,
-		TargetWords:   int32(targetWords),
+		ID:             toUUID(id),
+		BeatIntent:     beatIntent,
+		CharacterRefs:  refs,
+		LocationRef:    locRef,
+		Pov:            pov,
+		Tone:           tone,
+		TargetWords:    int32(targetWords),
+		SceneStructure: ssBytes,
 	})
 	if err != nil {
 		return nil, err
 	}
 	return toDomainNode(n), nil
+}
+
+func (s *dbGraphNodeService) SetSceneStructure(id uuid.UUID, ss graph.SceneStructure) error {
+	return s.q.UpdateNodeSceneStructure(context.Background(), db.UpdateNodeSceneStructureParams{
+		ID:             toUUID(id),
+		SceneStructure: jsonBytes(ss),
+	})
 }
 
 func (s *dbGraphNodeService) List(storyID uuid.UUID) ([]graph.Node, error) {
@@ -458,18 +544,26 @@ func toDomainNode(n db.Node) *graph.Node {
 		l := fromUUID(n.LocationRef)
 		locRef = &l
 	}
+	var ss *graph.SceneStructure
+	if len(n.SceneStructure) > 0 {
+		var s graph.SceneStructure
+		if json.Unmarshal(n.SceneStructure, &s) == nil {
+			ss = &s
+		}
+	}
 	return &graph.Node{
-		ID:            fromUUID(n.ID),
-		StoryID:       fromUUID(n.StoryID),
-		BeatIntent:    n.BeatIntent,
-		CharacterRefs: refs,
-		LocationRef:   locRef,
-		POV:           n.Pov,
-		Tone:          n.Tone,
-		TargetWords:   int(n.TargetWords),
-		Status:        graph.NodeStatus(n.Status),
-		CreatedAt:     n.CreatedAt.Time,
-		UpdatedAt:     n.UpdatedAt.Time,
+		ID:             fromUUID(n.ID),
+		StoryID:        fromUUID(n.StoryID),
+		BeatIntent:     n.BeatIntent,
+		CharacterRefs:  refs,
+		LocationRef:    locRef,
+		POV:            n.Pov,
+		Tone:           n.Tone,
+		TargetWords:    int(n.TargetWords),
+		Status:         graph.NodeStatus(n.Status),
+		SceneStructure: ss,
+		CreatedAt:      n.CreatedAt.Time,
+		UpdatedAt:      n.UpdatedAt.Time,
 	}
 }
 
@@ -528,4 +622,459 @@ func (s *dbGenerationService) ListGenerations(nodeID uuid.UUID) ([]compiler.Gene
 		}
 	}
 	return result, nil
+}
+
+type dbSceneService struct{ q *db.Queries }
+
+func NewDBSceneService(q *db.Queries) *dbSceneService {
+	return &dbSceneService{q: q}
+}
+
+func (s *dbSceneService) StartScene(nodeID uuid.UUID) (*scene.SceneTurn, error) {
+	return nil, fmt.Errorf("multi-agent scene requires LLM integration — not implemented")
+}
+
+func (s *dbSceneService) NextTurn(nodeID uuid.UUID) (*scene.SceneTurn, error) {
+	return nil, fmt.Errorf("multi-agent scene requires LLM integration — not implemented")
+}
+
+func (s *dbSceneService) FinishScene(nodeID uuid.UUID) (string, error) {
+	return "", fmt.Errorf("multi-agent scene requires LLM integration — not implemented")
+}
+
+func (s *dbSceneService) GetTurns(nodeID uuid.UUID) ([]scene.SceneTurn, error) {
+	turns, err := s.q.ListSceneTurns(context.Background(), toUUID(nodeID))
+	if err != nil {
+		return nil, err
+	}
+	result := make([]scene.SceneTurn, len(turns))
+	for i, t := range turns {
+		actorIDs := make([]uuid.UUID, len(t.ActorIds))
+		for j, a := range t.ActorIds {
+			actorIDs[j] = fromUUID(a)
+		}
+		result[i] = scene.SceneTurn{
+			ID:         fromUUID(t.ID),
+			NodeID:     fromUUID(t.NodeID),
+			TurnNumber: int(t.TurnNumber),
+			ActorIDs:   actorIDs,
+			Prompt:     t.Prompt,
+			Output:     t.Output,
+			Model:      t.Model,
+			Status:     t.Status,
+			CreatedAt:  t.CreatedAt.Time,
+		}
+	}
+	return result, nil
+}
+
+func (s *dbSceneService) SetSceneStructure(nodeID uuid.UUID, ss graph.SceneStructure) error {
+	return s.q.UpdateNodeSceneStructure(context.Background(), db.UpdateNodeSceneStructureParams{
+		ID:             toUUID(nodeID),
+		SceneStructure: jsonBytes(ss),
+	})
+}
+
+func (s *dbSceneService) GetSceneStructure(nodeID uuid.UUID) (*graph.SceneStructure, error) {
+	n, err := s.q.GetNode(context.Background(), toUUID(nodeID))
+	if err != nil {
+		return nil, err
+	}
+	if len(n.SceneStructure) == 0 {
+		return nil, nil
+	}
+	var ss graph.SceneStructure
+	if err := json.Unmarshal(n.SceneStructure, &ss); err != nil {
+		return nil, err
+	}
+	return &ss, nil
+}
+
+// ── Actor (DB-backed) ──────────────────────────────────────────
+
+func NewDBActorService(q *db.Queries) *dbActorService {
+	return &dbActorService{q: q}
+}
+
+type dbActorService struct{ q *db.Queries }
+
+func (s *dbActorService) Create(name, gender, ethnicity, race, skinTone, eyeColor, hairColor, hairStyle, build, nationality string, heightCm, weightKg, age int, traits map[string]interface{}) (*canon.Actor, error) {
+	if traits == nil {
+		traits = make(map[string]interface{})
+	}
+	a, err := s.q.CreateActor(context.Background(), db.CreateActorParams{
+		Name:        name,
+		Gender:      gender,
+		Ethnicity:   ethnicity,
+		Race:        race,
+		SkinTone:    skinTone,
+		EyeColor:    eyeColor,
+		HairColor:   hairColor,
+		HairStyle:   hairStyle,
+		Build:       build,
+		HeightCm:    int32(heightCm),
+		WeightKg:    int32(weightKg),
+		Age:         int32(age),
+		Nationality: nationality,
+		Traits:      jsonBytes(traits),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return toDomainActor(a), nil
+}
+
+func (s *dbActorService) Get(id uuid.UUID) (*canon.Actor, error) {
+	a, err := s.q.GetActor(context.Background(), toUUID(id))
+	if err != nil {
+		return nil, err
+	}
+	return toDomainActor(a), nil
+}
+
+func (s *dbActorService) Update(id uuid.UUID, name, gender, ethnicity, race, skinTone, eyeColor, hairColor, hairStyle, build, nationality string, heightCm, weightKg, age int, traits map[string]interface{}) (*canon.Actor, error) {
+	if traits == nil {
+		traits = make(map[string]interface{})
+	}
+	a, err := s.q.UpdateActor(context.Background(), db.UpdateActorParams{
+		ID:          toUUID(id),
+		Name:        name,
+		Gender:      gender,
+		Ethnicity:   ethnicity,
+		Race:        race,
+		SkinTone:    skinTone,
+		EyeColor:    eyeColor,
+		HairColor:   hairColor,
+		HairStyle:   hairStyle,
+		Build:       build,
+		HeightCm:    int32(heightCm),
+		WeightKg:    int32(weightKg),
+		Age:         int32(age),
+		Nationality: nationality,
+		Column15:    jsonBytes(traits),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return toDomainActor(a), nil
+}
+
+func (s *dbActorService) List() ([]canon.Actor, error) {
+	actors, err := s.q.ListActors(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	result := make([]canon.Actor, len(actors))
+	for i, a := range actors {
+		result[i] = *toDomainActor(a)
+	}
+	return result, nil
+}
+
+func toDomainActor(a db.Actor) *canon.Actor {
+	var traits map[string]interface{}
+	json.Unmarshal(a.Traits, &traits)
+	if traits == nil {
+		traits = make(map[string]interface{})
+	}
+	return &canon.Actor{
+		ID:          fromUUID(a.ID),
+		Name:        a.Name,
+		Gender:      a.Gender,
+		Ethnicity:   a.Ethnicity,
+		Race:        a.Race,
+		SkinTone:    a.SkinTone,
+		EyeColor:    a.EyeColor,
+		HairColor:   a.HairColor,
+		HairStyle:   a.HairStyle,
+		Build:       a.Build,
+		HeightCm:    int(a.HeightCm),
+		WeightKg:    int(a.WeightKg),
+		Age:         int(a.Age),
+		Nationality: a.Nationality,
+		Traits:      traits,
+		CreatedAt:   a.CreatedAt.Time,
+	}
+}
+
+// ── CharacterTrait (DB-backed) ──────────────────────────────────
+
+func NewDBCharacterTraitService(q *db.Queries) *dbCharacterTraitService {
+	return &dbCharacterTraitService{q: q}
+}
+
+type dbCharacterTraitService struct{ q *db.Queries }
+
+func (s *dbCharacterTraitService) Create(name, category, description string) (*canon.CharacterTrait, error) {
+	t, err := s.q.CreateCharacterTrait(context.Background(), db.CreateCharacterTraitParams{
+		Name:        name,
+		Category:    category,
+		Description: description,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &canon.CharacterTrait{
+		ID:          fromUUID(t.ID),
+		Name:        t.Name,
+		Category:    t.Category,
+		Description: t.Description,
+		CreatedAt:   t.CreatedAt.Time,
+	}, nil
+}
+
+func (s *dbCharacterTraitService) Get(id uuid.UUID) (*canon.CharacterTrait, error) {
+	t, err := s.q.GetCharacterTrait(context.Background(), toUUID(id))
+	if err != nil {
+		return nil, err
+	}
+	return &canon.CharacterTrait{
+		ID:          fromUUID(t.ID),
+		Name:        t.Name,
+		Category:    t.Category,
+		Description: t.Description,
+		CreatedAt:   t.CreatedAt.Time,
+	}, nil
+}
+
+func (s *dbCharacterTraitService) List() ([]canon.CharacterTrait, error) {
+	traits, err := s.q.ListCharacterTraits(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	result := make([]canon.CharacterTrait, len(traits))
+	for i, t := range traits {
+		result[i] = canon.CharacterTrait{
+			ID:          fromUUID(t.ID),
+			Name:        t.Name,
+			Category:    t.Category,
+			Description: t.Description,
+			CreatedAt:   t.CreatedAt.Time,
+		}
+	}
+	return result, nil
+}
+
+func (s *dbCharacterTraitService) Assign(characterID, traitID uuid.UUID, intensity int, note string) error {
+	return s.q.AssignTrait(context.Background(), db.AssignTraitParams{
+		CharacterID: toUUID(characterID),
+		TraitID:     toUUID(traitID),
+		Intensity:   int32(intensity),
+		Note:        note,
+	})
+}
+
+func (s *dbCharacterTraitService) Unassign(characterID, traitID uuid.UUID) error {
+	return s.q.UnassignTrait(context.Background(), db.UnassignTraitParams{
+		CharacterID: toUUID(characterID),
+		TraitID:     toUUID(traitID),
+	})
+}
+
+func (s *dbCharacterTraitService) GetAssignments(characterID uuid.UUID) ([]canon.TraitAssignment, error) {
+	rows, err := s.q.GetTraitAssignments(context.Background(), toUUID(characterID))
+	if err != nil {
+		return nil, err
+	}
+	result := make([]canon.TraitAssignment, len(rows))
+	for i, r := range rows {
+		result[i] = canon.TraitAssignment{
+			CharacterID: fromUUID(r.CharacterID),
+			TraitID:     fromUUID(r.TraitID),
+			Intensity:   int(r.Intensity),
+			Note:        r.Note,
+		}
+	}
+	return result, nil
+}
+
+// ── Casting (DB-backed) ────────────────────────────────────────
+
+func NewDBCastingService(q *db.Queries) *dbCastingService {
+	return &dbCastingService{q: q}
+}
+
+type dbCastingService struct{ q *db.Queries }
+
+func (s *dbCastingService) Create(storyID, actorID, characterID uuid.UUID, roleType string) (*canon.Casting, error) {
+	c, err := s.q.CreateCasting(context.Background(), db.CreateCastingParams{
+		StoryID:     toUUID(storyID),
+		ActorID:     toUUID(actorID),
+		CharacterID: toUUID(characterID),
+		RoleType:    roleType,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &canon.Casting{
+		ID:          fromUUID(c.ID),
+		StoryID:     fromUUID(c.StoryID),
+		ActorID:     fromUUID(c.ActorID),
+		CharacterID: fromUUID(c.CharacterID),
+		RoleType:    c.RoleType,
+		CreatedAt:   c.CreatedAt.Time,
+	}, nil
+}
+
+func (s *dbCastingService) GetForStory(storyID uuid.UUID) ([]canon.Casting, error) {
+	rows, err := s.q.ListCastingForStory(context.Background(), toUUID(storyID))
+	if err != nil {
+		return nil, err
+	}
+	result := make([]canon.Casting, len(rows))
+	for i, r := range rows {
+		result[i] = canon.Casting{
+			ID:          fromUUID(r.ID),
+			StoryID:     fromUUID(r.StoryID),
+			ActorID:     fromUUID(r.ActorID),
+			CharacterID: fromUUID(r.CharacterID),
+			RoleType:    r.RoleType,
+			CreatedAt:   r.CreatedAt.Time,
+		}
+	}
+	return result, nil
+}
+
+func (s *dbCastingService) GetForCharacter(characterID uuid.UUID) ([]canon.Casting, error) {
+	rows, err := s.q.ListCastingForCharacter(context.Background(), toUUID(characterID))
+	if err != nil {
+		return nil, err
+	}
+	result := make([]canon.Casting, len(rows))
+	for i, r := range rows {
+		result[i] = canon.Casting{
+			ID:          fromUUID(r.ID),
+			StoryID:     fromUUID(r.StoryID),
+			ActorID:     fromUUID(r.ActorID),
+			CharacterID: fromUUID(r.CharacterID),
+			RoleType:    r.RoleType,
+			CreatedAt:   r.CreatedAt.Time,
+		}
+	}
+	return result, nil
+}
+
+func (s *dbCastingService) GetForActor(actorID uuid.UUID) ([]canon.Casting, error) {
+	rows, err := s.q.ListCastingForActor(context.Background(), toUUID(actorID))
+	if err != nil {
+		return nil, err
+	}
+	result := make([]canon.Casting, len(rows))
+	for i, r := range rows {
+		result[i] = canon.Casting{
+			ID:          fromUUID(r.ID),
+			StoryID:     fromUUID(r.StoryID),
+			ActorID:     fromUUID(r.ActorID),
+			CharacterID: fromUUID(r.CharacterID),
+			RoleType:    r.RoleType,
+			CreatedAt:   r.CreatedAt.Time,
+		}
+	}
+	return result, nil
+}
+
+// ── SummaryService (DB-backed) ─────────────────────────────────
+
+func NewDBSummaryService(q *db.Queries) *dbSummaryService {
+	return &dbSummaryService{q: q}
+}
+
+type dbSummaryService struct{ q *db.Queries }
+
+func (s *dbSummaryService) UpsertSceneSummary(storyID, nodeID uuid.UUID, content string) error {
+	return s.q.UpsertSceneSummary(context.Background(), db.UpsertSceneSummaryParams{
+		StoryID:   toUUID(storyID),
+		NodeID:    toUUID(nodeID),
+		Content:   content,
+		WordCount: int32(len(strings.Fields(content))),
+	})
+}
+
+func (s *dbSummaryService) UpsertActSummary(storyID uuid.UUID, content string) error {
+	return s.q.UpsertActSummary(context.Background(), db.UpsertActSummaryParams{
+		StoryID:   toUUID(storyID),
+		Content:   content,
+		WordCount: int32(len(strings.Fields(content))),
+	})
+}
+
+func (s *dbSummaryService) UpsertStorySummary(storyID uuid.UUID, content string) error {
+	return s.q.UpsertStorySummary(context.Background(), db.UpsertStorySummaryParams{
+		StoryID:   toUUID(storyID),
+		Content:   content,
+		WordCount: int32(len(strings.Fields(content))),
+	})
+}
+
+func (s *dbSummaryService) GetSceneSummary(storyID, nodeID uuid.UUID) (*compiler.StorySummary, error) {
+	row, err := s.q.GetSceneSummary(context.Background(), db.GetSceneSummaryParams{
+		StoryID: toUUID(storyID),
+		NodeID:  toUUID(nodeID),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return toDomainSummary(row), nil
+}
+
+func (s *dbSummaryService) GetSummaryByLevel(storyID uuid.UUID, level compiler.SummaryLevel) (*compiler.StorySummary, error) {
+	row, err := s.q.GetSummaryByLevel(context.Background(), db.GetSummaryByLevelParams{
+		StoryID: toUUID(storyID),
+		Level:   string(level),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return toDomainSummary(row), nil
+}
+
+func (s *dbSummaryService) ListSummariesByLevel(storyID uuid.UUID, level compiler.SummaryLevel) ([]compiler.StorySummary, error) {
+	rows, err := s.q.ListSummariesByLevel(context.Background(), db.ListSummariesByLevelParams{
+		StoryID: toUUID(storyID),
+		Level:   string(level),
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]compiler.StorySummary, len(rows))
+	for i, r := range rows {
+		result[i] = *toDomainSummary(r)
+	}
+	return result, nil
+}
+
+func (s *dbSummaryService) CountSummariesByLevel(storyID uuid.UUID, level compiler.SummaryLevel) (int, error) {
+	count, err := s.q.CountSummariesByLevel(context.Background(), db.CountSummariesByLevelParams{
+		StoryID: toUUID(storyID),
+		Level:   string(level),
+	})
+	if err != nil {
+		return 0, err
+	}
+	return int(count), nil
+}
+
+func (s *dbSummaryService) ShouldElevate(storyID uuid.UUID, level compiler.SummaryLevel, threshold int) (bool, error) {
+	count, err := s.CountSummariesByLevel(storyID, level)
+	if err != nil {
+		return false, err
+	}
+	return count >= threshold, nil
+}
+
+func toDomainSummary(row db.StorySummary) *compiler.StorySummary {
+	var nodeID *uuid.UUID
+	if row.NodeID.Valid {
+		n := fromUUID(row.NodeID)
+		nodeID = &n
+	}
+	return &compiler.StorySummary{
+		ID:        fromUUID(row.ID),
+		StoryID:   fromUUID(row.StoryID),
+		NodeID:    nodeID,
+		Level:     compiler.SummaryLevel(row.Level),
+		Content:   row.Content,
+		WordCount: int(row.WordCount),
+		CreatedAt: row.CreatedAt.Time.Format(time.RFC3339),
+	}
 }

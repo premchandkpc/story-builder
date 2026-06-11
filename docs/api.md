@@ -151,6 +151,53 @@ Update node fields. Body same as create.
 
 Response `200`: Updated node.
 
+### `PUT /stories/{storyID}/nodes/{id}/scene/structure`
+
+Set the multi-agent scene structure definition.
+
+```json
+{
+  "flow_type": "dialogue",
+  "character_order": ["<uuid>", "<uuid>"],
+  "situation_flow": "Arthur enters the throne room. Morgaine is waiting.",
+  "max_turns": 6
+}
+```
+
+`flow_type`: `monologue`, `dialogue`, `round_robin`, `parallel`, `custom`.
+
+Response `200`.
+
+### `GET /stories/{storyID}/nodes/{id}/scene/structure`
+
+Get scene structure definition.
+
+Response `200`: SceneStructure object.
+
+### `POST /stories/{storyID}/nodes/{id}/scene/start`
+
+Start multi-agent scene (first turn).
+
+Response `200`: SceneTurn object.
+
+### `POST /stories/{storyID}/nodes/{id}/scene/next`
+
+Generate next agent turn.
+
+Response `200`: SceneTurn object.
+
+### `POST /stories/{storyID}/nodes/{id}/scene/finish`
+
+Finish scene → assemble turns into generation, extract state, update summary.
+
+Response `200`: `{"output": "assembled scene text"}`.
+
+### `GET /stories/{storyID}/nodes/{id}/scene/turns`
+
+List all turns for this node/scene.
+
+Response `200`: `[{...SceneTurn}]`
+
 ### `POST /stories/{storyID}/nodes/{id}/generate`
 
 Trigger LLM generation for node.

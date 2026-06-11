@@ -82,7 +82,7 @@ func (s *MemoryStore) GetNode(id uuid.UUID) (*Node, error) {
 	return nil, fmt.Errorf("node %s not found", id)
 }
 
-func (s *MemoryStore) UpdateNode(id uuid.UUID, beatIntent string, characterRefs []uuid.UUID, locationRef *uuid.UUID, pov, tone string, targetWords int) (*Node, error) {
+func (s *MemoryStore) UpdateNode(id uuid.UUID, beatIntent string, characterRefs []uuid.UUID, locationRef *uuid.UUID, pov, tone string, targetWords int, sceneStructure *SceneStructure) (*Node, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i := range s.nodes {
@@ -93,11 +93,27 @@ func (s *MemoryStore) UpdateNode(id uuid.UUID, beatIntent string, characterRefs 
 			s.nodes[i].POV = pov
 			s.nodes[i].Tone = tone
 			s.nodes[i].TargetWords = targetWords
+			if sceneStructure != nil {
+				s.nodes[i].SceneStructure = sceneStructure
+			}
 			s.nodes[i].UpdatedAt = time.Now()
 			return &s.nodes[i], nil
 		}
 	}
 	return nil, fmt.Errorf("node %s not found", id)
+}
+
+func (s *MemoryStore) SetSceneStructure(id uuid.UUID, ss SceneStructure) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.nodes {
+		if s.nodes[i].ID == id {
+			s.nodes[i].SceneStructure = &ss
+			s.nodes[i].UpdatedAt = time.Now()
+			return nil
+		}
+	}
+	return fmt.Errorf("node %s not found", id)
 }
 
 func (s *MemoryStore) SetNodeStatus(id uuid.UUID, status NodeStatus) error {

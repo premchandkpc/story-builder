@@ -6,14 +6,64 @@ import (
 	"github.com/google/uuid"
 )
 
+type Actor struct {
+	ID          uuid.UUID              `json:"id"`
+	Name        string                 `json:"name"`
+	Gender      string                 `json:"gender"`
+	Ethnicity   string                 `json:"ethnicity"`
+	Race        string                 `json:"race"`
+	SkinTone    string                 `json:"skin_tone"`
+	EyeColor    string                 `json:"eye_color"`
+	HairColor   string                 `json:"hair_color"`
+	HairStyle   string                 `json:"hair_style"`
+	Build       string                 `json:"build"`
+	HeightCm    int                    `json:"height_cm"`
+	WeightKg    int                    `json:"weight_kg"`
+	Age         int                    `json:"age"`
+	Nationality string                 `json:"nationality"`
+	Traits      map[string]interface{} `json:"traits"`
+	CreatedAt   time.Time              `json:"created_at"`
+}
+
 type Character struct {
-	ID           uuid.UUID `json:"id"`
-	Version      int       `json:"version"`
-	Name         string    `json:"name"`
-	Traits       []string  `json:"traits"`
-	VoiceSamples []string  `json:"voice_samples"`
-	Relationships map[string]string `json:"relationships"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID              uuid.UUID      `json:"id"`
+	Version         int            `json:"version"`
+	Name            string         `json:"name"`
+	Persona         string         `json:"persona"`
+	Backstory       string         `json:"backstory"`
+	MoralAlignment  string         `json:"moral_alignment"`
+	Personality     []string       `json:"personality"`
+	Flaws           []string       `json:"flaws"`
+	Goals           []string       `json:"goals"`
+	VoiceSamples    []string       `json:"voice_samples"`
+	ParentID        *uuid.UUID     `json:"parent_id,omitempty"`
+	Traits          []string       `json:"traits"`
+	Relationships   map[string]string `json:"relationships"`
+	CreatedAt       time.Time      `json:"created_at"`
+}
+
+type CharacterTrait struct {
+	ID          uuid.UUID `json:"id"`
+	Name        string    `json:"name"`
+	Category    string    `json:"category"`
+	Description string    `json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+type TraitAssignment struct {
+	CharacterID uuid.UUID `json:"character_id"`
+	TraitID     uuid.UUID `json:"trait_id"`
+	Intensity   int       `json:"intensity"`
+	Note        string    `json:"note"`
+}
+
+type Casting struct {
+	ID          uuid.UUID `json:"id"`
+	StoryID     uuid.UUID `json:"story_id"`
+	ActorID     uuid.UUID `json:"actor_id"`
+	CharacterID uuid.UUID `json:"character_id"`
+	RoleType    string    `json:"role_type"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type Location struct {
@@ -54,12 +104,35 @@ type Card struct {
 	Props        []string          `json:"props,omitempty"`
 }
 
+type ActorService interface {
+	Create(name, gender, ethnicity, race, skinTone, eyeColor, hairColor, hairStyle, build, nationality string, heightCm, weightKg, age int, traits map[string]interface{}) (*Actor, error)
+	Get(id uuid.UUID) (*Actor, error)
+	Update(id uuid.UUID, name, gender, ethnicity, race, skinTone, eyeColor, hairColor, hairStyle, build, nationality string, heightCm, weightKg, age int, traits map[string]interface{}) (*Actor, error)
+	List() ([]Actor, error)
+}
+
 type CharacterService interface {
-	Create(name string, traits []string, voiceSamples []string, relationships map[string]string) (*Character, error)
+	Create(name, persona, backstory, moralAlignment string, personality, flaws, goals, traits, voiceSamples []string, parentID *uuid.UUID, relationships map[string]string) (*Character, error)
 	Get(id uuid.UUID, version int) (*Character, error)
 	GetLatest(id uuid.UUID) (*Character, error)
-	Update(id uuid.UUID, traits []string, voiceSamples []string, relationships map[string]string) (*Character, error)
+	Update(id uuid.UUID, name, persona, backstory, moralAlignment string, personality, flaws, goals, traits, voiceSamples []string, parentID *uuid.UUID, relationships map[string]string) (*Character, error)
 	List() ([]Character, error)
+}
+
+type CharacterTraitService interface {
+	Create(name, category, description string) (*CharacterTrait, error)
+	Get(id uuid.UUID) (*CharacterTrait, error)
+	List() ([]CharacterTrait, error)
+	Assign(characterID, traitID uuid.UUID, intensity int, note string) error
+	Unassign(characterID, traitID uuid.UUID) error
+	GetAssignments(characterID uuid.UUID) ([]TraitAssignment, error)
+}
+
+type CastingService interface {
+	Create(storyID, actorID, characterID uuid.UUID, roleType string) (*Casting, error)
+	GetForStory(storyID uuid.UUID) ([]Casting, error)
+	GetForCharacter(characterID uuid.UUID) ([]Casting, error)
+	GetForActor(actorID uuid.UUID) ([]Casting, error)
 }
 
 type LocationService interface {

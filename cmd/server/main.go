@@ -52,20 +52,30 @@ func main() {
 	}
 
 	var charHandler *api.CharacterHandler
+	var actorHandler *api.ActorHandler
+	var traitHandler *api.CharacterTraitHandler
+	var castingHandler *api.CastingHandler
 	var locHandler *api.LocationHandler
 	var loreHandler *api.LoreHandler
 	var storyHandler *api.StoryHandler
 	var nodeHandler *api.NodeHandler
 	var genHandler *api.GenerationHandler
+	var sceneHandler *api.SceneHandler
+	var summaryHandler *api.SummaryHandler
 
 	if dbOk {
 		q := db.New(pool)
 		charHandler = &api.CharacterHandler{Service: api.NewDBCharService(q)}
+		actorHandler = &api.ActorHandler{Service: api.NewDBActorService(q)}
+		traitHandler = &api.CharacterTraitHandler{Service: api.NewDBCharacterTraitService(q)}
+		castingHandler = &api.CastingHandler{Service: api.NewDBCastingService(q)}
 		locHandler = &api.LocationHandler{Service: api.NewDBLocService(q)}
 		loreHandler = &api.LoreHandler{Service: api.NewDBLoreService(q)}
 		storyHandler = &api.StoryHandler{Service: api.NewDBGraphStoryService(q)}
 		nodeHandler = &api.NodeHandler{Service: api.NewDBGraphNodeService(q)}
 		genHandler = &api.GenerationHandler{Service: api.NewDBGenerationService(q)}
+		sceneHandler = &api.SceneHandler{SceneService: api.NewDBSceneService(q)}
+		summaryHandler = &api.SummaryHandler{Service: api.NewDBSummaryService(q)}
 
 		workers := river.Workers()
 		migrator, err := rivermigrate.New(riverpgxv5.New(pool), nil)
@@ -97,14 +107,19 @@ func main() {
 	} else {
 		gs := graph.NewMemoryStore()
 		charHandler = &api.CharacterHandler{Service: api.NewCharService()}
+		actorHandler = &api.ActorHandler{Service: api.NewActorService()}
+		traitHandler = &api.CharacterTraitHandler{Service: api.NewCharacterTraitService()}
+		castingHandler = &api.CastingHandler{Service: api.NewCastingService()}
 		locHandler = &api.LocationHandler{Service: api.NewLocService()}
 		loreHandler = &api.LoreHandler{Service: api.NewLoreService()}
 		storyHandler = &api.StoryHandler{Service: api.NewGraphStoryService(gs)}
 		nodeHandler = &api.NodeHandler{Service: api.NewGraphNodeService(gs)}
 		genHandler = &api.GenerationHandler{Service: api.NewGenerationService()}
+		sceneHandler = &api.SceneHandler{SceneService: api.NewMemorySceneService()}
+		summaryHandler = &api.SummaryHandler{Service: api.NewMemorySummaryService()}
 	}
 
-	srv := api.NewServer(charHandler, locHandler, loreHandler, storyHandler, nodeHandler, genHandler)
+	srv := api.NewServer(charHandler, actorHandler, traitHandler, castingHandler, locHandler, loreHandler, storyHandler, nodeHandler, genHandler, sceneHandler, summaryHandler)
 
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%s", cfg.Port),

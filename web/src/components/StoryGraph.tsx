@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import {
   ReactFlow,
   Background,
@@ -7,19 +7,24 @@ import {
   type Node,
   type Edge,
   type Connection,
-  type OnNodesChange,
-  type OnEdgesChange,
   useNodesState,
   useEdgesState,
   addEdge,
-  applyNodeChanges,
-  applyEdgeChanges,
   type NodeTypes,
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
 import SceneNode from "./SceneNode"
 import { api } from "../api/client"
-import type { GraphNode, GraphEdge, EdgeType } from "../api/types"
+import type { GraphNode, GraphEdge } from "../api/types"
+
+interface SceneNodeData extends Record<string, unknown> {
+  label: string
+  status: string
+  beatIntent: string
+  pov: string
+  tone: string
+  targetWords: number
+}
 
 const nodeTypes: NodeTypes = { scene: SceneNode }
 
@@ -27,7 +32,7 @@ interface StoryGraphProps {
   storyId: string
 }
 
-function toReactFlowNodes(nodes: GraphNode[]): Node[] {
+function toReactFlowNodes(nodes: GraphNode[]): Node<SceneNodeData>[] {
   const cols = 6
   return nodes.map((n, i) => ({
     id: n.id,
@@ -39,9 +44,9 @@ function toReactFlowNodes(nodes: GraphNode[]): Node[] {
     data: {
       label: `Node ${i + 1}`,
       status: n.status,
-      beatIntent: n.beat_intent || "—",
-      pov: n.pov || "—",
-      tone: n.tone || "—",
+      beatIntent: n.beat_intent || "",
+      pov: n.pov || "",
+      tone: n.tone || "",
       targetWords: n.target_words,
     },
   }))
@@ -63,9 +68,9 @@ function toReactFlowEdges(edges: GraphEdge[]): Edge[] {
 }
 
 export default function StoryGraph({ storyId }: StoryGraphProps) {
-  const [nodes, setNodes] = useNodesState([])
-  const [edges, setEdges, onEdgesChange] = useEdgesState([])
-  const [selectedNode, setSelectedNode] = useState<Node | null>(null)
+  const [nodes, setNodes, onNodesChange] = useNodesState([] as Node<SceneNodeData>[])
+  const [edges, setEdges, onEdgesChange] = useEdgesState([] as Edge[])
+  const [selectedNode, setSelectedNode] = useState<Node<SceneNodeData> | null>(null)
   const [form, setForm] = useState({
     beat_intent: "",
     pov: "",
@@ -92,7 +97,7 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
   const onConnect = useCallback(
     async (connection: Connection) => {
       if (!connection.source || !connection.target) return
-      setEdges((eds) => addEdge({
+      setEdges((eds: Edge[]) => addEdge({
         ...connection,
         id: `e-${Date.now()}`,
         style: { stroke: "#64748b" },
@@ -111,12 +116,13 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
   )
 
   const onNodeClick = useCallback((_: unknown, node: Node) => {
-    setSelectedNode(node)
+    const d = node.data as unknown as SceneNodeData
+    setSelectedNode(node as unknown as Node<SceneNodeData>)
     setForm({
-      beat_intent: node.data.beatIntent || "",
-      pov: node.data.pov || "",
-      tone: node.data.tone || "",
-      target_words: node.data.targetWords || 300,
+      beat_intent: d.beatIntent || "",
+      pov: d.pov || "",
+      tone: d.tone || "",
+      target_words: d.targetWords || 300,
     })
   }, [])
 
@@ -169,7 +175,7 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
         <ReactFlow
           nodes={nodes}
           edges={edges}
-          onNodesChange={setNodes as OnNodesChange}
+          onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeClick={onNodeClick}
