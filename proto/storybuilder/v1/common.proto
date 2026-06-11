@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package storybuilder.v1;
+
+option go_package = "github.com/premchand/story-builder/internal/grpc/gen/storybuilder/v1;storybuilderv1";
+
+message UUID {
+  string value = 1; // standard 36-char UUID string
+}
+
+message Timestamp {
+  string rfc3339 = 1; // RFC3339 timestamp string
+}
+
+message Empty {}

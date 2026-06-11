@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package storybuilder.v1;
+
+option go_package = "github.com/premchand/story-builder/internal/grpc/gen/storybuilder/v1;storybuilderv1";
+
+import "storybuilder/v1/common.proto";
+import "storybuilder/v1/graph.proto";
+
+message SceneTurn {
+  UUID id = 1;
+  UUID node_id = 2;
+  int32 turn_number = 3;
+  repeated UUID actor_ids = 4;
+  string prompt = 5;
+  string output = 6;
+  string model = 7;
+  string status = 8;
+  Timestamp created_at = 9;
+}
+
+message SetSceneStructureRequest {
+  UUID node_id = 1;
+  SceneStructure scene_structure = 2;
+}
+
+message GetSceneStructureRequest {
+  UUID node_id = 1;
+}
+
+message StartSceneRequest {
+  UUID node_id = 1;
+}
+
+message NextTurnRequest {
+  UUID node_id = 1;
+}
+
+message FinishSceneRequest {
+  UUID node_id = 1;
+}
+
+message FinishSceneResponse {
+  string output = 1;
+}
+
+message GetTurnsRequest {
+  UUID node_id = 1;
+}
+
+message ListTurnsResponse {
+  repeated SceneTurn turns = 1;
+}
+
+service SceneService {
+  rpc SetSceneStructure(SetSceneStructureRequest) returns (Empty);
+  rpc GetSceneStructure(GetSceneStructureRequest) returns (SceneStructure);
+  rpc StartScene(StartSceneRequest) returns (SceneTurn);
+  rpc NextTurn(NextTurnRequest) returns (SceneTurn);
+  rpc FinishScene(FinishSceneRequest) returns (FinishSceneResponse);
+  rpc GetTurns(GetTurnsRequest) returns (ListTurnsResponse);
+}

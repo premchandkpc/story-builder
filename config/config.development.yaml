@@ -1,0 +1,10 @@
+# Local development overrides
+server:
+  http_port: 8080
+  grpc_port: 9090
+
+llm:
+  provider: ollama
+  ollama:
+    url: "http://localhost:11434"
+    model: llama3.2

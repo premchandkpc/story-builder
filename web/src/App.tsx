@@ -1,7 +1,36 @@
-import { useState, useEffect } from "react"
+import { useEffect, useMemo, useState, type FormEvent } from "react"
 import StoryGraph from "./components/StoryGraph"
 import { api } from "./api/client"
 import type { Story } from "./api/types"
+import Caveman from "caveman"
+
+type ReviewNode = {
+  id: string
+  label: string
+  severity: "info" | "warning" | "critical"
+  note: string
+}
+
+type ReviewGraph = {
+  title: string
+  nodes: ReviewNode[]
+}
+
+Caveman.options.escapeByDefault = true
+Caveman.register(
+  "reviewGraph",
+  `
+  <div style="display:flex; flex-direction:column; gap:8px;">
+    <div style="font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:#94a3b8; margin-bottom:4px;">{{d.title}}</div>
+    {{- for d.nodes as node }}
+      <div style="border:1px solid #334155; border-radius:8px; padding:10px 12px; background:{{? node.severity == 'critical' }}#7f1d1d{{/}}{{^ node.severity == 'critical' }}{{? node.severity == 'warning' }}#78350f{{/}}{{^ node.severity == 'warning' }}#1e293b{{/}}{{/}}{{/}}; color:#f8fafc;">
+        <div style="font-size:12px; font-weight:700; margin-bottom:4px;">{{node.label}}</div>
+        <div style="font-size:13px; line-height:1.4;">{{node.note}}</div>
+      </div>
+    {{- end }}
+  </div>
+  `,
+)
 
 export default function App() {
   const [stories, setStories] = useState<Story[]>([])
@@ -9,6 +38,15 @@ export default function App() {
   const [newTitle, setNewTitle] = useState("")
   const [synopsis, setSynopsis] = useState("")
   const [generating, setGenerating] = useState(false)
+  const [reviewInput, setReviewInput] = useState("")
+  const [reviewGraph, setReviewGraph] = useState<ReviewGraph>({
+    title: "Copilot review graph",
+    nodes: [
+      { id: "1", label: "Architecture", severity: "info", note: "The domain modules are well separated and the API layer is easy to follow." },
+      { id: "2", label: "Risk", severity: "warning", note: "A few request-handling paths still depend on inline validation." },
+      { id: "3", label: "Action", severity: "critical", note: "Ensure the story generation endpoint stays aligned with the frontend route contract." },
+    ],
+  })
 
   useEffect(() => {
     api.stories.list().then(setStories).catch(console.error)
@@ -44,6 +82,25 @@ export default function App() {
     }
   }
 
+  const renderedReviewGraph = useMemo(() => Caveman.render("reviewGraph", reviewGraph), [reviewGraph])
+
+  const sendReviewInput = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const trimmed = reviewInput.trim()
+    if (!trimmed) return
+
+    const nextSeverity = trimmed.toLowerCase().includes("critical") ? "critical" : trimmed.toLowerCase().includes("warn") ? "warning" : "info"
+    const nextNode: ReviewNode = {
+      id: `${Date.now()}`,
+      label: "Review note",
+      severity: nextSeverity,
+      note: trimmed,
+    }
+
+    setReviewGraph((prev) => ({ ...prev, nodes: [...prev.nodes, nextNode] }))
+    setReviewInput("")
+  }
+
   if (activeStoryId) {
     return <StoryGraph storyId={activeStoryId} />
   }
@@ -63,7 +120,7 @@ export default function App() {
       }}
     >
       <h1 style={{ fontSize: 28, fontWeight: 700 }}>Story Builder</h1>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, width: 360 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, width: 420 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <h3 style={{ fontSize: 14, color: "#94a3b8", margin: 0 }}>Generate from Synopsis</h3>
           <textarea
@@ -154,6 +211,41 @@ export default function App() {
             ))}
           </div>
         )}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "12px", background: "#111827", border: "1px solid #334155", borderRadius: 8 }}>
+          <h3 style={{ fontSize: 14, color: "#94a3b8", margin: 0 }}>Caveman review graph</h3>
+          <div style={{ maxHeight: 260, overflowY: "auto", paddingRight: 2 }} dangerouslySetInnerHTML={{ __html: renderedReviewGraph }} />
+          <form onSubmit={sendReviewInput} style={{ display: "flex", gap: 8 }}>
+            <input
+              value={reviewInput}
+              onChange={(event) => setReviewInput(event.target.value)}
+              placeholder="Add a review note..."
+              style={{
+                flex: 1,
+                padding: "10px 12px",
+                background: "#1e293b",
+                border: "1px solid #334155",
+                borderRadius: 6,
+                color: "#e2e8f0",
+                fontSize: 14,
+              }}
+            />
+            <button
+              type="submit"
+              style={{
+                padding: "10px 14px",
+                background: "#10b981",
+                color: "#fff",
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer",
+                fontWeight: 600,
+              }}
+            >
+              Add
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   )

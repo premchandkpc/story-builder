@@ -14,6 +14,7 @@ import (
 	"github.com/premchand/story-builder/internal/api"
 	"github.com/premchand/story-builder/internal/db"
 	"github.com/premchand/story-builder/internal/graph"
+	grpcserver "github.com/premchand/story-builder/internal/grpc/server"
 	"github.com/premchand/story-builder/internal/llm"
 	"github.com/premchand/story-builder/internal/migrate"
 	"github.com/premchand/story-builder/internal/river"
@@ -153,9 +154,33 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("server on :%s", cfg.Port)
+		log.Printf("http server on :%s", cfg.Port)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("http: %v", err)
+		}
+	}()
+
+	// gRPC server
+	grpcSrv := grpcserver.New(
+		charHandler.Service.(grpcserver.CharService),
+		actorHandler.Service.(grpcserver.ActorService),
+		traitHandler.Service.(grpcserver.TraitService),
+		castingHandler.Service.(grpcserver.CastingService),
+		locHandler.Service.(grpcserver.LocService),
+		loreHandler.Service.(grpcserver.LoreSvc),
+		storyHandler.Service.(grpcserver.StorySvc),
+		nodeHandler.Service.(grpcserver.NodeSvc),
+		genHandler.Service.(grpcserver.GenService),
+		sceneHandler.SceneService,
+		summaryHandler.Service,
+		storyGenWrapper{svc: storyGenHandler.Service},
+		cfg.GrpcPort,
+	)
+
+	go func() {
+		log.Printf("gRPC server on :%s", cfg.GrpcPort)
+		if err := grpcSrv.Start(ctx); err != nil {
+			log.Fatalf("gRPC: %v", err)
 		}
 	}()
 
@@ -171,28 +196,48 @@ func main() {
 	}
 }
 
-type config struct {
-	Port         string
-	DatabaseURL  string
-	AnthropicKey string
-	OllamaURL    string
+	type config struct {
+		Port         string
+		GrpcPort     string
+		DatabaseURL  string
+		AnthropicKey string
+		OllamaURL    string
+	}
+
+	func configFromEnv() config {
+		port := os.Getenv("PORT")
+		if port == "" {
+			port = "8080"
+		}
+		grpcPort := os.Getenv("GRPC_PORT")
+		if grpcPort == "" {
+			grpcPort = "9090"
+		}
+		dbURL := os.Getenv("DATABASE_URL")
+		if dbURL == "" {
+			dbURL = "postgres://storybuilder:storybuilder@localhost:5432/storybuilder?sslmode=disable"
+		}
+		return config{
+			Port:         port,
+			GrpcPort:     grpcPort,
+			DatabaseURL:  dbURL,
+			AnthropicKey: os.Getenv("ANTHROPIC_API_KEY"),
+			OllamaURL:    os.Getenv("OLLAMA_URL"),
+		}
+	}
+
+type storyGenWrapper struct {
+	svc interface {
+		GenerateStory(synopsis string) (*api.StoryGenerateResult, error)
+	}
 }
 
-func configFromEnv() config {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+func (w storyGenWrapper) GenerateStory(synopsis string) (string, string, error) {
+	r, err := w.svc.GenerateStory(synopsis)
+	if err != nil {
+		return "", "", err
 	}
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		dbURL = "postgres://storybuilder:storybuilder@localhost:5432/storybuilder?sslmode=disable"
-	}
-	return config{
-		Port:         port,
-		DatabaseURL:  dbURL,
-		AnthropicKey: os.Getenv("ANTHROPIC_API_KEY"),
-		OllamaURL:    os.Getenv("OLLAMA_URL"),
-	}
+	return r.StoryID, r.Status, nil
 }
 
 func createLLMClient(cfg config) llm.LLMClient {

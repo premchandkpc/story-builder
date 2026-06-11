@@ -1,0 +1,162 @@
+syntax = "proto3";
+
+package storybuilder.v1;
+
+option go_package = "github.com/premchand/story-builder/internal/grpc/gen/storybuilder/v1;storybuilderv1";
+
+import "storybuilder/v1/common.proto";
+
+// ── Story ──────────────────────────────────────────────────────
+
+message Story {
+  UUID id = 1;
+  string title = 2;
+  map<string, bytes> canon_pins = 3;
+  Timestamp created_at = 4;
+}
+
+message CreateStoryRequest {
+  string title = 1;
+}
+
+message GetStoryRequest {
+  UUID id = 1;
+}
+
+message ListStoriesResponse {
+  repeated Story stories = 1;
+}
+
+// ── Node ──────────────────────────────────────────────────────
+
+enum NodeStatus {
+  NODE_STATUS_UNSPECIFIED = 0;
+  NODE_STATUS_DRAFT = 1;
+  NODE_STATUS_GENERATED = 2;
+  NODE_STATUS_ACCEPTED = 3;
+  NODE_STATUS_STALE = 4;
+}
+
+enum EdgeType {
+  EDGE_TYPE_UNSPECIFIED = 0;
+  EDGE_TYPE_SEQ = 1;
+  EDGE_TYPE_FORK = 2;
+  EDGE_TYPE_JOIN = 3;
+  EDGE_TYPE_CHOICE = 4;
+}
+
+enum FlowType {
+  FLOW_TYPE_UNSPECIFIED = 0;
+  FLOW_TYPE_MONOLOGUE = 1;
+  FLOW_TYPE_DIALOGUE = 2;
+  FLOW_TYPE_ROUND_ROBIN = 3;
+  FLOW_TYPE_PARALLEL = 4;
+  FLOW_TYPE_CUSTOM = 5;
+}
+
+message SceneStructure {
+  FlowType flow_type = 1;
+  repeated UUID character_order = 2;
+  string situation_flow = 3;
+  int32 max_turns = 4;
+}
+
+message Node {
+  UUID id = 1;
+  UUID story_id = 2;
+  string beat_intent = 3;
+  repeated UUID character_refs = 4;
+  optional UUID location_ref = 5;
+  string pov = 6;
+  string tone = 7;
+  int32 target_words = 8;
+  NodeStatus status = 9;
+  optional SceneStructure scene_structure = 10;
+  Timestamp created_at = 11;
+  Timestamp updated_at = 12;
+}
+
+message CreateNodeRequest {
+  UUID story_id = 1;
+  string beat_intent = 2;
+  repeated UUID character_refs = 3;
+  optional UUID location_ref = 4;
+  string pov = 5;
+  string tone = 6;
+  int32 target_words = 7;
+  optional SceneStructure scene_structure = 8;
+}
+
+message GetNodeRequest {
+  UUID id = 1;
+}
+
+message UpdateNodeRequest {
+  UUID id = 1;
+  string beat_intent = 2;
+  repeated UUID character_refs = 3;
+  optional UUID location_ref = 4;
+  string pov = 5;
+  string tone = 6;
+  int32 target_words = 7;
+  optional SceneStructure scene_structure = 8;
+}
+
+message ListNodesRequest {
+  UUID story_id = 1;
+}
+
+message ListNodesResponse {
+  repeated Node nodes = 1;
+}
+
+// ── Edge ──────────────────────────────────────────────────────
+
+message Edge {
+  UUID story_id = 1;
+  UUID from_node = 2;
+  UUID to_node = 3;
+  EdgeType edge_type = 4;
+}
+
+message CreateEdgeRequest {
+  UUID story_id = 1;
+  UUID from_node = 2;
+  UUID to_node = 3;
+  EdgeType edge_type = 4;
+}
+
+message ListEdgesRequest {
+  UUID story_id = 1;
+}
+
+message ListEdgesResponse {
+  repeated Edge edges = 1;
+}
+
+message GetTopologyRequest {
+  UUID story_id = 1;
+}
+
+message Topology {
+  repeated Node nodes = 1;
+  repeated Edge edges = 2;
+}
+
+// ── Services ───────────────────────────────────────────────────
+
+service StoryService {
+  rpc CreateStory(CreateStoryRequest) returns (Story);
+  rpc GetStory(GetStoryRequest) returns (Story);
+  rpc ListStories(Empty) returns (ListStoriesResponse);
+  rpc CreateEdge(CreateEdgeRequest) returns (Empty);
+  rpc ListEdges(ListEdgesRequest) returns (ListEdgesResponse);
+  rpc GetTopology(GetTopologyRequest) returns (Topology);
+}
+
+service NodeService {
+  rpc CreateNode(CreateNodeRequest) returns (Node);
+  rpc GetNode(GetNodeRequest) returns (Node);
+  rpc UpdateNode(UpdateNodeRequest) returns (Node);
+  rpc ListNodes(ListNodesRequest) returns (ListNodesResponse);
+}

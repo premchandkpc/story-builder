@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package storybuilder.v1;
+
+option go_package = "github.com/premchand/story-builder/internal/grpc/gen/storybuilder/v1;storybuilderv1";
+
+import "storybuilder/v1/common.proto";
+
+message Generation {
+  UUID id = 1;
+  UUID node_id = 2;
+  string context_hash = 3;
+  string prompt_snapshot = 4;
+  string output = 5;
+  string model = 6;
+  bool accepted = 7;
+  Timestamp created_at = 8;
+}
+
+message GenerateRequest {
+  UUID node_id = 1;
+}
+
+message AcceptGenerationRequest {
+  UUID node_id = 1;
+  UUID generation_id = 2;
+}
+
+message ListGenerationsRequest {
+  UUID node_id = 1;
+}
+
+message ListGenerationsResponse {
+  repeated Generation generations = 1;
+}
+
+service GenerationService {
+  rpc Generate(GenerateRequest) returns (Generation);
+  rpc AcceptGeneration(AcceptGenerationRequest) returns (Empty);
+  rpc ListGenerations(ListGenerationsRequest) returns (ListGenerationsResponse);
+}
