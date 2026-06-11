@@ -38,14 +38,10 @@ func (h *CharacterHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	var parentID *uuid.UUID
-	if req.ParentID != nil {
-		parsed, err := uuid.Parse(*req.ParentID)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid parent_id")
-			return
-		}
-		parentID = &parsed
+	parentID, err := parseOptionalUUID(req.ParentID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid parent_id")
+		return
 	}
 	char, err := h.Service.Create(req.Name, req.Persona, req.Backstory, req.MoralAlignment, req.Personality, req.Flaws, req.Goals, req.Traits, req.VoiceSamples, parentID, req.Relationships)
 	if err != nil {
@@ -80,14 +76,10 @@ func (h *CharacterHandler) Update(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	var parentID *uuid.UUID
-	if req.ParentID != nil {
-		parsed, err := uuid.Parse(*req.ParentID)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid parent_id")
-			return
-		}
-		parentID = &parsed
+	parentID, err := parseOptionalUUID(req.ParentID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid parent_id")
+		return
 	}
 	char, err := h.Service.Update(id, req.Name, req.Persona, req.Backstory, req.MoralAlignment, req.Personality, req.Flaws, req.Goals, req.Traits, req.VoiceSamples, parentID, req.Relationships)
 	if err != nil {
@@ -259,7 +251,7 @@ func (h *CharacterTraitHandler) Assign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	traitID, err := uuid.Parse(req.TraitID)
+	traitID, err := parseUUID(req.TraitID)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid trait_id")
 		return
@@ -329,12 +321,12 @@ func (h *CastingHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	actorID, err := uuid.Parse(req.ActorID)
+	actorID, err := parseUUID(req.ActorID)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid actor_id")
 		return
 	}
-	charID, err := uuid.Parse(req.CharacterID)
+	charID, err := parseUUID(req.CharacterID)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid character_id")
 		return

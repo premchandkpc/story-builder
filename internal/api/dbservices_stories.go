@@ -1,0 +1,425 @@
+package api
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/premchand/story-builder/internal/canon"
+	"github.com/premchand/story-builder/internal/compiler"
+	"github.com/premchand/story-builder/internal/db"
+	"github.com/premchand/story-builder/internal/graph"
+	"github.com/premchand/story-builder/internal/llm"
+	"github.com/premchand/story-builder/internal/river"
+	riv "github.com/riverqueue/river"
+)
+
+type dbGraphStoryService struct{ q *db.Queries }
+
+func NewDBGraphStoryService(q *db.Queries) *dbGraphStoryService {
+	return &dbGraphStoryService{q: q}
+}
+
+func (s *dbGraphStoryService) Create(title string) (*graph.Story, error) {
+	st, err := s.q.CreateStory(context.Background(), title)
+	if err != nil {
+		return nil, err
+	}
+	return &graph.Story{
+		ID:        fromUUID(st.ID),
+		Title:     st.Title,
+		CanonPins: make(map[string]interface{}),
+		CreatedAt: st.CreatedAt.Time,
+	}, nil
+}
+
+func (s *dbGraphStoryService) Get(id uuid.UUID) (*graph.Story, error) {
+	st, err := s.q.GetStory(context.Background(), toUUID(id))
+	if err != nil {
+		return nil, err
+	}
+	var pins map[string]interface{}
+	json.Unmarshal(st.CanonPins, &pins)
+	if pins == nil {
+		pins = make(map[string]interface{})
+	}
+	return &graph.Story{
+		ID:        fromUUID(st.ID),
+		Title:     st.Title,
+		CanonPins: pins,
+		CreatedAt: st.CreatedAt.Time,
+	}, nil
+}
+
+func (s *dbGraphStoryService) List() ([]graph.Story, error) {
+	stories, err := s.q.ListStories(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	result := make([]graph.Story, len(stories))
+	for i, st := range stories {
+		result[i] = graph.Story{
+			ID:        fromUUID(st.ID),
+			Title:     st.Title,
+			CanonPins: make(map[string]interface{}),
+			CreatedAt: st.CreatedAt.Time,
+		}
+	}
+	return result, nil
+}
+
+func (s *dbGraphStoryService) CreateEdge(storyID, fromNode, toNode uuid.UUID, edgeType string) error {
+	return s.q.CreateEdge(context.Background(), db.CreateEdgeParams{
+		StoryID:  toUUID(storyID),
+		FromNode: toUUID(fromNode),
+		ToNode:   toUUID(toNode),
+		EdgeType: edgeType,
+	})
+}
+
+func (s *dbGraphStoryService) ListEdges(storyID uuid.UUID) ([]graph.Edge, error) {
+	edges, err := s.q.ListEdges(context.Background(), toUUID(storyID))
+	if err != nil {
+		return nil, err
+	}
+	result := make([]graph.Edge, len(edges))
+	for i, e := range edges {
+		result[i] = graph.Edge{
+			StoryID:  fromUUID(e.StoryID),
+			FromNode: fromUUID(e.FromNode),
+			ToNode:   fromUUID(e.ToNode),
+			EdgeType: graph.EdgeType(e.EdgeType),
+		}
+	}
+	return result, nil
+}
+
+func (s *dbGraphStoryService) GetNode(id uuid.UUID) (*graph.Node, error) {
+	return getNode(s.q, id)
+}
+
+func (s *dbGraphStoryService) ListNodes(storyID uuid.UUID) ([]graph.Node, error) {
+	return listNodes(s.q, storyID)
+}
+
+func (s *dbGraphStoryService) TopologicalSort(storyID uuid.UUID) ([]graph.Node, error) {
+	nodes, err := listNodes(s.q, storyID)
+	if err != nil {
+		return nil, err
+	}
+	edges, err := s.ListEdges(storyID)
+	if err != nil {
+		return nil, err
+	}
+	return graph.TopologicalSort(nodes, edges)
+}
+
+type dbGraphNodeService struct{ q *db.Queries }
+
+func NewDBGraphNodeService(q *db.Queries) *dbGraphNodeService {
+	return &dbGraphNodeService{q: q}
+}
+
+func (s *dbGraphNodeService) Create(storyID uuid.UUID, beatIntent string, characterRefs []uuid.UUID, locationRef *uuid.UUID, pov, tone string, targetWords int) (*graph.Node, error) {
+	refs := make([]pgtype.UUID, len(characterRefs))
+	for i, r := range characterRefs {
+		refs[i] = toUUID(r)
+	}
+	var locRef pgtype.UUID
+	if locationRef != nil {
+		locRef = toUUID(*locationRef)
+	}
+	n, err := s.q.CreateNode(context.Background(), db.CreateNodeParams{
+		StoryID:       toUUID(storyID),
+		BeatIntent:    beatIntent,
+		CharacterRefs: refs,
+		LocationRef:   locRef,
+		Pov:           pov,
+		Tone:          tone,
+		TargetWords:   int32(targetWords),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return toDomainNode(n), nil
+}
+
+func (s *dbGraphNodeService) Get(id uuid.UUID) (*graph.Node, error) {
+	return getNode(s.q, id)
+}
+
+func (s *dbGraphNodeService) Update(id uuid.UUID, beatIntent string, characterRefs []uuid.UUID, locationRef *uuid.UUID, pov, tone string, targetWords int, sceneStructure *graph.SceneStructure) (*graph.Node, error) {
+	refs := make([]pgtype.UUID, len(characterRefs))
+	for i, r := range characterRefs {
+		refs[i] = toUUID(r)
+	}
+	var locRef pgtype.UUID
+	if locationRef != nil {
+		locRef = toUUID(*locationRef)
+	}
+	ssBytes := jsonBytes(graph.SceneStructure{FlowType: graph.FlowMonologue, SituationFlow: ""})
+	if sceneStructure != nil {
+		ssBytes = jsonBytes(sceneStructure)
+	}
+	n, err := s.q.UpdateNode(context.Background(), db.UpdateNodeParams{
+		ID:             toUUID(id),
+		BeatIntent:     beatIntent,
+		CharacterRefs:  refs,
+		LocationRef:    locRef,
+		Pov:            pov,
+		Tone:           tone,
+		TargetWords:    int32(targetWords),
+		SceneStructure: ssBytes,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return toDomainNode(n), nil
+}
+
+func (s *dbGraphNodeService) SetSceneStructure(id uuid.UUID, ss graph.SceneStructure) error {
+	return s.q.UpdateNodeSceneStructure(context.Background(), db.UpdateNodeSceneStructureParams{
+		ID:             toUUID(id),
+		SceneStructure: jsonBytes(ss),
+	})
+}
+
+func (s *dbGraphNodeService) List(storyID uuid.UUID) ([]graph.Node, error) {
+	return listNodes(s.q, storyID)
+}
+
+func toDomainNode(n db.Node) *graph.Node {
+	refs := make([]uuid.UUID, len(n.CharacterRefs))
+	for i, r := range n.CharacterRefs {
+		refs[i] = fromUUID(r)
+	}
+	var locRef *uuid.UUID
+	if n.LocationRef.Valid {
+		l := fromUUID(n.LocationRef)
+		locRef = &l
+	}
+	var ss *graph.SceneStructure
+	if len(n.SceneStructure) > 0 {
+		var s graph.SceneStructure
+		if json.Unmarshal(n.SceneStructure, &s) == nil {
+			ss = &s
+		}
+	}
+	return &graph.Node{
+		ID:             fromUUID(n.ID),
+		StoryID:        fromUUID(n.StoryID),
+		BeatIntent:     n.BeatIntent,
+		CharacterRefs:  refs,
+		LocationRef:    locRef,
+		POV:            n.Pov,
+		Tone:           n.Tone,
+		TargetWords:    int(n.TargetWords),
+		Status:         graph.NodeStatus(n.Status),
+		SceneStructure: ss,
+		CreatedAt:      n.CreatedAt.Time,
+		UpdatedAt:      n.UpdatedAt.Time,
+	}
+}
+
+func getNode(q *db.Queries, id uuid.UUID) (*graph.Node, error) {
+	n, err := q.GetNode(context.Background(), toUUID(id))
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("node %s not found", id)
+		}
+		return nil, err
+	}
+	return toDomainNode(n), nil
+}
+
+func listNodes(q *db.Queries, storyID uuid.UUID) ([]graph.Node, error) {
+	nodes, err := q.ListNodes(context.Background(), toUUID(storyID))
+	if err != nil {
+		return nil, err
+	}
+	result := make([]graph.Node, len(nodes))
+	for i, n := range nodes {
+		result[i] = *toDomainNode(n)
+	}
+	return result, nil
+}
+
+type dbGenerationService struct {
+	q         *db.Queries
+	rivClient *riv.Client[pgx.Tx]
+}
+
+func NewDBGenerationService(q *db.Queries, rivClient *riv.Client[pgx.Tx]) *dbGenerationService {
+	return &dbGenerationService{q: q, rivClient: rivClient}
+}
+
+func (s *dbGenerationService) Generate(nodeID uuid.UUID) (*compiler.Generation, error) {
+	node, err := s.q.GetNode(context.Background(), toUUID(nodeID))
+	if err != nil {
+		return nil, fmt.Errorf("get node: %w", err)
+	}
+
+	storyID := fromUUID(node.StoryID)
+	compiled, err := s.compileContext(storyID, node)
+	if err != nil {
+		return nil, fmt.Errorf("compile context: %w", err)
+	}
+
+	hash := compiled.Hash()
+	promptSnapshot := fmt.Sprintf("POV: %s | Tone: %s | Beat: %s", node.Pov, node.Tone, node.BeatIntent)
+
+	dbGen, err := s.q.CreateGeneration(context.Background(), db.CreateGenerationParams{
+		NodeID:         toUUID(nodeID),
+		ContextHash:    hash,
+		PromptSnapshot: promptSnapshot,
+		Output:         "",
+		Model:          string(llm.ModelSonnet),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create generation: %w", err)
+	}
+
+	genID := fromUUID(dbGen.ID)
+
+	charRefs := make([]uuid.UUID, len(node.CharacterRefs))
+	for i, ref := range node.CharacterRefs {
+		charRefs[i] = fromUUID(ref)
+	}
+	var locRef *uuid.UUID
+	if node.LocationRef.Valid {
+		lr := fromUUID(node.LocationRef)
+		locRef = &lr
+	}
+
+	_, err = s.rivClient.Insert(context.Background(), &river.GenerateSceneArgs{
+		StoryID:       storyID,
+		NodeID:        nodeID,
+		GenID:         genID,
+		ContextHash:   hash,
+		CharacterRefs: charRefs,
+		LocationRef:   locRef,
+		BeatIntent:    node.BeatIntent,
+		POV:           node.Pov,
+		Tone:          node.Tone,
+		TargetWords:   int(node.TargetWords),
+	}, &riv.InsertOpts{
+		Queue: river.QueueGenerate,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("enqueue generate: %w", err)
+	}
+
+	return &compiler.Generation{
+		ID:             genID.String(),
+		NodeID:         nodeID.String(),
+		ContextHash:    hash,
+		PromptSnapshot: promptSnapshot,
+		Output:         "",
+		Model:          string(llm.ModelSonnet),
+	}, nil
+}
+
+func (s *dbGenerationService) compileContext(storyID uuid.UUID, node db.Node) (*compiler.CompiledContext, error) {
+	ctx := &compiler.CompiledContext{
+		BeatIntent:  node.BeatIntent,
+		POV:         node.Pov,
+		Tone:        node.Tone,
+		TargetWords: int(node.TargetWords),
+	}
+
+	var charCards []canon.Card
+	for _, ref := range node.CharacterRefs {
+		c, err := s.q.GetCharacterLatest(context.Background(), ref)
+		if err != nil {
+			continue
+		}
+		charCards = append(charCards, canon.Card{
+			Name:        c.Name,
+			Description: c.Persona,
+			Type:        "character",
+		})
+	}
+	ctx.CharacterCards = charCards
+
+	if node.LocationRef.Valid {
+		loc, err := s.q.GetLocationLatest(context.Background(), node.LocationRef)
+		if err == nil {
+			ctx.LocationCard = &canon.Card{
+				Name:        loc.Name,
+				Description: loc.Description,
+				Type:        "location",
+			}
+		}
+	}
+
+	loreTags := make([]string, 0)
+	for _, cc := range charCards {
+		loreTags = append(loreTags, cc.Name)
+	}
+	lore, err := s.q.SearchLoreByTags(context.Background(), loreTags)
+	if err == nil {
+		for _, l := range lore {
+			ctx.Lore = append(ctx.Lore, l.Content)
+		}
+	}
+
+	return ctx, nil
+}
+
+func (s *dbGenerationService) AcceptGeneration(nodeID, genID uuid.UUID) error {
+	ctx := context.Background()
+	if err := s.q.AcceptGeneration(ctx, toUUID(genID)); err != nil {
+		return err
+	}
+	return s.q.RejectOtherGenerations(ctx, db.RejectOtherGenerationsParams{
+		NodeID: toUUID(nodeID),
+		ID:     toUUID(genID),
+	})
+}
+
+func (s *dbGenerationService) ListGenerations(nodeID uuid.UUID) ([]compiler.Generation, error) {
+	gens, err := s.q.ListGenerationsForNode(context.Background(), toUUID(nodeID))
+	if err != nil {
+		return nil, err
+	}
+	result := make([]compiler.Generation, len(gens))
+	for i, g := range gens {
+		result[i] = compiler.Generation{
+			ID:             fromUUID(g.ID).String(),
+			NodeID:         fromUUID(g.NodeID).String(),
+			ContextHash:    g.ContextHash,
+			PromptSnapshot: g.PromptSnapshot,
+			Output:         g.Output,
+			Model:          g.Model,
+			Accepted:       g.Accepted,
+		}
+	}
+	return result, nil
+}
+
+type dbStoryGeneratorService struct {
+	q         *db.Queries
+	rivClient *riv.Client[pgx.Tx]
+}
+
+func NewDBStoryGeneratorService(q *db.Queries, rivClient *riv.Client[pgx.Tx]) *dbStoryGeneratorService {
+	return &dbStoryGeneratorService{q: q, rivClient: rivClient}
+}
+
+func (s *dbStoryGeneratorService) GenerateStory(synopsis string) (*StoryGenerateResult, error) {
+	_, err := s.rivClient.Insert(context.Background(), &river.GenerateStoryArgs{
+		Synopsis: synopsis,
+	}, &riv.InsertOpts{
+		Queue: river.QueueDefault,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("enqueue story generation: %w", err)
+	}
+	return &StoryGenerateResult{
+		StoryID: "",
+		Status:  "pending",
+	}, nil
+}

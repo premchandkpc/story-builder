@@ -116,7 +116,7 @@ func (h *GenerationHandler) AcceptGeneration(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	genID, err := uuid.Parse(req.GenerationID)
+	genID, err := parseUUID(req.GenerationID)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid generation_id")
 		return

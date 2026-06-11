@@ -32,7 +32,12 @@ func (h *StoryHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	story, err := h.Service.Create(req.Title)
+	title, err := normalizeStoryTitle(req.Title)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	story, err := h.Service.Create(title)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -165,20 +170,15 @@ func (h *NodeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	charRefs := make([]uuid.UUID, len(req.CharacterRefs))
-	for i, s := range req.CharacterRefs {
-		charRefs[i], err = uuid.Parse(s)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid character_ref")
-			return
-		}
+	charRefs, err := parseUUIDList(req.CharacterRefs)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
-	var locRef *uuid.UUID
-	if req.LocationRef != nil {
-		parsed, err := uuid.Parse(*req.LocationRef)
-		if err == nil {
-			locRef = &parsed
-		}
+	locRef, err := parseOptionalUUID(req.LocationRef)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 	node, err := h.Service.Create(storyID, req.BeatIntent, charRefs, locRef, req.POV, req.Tone, req.TargetWords)
 	if err != nil {
@@ -186,7 +186,10 @@ func (h *NodeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.SceneStructure != nil {
-		_ = h.Service.SetSceneStructure(node.ID, *req.SceneStructure)
+		if err := h.Service.SetSceneStructure(node.ID, *req.SceneStructure); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 		node.SceneStructure = req.SceneStructure
 	}
 	writeJSON(w, http.StatusCreated, node)
@@ -217,14 +220,15 @@ func (h *NodeHandler) Update(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	charRefs := make([]uuid.UUID, len(req.CharacterRefs))
-	for i, s := range req.CharacterRefs {
-		charRefs[i], _ = uuid.Parse(s)
+	charRefs, err := parseUUIDList(req.CharacterRefs)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
-	var locRef *uuid.UUID
-	if req.LocationRef != nil {
-		parsed, _ := uuid.Parse(*req.LocationRef)
-		locRef = &parsed
+	locRef, err := parseOptionalUUID(req.LocationRef)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 	node, err := h.Service.Update(id, req.BeatIntent, charRefs, locRef, req.POV, req.Tone, req.TargetWords, req.SceneStructure)
 	if err != nil {

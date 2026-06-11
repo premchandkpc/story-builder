@@ -10,19 +10,19 @@ import (
 )
 
 type Server struct {
-	router              *chi.Mux
-	characterHandler    *CharacterHandler
-	actorHandler        *ActorHandler
-	traitHandler        *CharacterTraitHandler
-	castingHandler      *CastingHandler
-	locationHandler     *LocationHandler
-	loreHandler         *LoreHandler
-	storyHandler        *StoryHandler
-	nodeHandler         *NodeHandler
-	genHandler          *GenerationHandler
-	sceneHandler        *SceneHandler
-	summaryHandler      *SummaryHandler
-	storyGenHandler     *StoryGeneratorHandler
+	router           *chi.Mux
+	characterHandler *CharacterHandler
+	actorHandler     *ActorHandler
+	traitHandler     *CharacterTraitHandler
+	castingHandler   *CastingHandler
+	locationHandler  *LocationHandler
+	loreHandler      *LoreHandler
+	storyHandler     *StoryHandler
+	nodeHandler      *NodeHandler
+	genHandler       *GenerationHandler
+	sceneHandler     *SceneHandler
+	summaryHandler   *SummaryHandler
+	storyGenHandler  *StoryGeneratorHandler
 }
 
 func NewServer(
@@ -73,6 +73,9 @@ func (s *Server) routes() {
 	}))
 
 	r.Route("/api/v1", func(r chi.Router) {
+		r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		})
 		r.Post("/stories/generate", s.storyGenHandler.Generate)
 
 		r.Route("/actors", func(r chi.Router) {

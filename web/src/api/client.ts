@@ -102,6 +102,9 @@ export const api = {
       }),
   },
 
+  // Health
+  health: () => fetchJSON<{ status: string }>('/healthz'),
+
   // Stories
   stories: {
     list: () => fetchJSON<Story[]>("/stories"),
