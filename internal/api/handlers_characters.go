@@ -6,16 +6,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/premchand/story-builder/internal/canon"
 )
 
 type CharacterHandler struct {
-	Service interface {
-		Create(name, persona, backstory, moralAlignment string, personality, flaws, goals, traits, voiceSamples []string, parentID *uuid.UUID, relationships map[string]string) (*canon.Character, error)
-		Get(id uuid.UUID, version int) (*canon.Character, error)
-		Update(id uuid.UUID, name, persona, backstory, moralAlignment string, personality, flaws, goals, traits, voiceSamples []string, parentID *uuid.UUID, relationships map[string]string) (*canon.Character, error)
-		List() ([]canon.Character, error)
-	}
+	Service CharacterService
 }
 
 type createCharacterRequest struct {
@@ -99,12 +93,7 @@ func (h *CharacterHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 type ActorHandler struct {
-	Service interface {
-		Create(name, gender, ethnicity, race, skinTone, eyeColor, hairColor, hairStyle, build, nationality string, heightCm, weightKg, age int, traits map[string]interface{}) (*canon.Actor, error)
-		Get(id uuid.UUID) (*canon.Actor, error)
-		Update(id uuid.UUID, name, gender, ethnicity, race, skinTone, eyeColor, hairColor, hairStyle, build, nationality string, heightCm, weightKg, age int, traits map[string]interface{}) (*canon.Actor, error)
-		List() ([]canon.Actor, error)
-	}
+	Service ActorService
 }
 
 type createActorRequest struct {
@@ -181,14 +170,7 @@ func (h *ActorHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 type CharacterTraitHandler struct {
-	Service interface {
-		Create(name, category, description string) (*canon.CharacterTrait, error)
-		Get(id uuid.UUID) (*canon.CharacterTrait, error)
-		List() ([]canon.CharacterTrait, error)
-		Assign(characterID, traitID uuid.UUID, intensity int, note string) error
-		Unassign(characterID, traitID uuid.UUID) error
-		GetAssignments(characterID uuid.UUID) ([]canon.TraitAssignment, error)
-	}
+	Service TraitService
 }
 
 type createCharacterTraitRequest struct {
@@ -296,12 +278,7 @@ func (h *CharacterTraitHandler) GetAssignments(w http.ResponseWriter, r *http.Re
 }
 
 type CastingHandler struct {
-	Service interface {
-		Create(storyID, actorID, characterID uuid.UUID, roleType string) (*canon.Casting, error)
-		GetForStory(storyID uuid.UUID) ([]canon.Casting, error)
-		GetForCharacter(characterID uuid.UUID) ([]canon.Casting, error)
-		GetForActor(actorID uuid.UUID) ([]canon.Casting, error)
-	}
+	Service CastingService
 }
 
 type createCastingRequest struct {
@@ -382,12 +359,7 @@ func (h *CastingHandler) ListForActor(w http.ResponseWriter, r *http.Request) {
 }
 
 type LocationHandler struct {
-	Service interface {
-		Create(name, description string, props []string) (*canon.Location, error)
-		Get(id uuid.UUID, version int) (*canon.Location, error)
-		Update(id uuid.UUID, description string, props []string) (*canon.Location, error)
-		List() ([]canon.Location, error)
-	}
+	Service LocationService
 }
 
 type createLocationRequest struct {

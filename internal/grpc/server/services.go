@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/premchand/story-builder/internal/api"
 	"github.com/premchand/story-builder/internal/canon"
 	"github.com/premchand/story-builder/internal/compiler"
 	"github.com/premchand/story-builder/internal/graph"
@@ -16,77 +17,7 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
-// ── Domain service interfaces ──────────────────────────────────
-
-type CharService interface {
-	Create(name, persona, backstory, moralAlignment string, personality, flaws, goals, traits, voiceSamples []string, parentID *uuid.UUID, relationships map[string]string) (*canon.Character, error)
-	Get(id uuid.UUID, version int) (*canon.Character, error)
-	Update(id uuid.UUID, name, persona, backstory, moralAlignment string, personality, flaws, goals, traits, voiceSamples []string, parentID *uuid.UUID, relationships map[string]string) (*canon.Character, error)
-	List() ([]canon.Character, error)
-}
-
-type ActorService interface {
-	Create(name, gender, ethnicity, race, skinTone, eyeColor, hairColor, hairStyle, build, nationality string, heightCm, weightKg, age int, traits map[string]interface{}) (*canon.Actor, error)
-	Get(id uuid.UUID) (*canon.Actor, error)
-	Update(id uuid.UUID, name, gender, ethnicity, race, skinTone, eyeColor, hairColor, hairStyle, build, nationality string, heightCm, weightKg, age int, traits map[string]interface{}) (*canon.Actor, error)
-	List() ([]canon.Actor, error)
-}
-
-type TraitService interface {
-	Create(name, category, description string) (*canon.CharacterTrait, error)
-	Get(id uuid.UUID) (*canon.CharacterTrait, error)
-	List() ([]canon.CharacterTrait, error)
-	Assign(characterID, traitID uuid.UUID, intensity int, note string) error
-	Unassign(characterID, traitID uuid.UUID) error
-	GetAssignments(characterID uuid.UUID) ([]canon.TraitAssignment, error)
-}
-
-type CastingService interface {
-	Create(storyID, actorID, characterID uuid.UUID, roleType string) (*canon.Casting, error)
-	GetForStory(storyID uuid.UUID) ([]canon.Casting, error)
-	GetForCharacter(characterID uuid.UUID) ([]canon.Casting, error)
-	GetForActor(actorID uuid.UUID) ([]canon.Casting, error)
-}
-
-type LocService interface {
-	Create(name, description string, props []string) (*canon.Location, error)
-	Get(id uuid.UUID, version int) (*canon.Location, error)
-	Update(id uuid.UUID, description string, props []string) (*canon.Location, error)
-	List() ([]canon.Location, error)
-}
-
-type LoreSvc interface {
-	Create(tags []string, content string) (*canon.Lore, error)
-	List() ([]canon.Lore, error)
-	SearchByTags(tags []string) ([]canon.Lore, error)
-	SearchSimilar(embedding []float32, limit int) ([]canon.Lore, error)
-}
-
-type StorySvc interface {
-	Create(title string) (*graph.Story, error)
-	Get(id uuid.UUID) (*graph.Story, error)
-	List() ([]graph.Story, error)
-	CreateEdge(storyID, fromNode, toNode uuid.UUID, edgeType string) error
-	ListEdges(storyID uuid.UUID) ([]graph.Edge, error)
-	GetNode(id uuid.UUID) (*graph.Node, error)
-	ListNodes(storyID uuid.UUID) ([]graph.Node, error)
-	TopologicalSort(storyID uuid.UUID) ([]graph.Node, error)
-}
-
-type NodeSvc interface {
-	Create(storyID uuid.UUID, beatIntent string, characterRefs []uuid.UUID, locationRef *uuid.UUID, pov, tone string, targetWords int) (*graph.Node, error)
-	Get(id uuid.UUID) (*graph.Node, error)
-	Update(id uuid.UUID, beatIntent string, characterRefs []uuid.UUID, locationRef *uuid.UUID, pov, tone string, targetWords int, sceneStructure *graph.SceneStructure) (*graph.Node, error)
-	SetSceneStructure(id uuid.UUID, ss graph.SceneStructure) error
-	List(storyID uuid.UUID) ([]graph.Node, error)
-}
-
-type GenService interface {
-	Generate(nodeID uuid.UUID) (*compiler.Generation, error)
-	AcceptGeneration(nodeID, genID uuid.UUID) error
-	ListGenerations(nodeID uuid.UUID) ([]compiler.Generation, error)
-}
-
+// StoryGenService has a different signature than api.StoryGeneratorService
 type StoryGenService interface {
 	GenerateStory(synopsis string) (storyID string, status string, err error)
 }
@@ -95,7 +26,7 @@ type StoryGenService interface {
 
 type characterSrv struct {
 	pb.UnimplementedCharacterServiceServer
-	svc CharService
+	svc api.CharacterService
 }
 
 func (s *characterSrv) CreateCharacter(ctx context.Context, req *pb.CreateCharacterRequest) (*pb.Character, error) {
@@ -168,7 +99,7 @@ func domainCharToProto(c *canon.Character) *pb.Character {
 
 type actorSrv struct {
 	pb.UnimplementedActorServiceServer
-	svc ActorService
+	svc api.ActorService
 }
 
 func (s *actorSrv) CreateActor(ctx context.Context, req *pb.CreateActorRequest) (*pb.Actor, error) {
@@ -242,7 +173,7 @@ func domainActorToProto(a *canon.Actor) *pb.Actor {
 
 type traitSrv struct {
 	pb.UnimplementedCharacterTraitServiceServer
-	svc TraitService
+	svc api.TraitService
 }
 
 func (s *traitSrv) CreateTrait(ctx context.Context, req *pb.CreateCharacterTraitRequest) (*pb.CharacterTrait, error) {
@@ -324,7 +255,7 @@ func (s *traitSrv) GetTraitAssignments(ctx context.Context, req *pb.GetTraitAssi
 
 type castingSrv struct {
 	pb.UnimplementedCastingServiceServer
-	svc CastingService
+	svc api.CastingService
 }
 
 func (s *castingSrv) CreateCasting(ctx context.Context, req *pb.CreateCastingRequest) (*pb.Casting, error) {
@@ -374,7 +305,7 @@ func listCasting(list []canon.Casting, err error) (*pb.ListCastingResponse, erro
 
 type locationSrv struct {
 	pb.UnimplementedLocationServiceServer
-	svc LocService
+	svc api.LocationService
 }
 
 func (s *locationSrv) CreateLocation(ctx context.Context, req *pb.CreateLocationRequest) (*pb.Location, error) {
@@ -426,7 +357,7 @@ func domainLocToProto(l *canon.Location) *pb.Location {
 
 type loreSrv struct {
 	pb.UnimplementedLoreServiceServer
-	svc LoreSvc
+	svc api.LoreService
 }
 
 func (s *loreSrv) CreateLore(ctx context.Context, req *pb.CreateLoreRequest) (*pb.Lore, error) {
@@ -495,7 +426,7 @@ func (s *loreSrv) SearchSimilar(ctx context.Context, req *pb.SearchLoreSimilarRe
 
 type storySrv struct {
 	pb.UnimplementedStoryServiceServer
-	svc StorySvc
+	svc api.StoryService
 }
 
 func (s *storySrv) CreateStory(ctx context.Context, req *pb.CreateStoryRequest) (*pb.Story, error) {
@@ -618,7 +549,7 @@ func protoEdgeTypeToDomain(t pb.EdgeType) graph.EdgeType {
 
 type nodeSrv struct {
 	pb.UnimplementedNodeServiceServer
-	svc NodeSvc
+	svc api.NodeService
 }
 
 func (s *nodeSrv) CreateNode(ctx context.Context, req *pb.CreateNodeRequest) (*pb.Node, error) {
@@ -790,7 +721,7 @@ func protoSceneStructureToDomain(ss *pb.SceneStructure) graph.SceneStructure {
 
 type generationSrv struct {
 	pb.UnimplementedGenerationServiceServer
-	svc GenService
+	svc api.GenerationService
 }
 
 func (s *generationSrv) Generate(ctx context.Context, req *pb.GenerateRequest) (*pb.Generation, error) {
@@ -1000,15 +931,15 @@ type Server struct {
 }
 
 func New(
-	charSvc CharService,
-	actorSvc ActorService,
-	traitSvc TraitService,
-	castingSvc CastingService,
-	locSvc LocService,
-	loreSvc LoreSvc,
-	storySvc StorySvc,
-	nodeSvc NodeSvc,
-	genSvc GenService,
+	charSvc api.CharacterService,
+	actorSvc api.ActorService,
+	traitSvc api.TraitService,
+	castingSvc api.CastingService,
+	locSvc api.LocationService,
+	loreSvc api.LoreService,
+	storySvc api.StoryService,
+	nodeSvc api.NodeService,
+	genSvc api.GenerationService,
 	sceneSvc scene.SceneService,
 	summarySvc compiler.SummaryService,
 	storyGenSvc StoryGenService,

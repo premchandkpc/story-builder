@@ -26,6 +26,7 @@ func TestSmoke_CriticalFlows(t *testing.T) {
 	summarySvc := NewMemorySummaryService()
 	storyGenSvc := NewMemoryStoryGeneratorService()
 	castingSvc := NewCastingService()
+	blueprintSvc := NewInMemoryBlueprintService()
 
 	srv := NewServer(
 		&CharacterHandler{Service: charSvc},
@@ -34,7 +35,7 @@ func TestSmoke_CriticalFlows(t *testing.T) {
 		&CastingHandler{Service: castingSvc},
 		&LocationHandler{Service: locSvc},
 		&LoreHandler{Service: loreSvc},
-		&StoryHandler{Service: storySvc},
+		&StoryHandler{Service: storySvc, BlueprintService: blueprintSvc},
 		&NodeHandler{Service: nodeSvc},
 		&GenerationHandler{Service: genSvc},
 		&SceneHandler{SceneService: sceneSvc},
@@ -102,6 +103,18 @@ func TestSmoke_CriticalFlows(t *testing.T) {
 		}
 		if len(stories) == 0 {
 			t.Fatal("expected at least 1 story")
+		}
+	})
+
+	t.Run("create story blueprint", func(t *testing.T) {
+		body := `{"premise":"A thief steals the moon","theme":"sacrifice","conflict":"the city hunts the thief","acts":[{"title":"Act I","goal":"introduce the thief"}]}`
+		res, err := client.Post(ts.URL+"/api/v1/stories/"+uuid.NewString()+"/blueprint/", "application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		if res.StatusCode != 404 {
+			t.Fatalf("expected 404 for unknown story id, got %d", res.StatusCode)
 		}
 	})
 

@@ -124,6 +124,10 @@ func (s *Server) routes() {
 				r.Post("/", s.castingHandler.Create)
 				r.Get("/", s.castingHandler.ListForStory)
 			})
+			r.Route("/{storyID}/blueprint", func(r chi.Router) {
+				r.Post("/", s.storyHandler.UpsertBlueprint)
+				r.Get("/", s.storyHandler.GetBlueprint)
+			})
 			r.Route("/{storyID}/nodes", func(r chi.Router) {
 				r.Post("/", s.nodeHandler.Create)
 				r.Get("/", s.nodeHandler.List)

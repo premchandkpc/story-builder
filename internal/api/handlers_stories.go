@@ -10,16 +10,8 @@ import (
 )
 
 type StoryHandler struct {
-	Service interface {
-		Create(title string) (*graph.Story, error)
-		Get(id uuid.UUID) (*graph.Story, error)
-		List() ([]graph.Story, error)
-		CreateEdge(storyID, fromNode, toNode uuid.UUID, edgeType string) error
-		ListEdges(storyID uuid.UUID) ([]graph.Edge, error)
-		GetNode(id uuid.UUID) (*graph.Node, error)
-		ListNodes(storyID uuid.UUID) ([]graph.Node, error)
-		TopologicalSort(storyID uuid.UUID) ([]graph.Node, error)
-	}
+	Service          StoryService
+	BlueprintService BlueprintService
 }
 
 type createStoryRequest struct {
@@ -140,13 +132,7 @@ func (h *StoryHandler) Topology(w http.ResponseWriter, r *http.Request) {
 }
 
 type NodeHandler struct {
-	Service interface {
-		Create(storyID uuid.UUID, beatIntent string, characterRefs []uuid.UUID, locationRef *uuid.UUID, pov, tone string, targetWords int) (*graph.Node, error)
-		Get(id uuid.UUID) (*graph.Node, error)
-		Update(id uuid.UUID, beatIntent string, characterRefs []uuid.UUID, locationRef *uuid.UUID, pov, tone string, targetWords int, sceneStructure *graph.SceneStructure) (*graph.Node, error)
-		SetSceneStructure(id uuid.UUID, ss graph.SceneStructure) error
-		List(storyID uuid.UUID) ([]graph.Node, error)
-	}
+	Service NodeService
 }
 
 type createNodeRequest struct {
@@ -258,9 +244,7 @@ type StoryGenerateResult struct {
 }
 
 type StoryGeneratorHandler struct {
-	Service interface {
-		GenerateStory(synopsis string) (*StoryGenerateResult, error)
-	}
+	Service StoryGeneratorService
 }
 
 type storyGenerateRequest struct {

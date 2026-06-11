@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -161,10 +162,50 @@ func NewExtractStateWorker(extract llm.ExtractionService, q *db.Queries) *Extrac
 
 func (w *ExtractStateWorker) Work(ctx context.Context, job *river.Job[ExtractStateArgs]) error {
 	args := job.Args
-	_, err := w.Extract.ExtractState(args.SceneText)
+	result, err := w.Extract.ExtractState(args.SceneText)
 	if err != nil {
 		return fmt.Errorf("extract state: %w", err)
 	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Errorf("marshal extract result: %w", err)
+	}
+	var deltas ledger.StateDeltas
+	if err := json.Unmarshal(data, &deltas); err != nil {
+		return fmt.Errorf("unmarshal state deltas: %w", err)
+	}
+
+	for _, d := range deltas.Deltas {
+		cs := ledger.CharacterState{
+			StoryID:     args.StoryID,
+			CharacterID: d.Character,
+			AsOfNode:    args.NodeID,
+			Location:    d.NewLocation,
+			Knows:       d.Learned,
+			Mood:        d.Mood,
+			Items:       d.ItemsGained,
+		}
+		cs.Relationships = make(map[string]string)
+		for _, rel := range d.RelationshipChanges {
+			cs.Relationships[rel.With.String()] = rel.Change
+		}
+
+		stateJSON, err := json.Marshal(cs)
+		if err != nil {
+			return fmt.Errorf("marshal character state: %w", err)
+		}
+
+		if err := w.Queries.UpsertCharacterState(ctx, db.UpsertCharacterStateParams{
+			StoryID:     toUUID(args.StoryID),
+			CharacterID: toUUID(d.Character),
+			AsOfNode:    toUUID(args.NodeID),
+			State:       stateJSON,
+		}); err != nil {
+			return fmt.Errorf("upsert character state: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -264,10 +305,12 @@ func NewValidateSceneWorker(svc llm.ValidationService) *ValidateSceneWorker {
 
 func (w *ValidateSceneWorker) Work(ctx context.Context, job *river.Job[ValidateSceneArgs]) error {
 	args := job.Args
-	_, err := w.Validate.ValidateAgainstCanon(args.CompiledCanon, args.CharState, args.SceneText)
+	result, err := w.Validate.ValidateAgainstCanon(args.CompiledCanon, args.CharState, args.SceneText)
 	if err != nil {
 		return fmt.Errorf("validate scene: %w", err)
 	}
+	data, _ := json.Marshal(result)
+	log.Printf("validation result for generation %s: %s", args.GenerationID, string(data))
 	return nil
 }
 

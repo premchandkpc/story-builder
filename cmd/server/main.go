@@ -65,6 +65,7 @@ func main() {
 	var sceneHandler *api.SceneHandler
 	var summaryHandler *api.SummaryHandler
 	var storyGenHandler *api.StoryGeneratorHandler
+	blueprintService := api.NewInMemoryBlueprintService()
 
 	if dbOk {
 		q := db.New(pool)
@@ -121,7 +122,7 @@ func main() {
 		castingHandler = &api.CastingHandler{Service: api.NewDBCastingService(q)}
 		locHandler = &api.LocationHandler{Service: api.NewDBLocService(q)}
 		loreHandler = &api.LoreHandler{Service: api.NewDBLoreService(q)}
-		storyHandler = &api.StoryHandler{Service: api.NewDBGraphStoryService(q)}
+		storyHandler = &api.StoryHandler{Service: api.NewDBGraphStoryService(q), BlueprintService: blueprintService}
 		nodeHandler = &api.NodeHandler{Service: api.NewDBGraphNodeService(q)}
 		genHandler = &api.GenerationHandler{Service: api.NewDBGenerationService(q, rivClient)}
 		sceneHandler = &api.SceneHandler{SceneService: api.NewDBSceneService(q)}
@@ -135,7 +136,7 @@ func main() {
 		castingHandler = &api.CastingHandler{Service: api.NewCastingService()}
 		locHandler = &api.LocationHandler{Service: api.NewLocService()}
 		loreHandler = &api.LoreHandler{Service: api.NewLoreService()}
-		storyHandler = &api.StoryHandler{Service: api.NewGraphStoryService(gs)}
+		storyHandler = &api.StoryHandler{Service: api.NewGraphStoryService(gs), BlueprintService: blueprintService}
 		nodeHandler = &api.NodeHandler{Service: api.NewGraphNodeService(gs)}
 		genHandler = &api.GenerationHandler{Service: api.NewGenerationService()}
 		sceneHandler = &api.SceneHandler{SceneService: api.NewMemorySceneService()}
@@ -162,15 +163,15 @@ func main() {
 
 	// gRPC server
 	grpcSrv := grpcserver.New(
-		charHandler.Service.(grpcserver.CharService),
-		actorHandler.Service.(grpcserver.ActorService),
-		traitHandler.Service.(grpcserver.TraitService),
-		castingHandler.Service.(grpcserver.CastingService),
-		locHandler.Service.(grpcserver.LocService),
-		loreHandler.Service.(grpcserver.LoreSvc),
-		storyHandler.Service.(grpcserver.StorySvc),
-		nodeHandler.Service.(grpcserver.NodeSvc),
-		genHandler.Service.(grpcserver.GenService),
+		charHandler.Service,
+		actorHandler.Service,
+		traitHandler.Service,
+		castingHandler.Service,
+		locHandler.Service,
+		loreHandler.Service,
+		storyHandler.Service,
+		nodeHandler.Service,
+		genHandler.Service,
 		sceneHandler.SceneService,
 		summaryHandler.Service,
 		storyGenWrapper{svc: storyGenHandler.Service},
@@ -196,40 +197,38 @@ func main() {
 	}
 }
 
-	type config struct {
-		Port         string
-		GrpcPort     string
-		DatabaseURL  string
-		AnthropicKey string
-		OllamaURL    string
-	}
+type config struct {
+	Port         string
+	GrpcPort     string
+	DatabaseURL  string
+	AnthropicKey string
+	OllamaURL    string
+}
 
-	func configFromEnv() config {
-		port := os.Getenv("PORT")
-		if port == "" {
-			port = "8080"
-		}
-		grpcPort := os.Getenv("GRPC_PORT")
-		if grpcPort == "" {
-			grpcPort = "9090"
-		}
-		dbURL := os.Getenv("DATABASE_URL")
-		if dbURL == "" {
-			dbURL = "postgres://storybuilder:storybuilder@localhost:5432/storybuilder?sslmode=disable"
-		}
-		return config{
-			Port:         port,
-			GrpcPort:     grpcPort,
-			DatabaseURL:  dbURL,
-			AnthropicKey: os.Getenv("ANTHROPIC_API_KEY"),
-			OllamaURL:    os.Getenv("OLLAMA_URL"),
-		}
+func configFromEnv() config {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
+	grpcPort := os.Getenv("GRPC_PORT")
+	if grpcPort == "" {
+		grpcPort = "9090"
+	}
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		dbURL = "postgres://storybuilder:storybuilder@localhost:5432/storybuilder?sslmode=disable"
+	}
+	return config{
+		Port:         port,
+		GrpcPort:     grpcPort,
+		DatabaseURL:  dbURL,
+		AnthropicKey: os.Getenv("ANTHROPIC_API_KEY"),
+		OllamaURL:    os.Getenv("OLLAMA_URL"),
+	}
+}
 
 type storyGenWrapper struct {
-	svc interface {
-		GenerateStory(synopsis string) (*api.StoryGenerateResult, error)
-	}
+	svc api.StoryGeneratorService
 }
 
 func (w storyGenWrapper) GenerateStory(synopsis string) (string, string, error) {

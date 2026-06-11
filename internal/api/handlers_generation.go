@@ -7,19 +7,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/premchand/story-builder/internal/canon"
 	"github.com/premchand/story-builder/internal/compiler"
 	"github.com/premchand/story-builder/internal/graph"
 	"github.com/premchand/story-builder/internal/scene"
 )
 
 type LoreHandler struct {
-	Service interface {
-		Create(tags []string, content string) (*canon.Lore, error)
-		List() ([]canon.Lore, error)
-		SearchByTags(tags []string) ([]canon.Lore, error)
-		SearchSimilar(embedding []float32, limit int) ([]canon.Lore, error)
-	}
+	Service LoreService
 }
 
 type createLoreRequest struct {
@@ -80,11 +74,7 @@ func (h *LoreHandler) Search(w http.ResponseWriter, r *http.Request) {
 }
 
 type GenerationHandler struct {
-	Service interface {
-		Generate(nodeID uuid.UUID) (*compiler.Generation, error)
-		AcceptGeneration(nodeID, genID uuid.UUID) error
-		ListGenerations(nodeID uuid.UUID) ([]compiler.Generation, error)
-	}
+	Service GenerationService
 }
 
 type acceptGenerationRequest struct {
