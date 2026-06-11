@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/premchand/story-builder/internal/timeline"
 )
 
 type Blueprint struct {
@@ -50,6 +51,23 @@ func (b *Blueprint) Validate() error {
 		}
 	}
 	return nil
+}
+
+type StoryAggregate struct {
+	Blueprint     *Blueprint       `json:"blueprint,omitempty"`
+	Timeline      []timeline.Event `json:"timeline,omitempty"`
+	PlotThreads   []PlotThread     `json:"plot_threads,omitempty"`
+	CharacterArcs []CharacterArc   `json:"character_arcs,omitempty"`
+}
+
+func (s *StoryAggregate) Validate() error {
+	if s == nil {
+		return fmt.Errorf("story aggregate is required")
+	}
+	if s.Blueprint == nil {
+		return fmt.Errorf("blueprint is required")
+	}
+	return s.Blueprint.Validate()
 }
 
 type MemoryStore struct {

@@ -128,6 +128,10 @@ func (s *Server) routes() {
 				r.Post("/", s.storyHandler.UpsertBlueprint)
 				r.Get("/", s.storyHandler.GetBlueprint)
 			})
+			r.Route("/{storyID}/timeline", func(r chi.Router) {
+				r.Post("/", s.storyHandler.UpsertTimelineEvent)
+				r.Get("/", s.storyHandler.ListTimelineEvents)
+			})
 			r.Route("/{storyID}/nodes", func(r chi.Router) {
 				r.Post("/", s.nodeHandler.Create)
 				r.Get("/", s.nodeHandler.List)

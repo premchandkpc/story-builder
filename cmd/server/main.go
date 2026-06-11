@@ -66,6 +66,7 @@ func main() {
 	var summaryHandler *api.SummaryHandler
 	var storyGenHandler *api.StoryGeneratorHandler
 	blueprintService := api.NewInMemoryBlueprintService()
+	timelineService := api.NewInMemoryTimelineService()
 
 	if dbOk {
 		q := db.New(pool)
@@ -122,7 +123,7 @@ func main() {
 		castingHandler = &api.CastingHandler{Service: api.NewDBCastingService(q)}
 		locHandler = &api.LocationHandler{Service: api.NewDBLocService(q)}
 		loreHandler = &api.LoreHandler{Service: api.NewDBLoreService(q)}
-		storyHandler = &api.StoryHandler{Service: api.NewDBGraphStoryService(q), BlueprintService: blueprintService}
+		storyHandler = &api.StoryHandler{Service: api.NewDBGraphStoryService(q), BlueprintService: blueprintService, TimelineService: timelineService}
 		nodeHandler = &api.NodeHandler{Service: api.NewDBGraphNodeService(q)}
 		genHandler = &api.GenerationHandler{Service: api.NewDBGenerationService(q, rivClient)}
 		sceneHandler = &api.SceneHandler{SceneService: api.NewDBSceneService(q)}
@@ -136,7 +137,7 @@ func main() {
 		castingHandler = &api.CastingHandler{Service: api.NewCastingService()}
 		locHandler = &api.LocationHandler{Service: api.NewLocService()}
 		loreHandler = &api.LoreHandler{Service: api.NewLoreService()}
-		storyHandler = &api.StoryHandler{Service: api.NewGraphStoryService(gs), BlueprintService: blueprintService}
+		storyHandler = &api.StoryHandler{Service: api.NewGraphStoryService(gs), BlueprintService: blueprintService, TimelineService: timelineService}
 		nodeHandler = &api.NodeHandler{Service: api.NewGraphNodeService(gs)}
 		genHandler = &api.GenerationHandler{Service: api.NewGenerationService()}
 		sceneHandler = &api.SceneHandler{SceneService: api.NewMemorySceneService()}
@@ -240,14 +241,19 @@ func (w storyGenWrapper) GenerateStory(synopsis string) (string, string, error) 
 }
 
 func createLLMClient(cfg config) llm.LLMClient {
+	var anthropic llm.LLMClient
 	if cfg.AnthropicKey != "" {
+		anthropic = llm.NewAnthropicClient(cfg.AnthropicKey)
 		log.Println("using anthropic client")
-		return llm.NewAnthropicClient(cfg.AnthropicKey)
+	} else {
+		log.Println("anthropic key not set, falling back to ollama")
 	}
+
 	ollamaURL := cfg.OllamaURL
 	if ollamaURL == "" {
 		ollamaURL = "http://localhost:11434"
 	}
+	ollama := llm.NewOllamaClient(ollamaURL)
 	log.Printf("using ollama client (%s)", ollamaURL)
-	return llm.NewOllamaClient(ollamaURL)
+	return llm.NewRouter(anthropic, ollama)
 }

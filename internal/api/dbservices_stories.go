@@ -269,7 +269,7 @@ func (s *dbGenerationService) Generate(nodeID uuid.UUID) (*compiler.Generation, 
 	}
 
 	hash := compiled.Hash()
-	promptSnapshot := fmt.Sprintf("POV: %s | Tone: %s | Beat: %s", node.Pov, node.Tone, node.BeatIntent)
+	promptSnapshot := compiled.BuildScenePromptSnapshot()
 
 	dbGen, err := s.q.CreateGeneration(context.Background(), db.CreateGenerationParams{
 		NodeID:         toUUID(nodeID),
@@ -374,10 +374,79 @@ func (s *dbGenerationService) AcceptGeneration(nodeID, genID uuid.UUID) error {
 	if err := s.q.AcceptGeneration(ctx, toUUID(genID)); err != nil {
 		return err
 	}
-	return s.q.RejectOtherGenerations(ctx, db.RejectOtherGenerationsParams{
+	if err := s.q.RejectOtherGenerations(ctx, db.RejectOtherGenerationsParams{
 		NodeID: toUUID(nodeID),
 		ID:     toUUID(genID),
-	})
+	}); err != nil {
+		return err
+	}
+
+	if s.rivClient == nil {
+		return nil
+	}
+
+	node, err := s.q.GetNode(ctx, toUUID(nodeID))
+	if err != nil {
+		return err
+	}
+	storyID := fromUUID(node.StoryID)
+
+	var charRefs []uuid.UUID
+	for _, ref := range node.CharacterRefs {
+		charRefs = append(charRefs, fromUUID(ref))
+	}
+
+	gens, err := s.q.ListGenerationsForNode(ctx, toUUID(nodeID))
+	if err != nil {
+		return err
+	}
+	var acceptedGeneration db.Generation
+	for _, g := range gens {
+		if fromUUID(g.ID) == genID {
+			acceptedGeneration = g
+			break
+		}
+	}
+	if acceptedGeneration.ID.Valid {
+		_, err = s.rivClient.Insert(ctx, &river.ExtractStateArgs{
+			StoryID:       storyID,
+			NodeID:        nodeID,
+			GenerationID:  genID,
+			SceneText:     acceptedGeneration.Output,
+			CharacterRefs: charRefs,
+		}, &riv.InsertOpts{Queue: river.QueueExtract})
+		if err != nil {
+			return fmt.Errorf("enqueue extract: %w", err)
+		}
+
+		prevSummary := ""
+		if summary, err := s.q.GetSummaryByLevel(ctx, db.GetSummaryByLevelParams{StoryID: toUUID(storyID), Level: "story"}); err == nil {
+			prevSummary = summary.Content
+		}
+		_, err = s.rivClient.Insert(ctx, &river.UpdateSummaryArgs{
+			StoryID:         storyID,
+			NodeID:          nodeID,
+			PreviousSummary: prevSummary,
+			AcceptedScene:   acceptedGeneration.Output,
+		}, &riv.InsertOpts{Queue: river.QueueDefault})
+		if err != nil {
+			return fmt.Errorf("enqueue summary: %w", err)
+		}
+
+		_, err = s.rivClient.Insert(ctx, &river.ValidateSceneArgs{
+			StoryID:       storyID,
+			NodeID:        nodeID,
+			GenerationID:  genID,
+			CompiledCanon: acceptedGeneration.PromptSnapshot,
+			CharState:     "{}",
+			SceneText:     acceptedGeneration.Output,
+		}, &riv.InsertOpts{Queue: river.QueueValidate})
+		if err != nil {
+			return fmt.Errorf("enqueue validation: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (s *dbGenerationService) ListGenerations(nodeID uuid.UUID) ([]compiler.Generation, error) {
@@ -410,7 +479,13 @@ func NewDBStoryGeneratorService(q *db.Queries, rivClient *riv.Client[pgx.Tx]) *d
 }
 
 func (s *dbStoryGeneratorService) GenerateStory(synopsis string) (*StoryGenerateResult, error) {
-	_, err := s.rivClient.Insert(context.Background(), &river.GenerateStoryArgs{
+	story, err := s.q.CreateStory(context.Background(), "Untitled Story")
+	if err != nil {
+		return nil, fmt.Errorf("create pending story: %w", err)
+	}
+	storyID := fromUUID(story.ID)
+	_, err = s.rivClient.Insert(context.Background(), &river.GenerateStoryArgs{
+		StoryID:  storyID,
 		Synopsis: synopsis,
 	}, &riv.InsertOpts{
 		Queue: river.QueueDefault,
@@ -419,7 +494,7 @@ func (s *dbStoryGeneratorService) GenerateStory(synopsis string) (*StoryGenerate
 		return nil, fmt.Errorf("enqueue story generation: %w", err)
 	}
 	return &StoryGenerateResult{
-		StoryID: "",
+		StoryID: storyID.String(),
 		Status:  "pending",
 	}, nil
 }

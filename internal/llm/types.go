@@ -1,6 +1,9 @@
 package llm
 
-import "github.com/premchand/story-builder/internal/canon"
+import (
+	"github.com/premchand/story-builder/internal/canon"
+	"github.com/premchand/story-builder/internal/ledger"
+)
 
 type ModelTier string
 
@@ -36,11 +39,13 @@ type CompletionRequest struct {
 	MaxTokens   int
 	Tools       []ToolDefinition
 	ToolChoice  string
+	MaxRetries  int
 }
 
 type CompletionResponse struct {
 	Content string
 	ToolUse map[string]interface{}
+	Model   string
 }
 
 type ProseService interface {
@@ -48,7 +53,7 @@ type ProseService interface {
 }
 
 type ExtractionService interface {
-	ExtractState(sceneText string) (map[string]interface{}, error)
+	ExtractState(sceneText string, roster map[string]string) (*ledger.StateDeltas, error)
 }
 
 type SummaryService interface {
@@ -83,39 +88,39 @@ const (
 )
 
 type StoryOutlineCharacter struct {
-	Name            string   `json:"name"`
-	Persona         string   `json:"persona"`
-	Backstory       string   `json:"backstory"`
-	MoralAlignment  string   `json:"moral_alignment"`
-	Personality     []string `json:"personality"`
-	Flaws           []string `json:"flaws"`
-	Goals           []string `json:"goals"`
-	VoiceSamples    []string `json:"voice_samples,omitempty"`
+	Name           string   `json:"name"`
+	Persona        string   `json:"persona"`
+	Backstory      string   `json:"backstory"`
+	MoralAlignment string   `json:"moral_alignment"`
+	Personality    []string `json:"personality"`
+	Flaws          []string `json:"flaws"`
+	Goals          []string `json:"goals"`
+	VoiceSamples   []string `json:"voice_samples,omitempty"`
 }
 
 type StoryOutlineBeat struct {
-	Title         string   `json:"title"`
-	BeatIntent    string   `json:"beat_intent"`
+	Title          string   `json:"title"`
+	BeatIntent     string   `json:"beat_intent"`
 	CharacterNames []string `json:"character_names"`
-	LocationName  string   `json:"location_name,omitempty"`
-	POV           string   `json:"pov"`
-	Tone          string   `json:"tone"`
-	TargetWords   int      `json:"target_words"`
-	Act           int      `json:"act"`
+	LocationName   string   `json:"location_name,omitempty"`
+	POV            string   `json:"pov"`
+	Tone           string   `json:"tone"`
+	TargetWords    int      `json:"target_words"`
+	Act            int      `json:"act"`
 }
 
 type StoryOutlineEdge struct {
-	From   string `json:"from"`
-	To     string `json:"to"`
-	Type   string `json:"type"`
+	From string `json:"from"`
+	To   string `json:"to"`
+	Type string `json:"type"`
 }
 
 type StoryOutline struct {
-	Title      string                `json:"title"`
-	Synopsis   string                `json:"synopsis"`
+	Title      string                  `json:"title"`
+	Synopsis   string                  `json:"synopsis"`
 	Characters []StoryOutlineCharacter `json:"characters"`
-	Beats      []StoryOutlineBeat    `json:"beats"`
-	Edges      []StoryOutlineEdge    `json:"edges"`
+	Beats      []StoryOutlineBeat      `json:"beats"`
+	Edges      []StoryOutlineEdge      `json:"edges"`
 }
 
 type PromptConfig struct {

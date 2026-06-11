@@ -12,6 +12,7 @@ import (
 type StoryHandler struct {
 	Service          StoryService
 	BlueprintService BlueprintService
+	TimelineService  TimelineService
 }
 
 type createStoryRequest struct {

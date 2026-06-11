@@ -73,12 +73,25 @@ func (c *CompiledContext) BuildSceneProseUserMessage() string {
 		esc(c.BeatIntent), esc(c.POV), esc(c.Tone))
 }
 
-func BuildStateExtractSystemPrompt() string {
-	return `You are a continuity clerk. Read the scene and call record_state_deltas.
+func BuildStateExtractSystemPrompt(roster map[string]string) string {
+	rosterBlock := ""
+	if len(roster) > 0 {
+		rosterBlock = "\nKnown characters and names to preserve: " + strings.Join(mapValues(roster), ", ") + ""
+	}
+	return fmt.Sprintf(`You are a continuity clerk. Read the scene and call record_state_deltas.
 Rules: extract ONLY what is explicit in the text. No inference, no
 speculation about feelings not shown. If a character appears but nothing
 changed for them, omit them entirely. "learned" means information the
-character witnessed or was told IN THIS SCENE.`
+character witnessed or was told IN THIS SCENE.%s
+Output valid JSON with a top-level object containing a "deltas" array and an optional "open_threads" array.`, rosterBlock)
+}
+
+func mapValues(values map[string]string) []string {
+	out := make([]string, 0, len(values))
+	for _, v := range values {
+		out = append(out, v)
+	}
+	return out
 }
 
 func BuildSummaryUpdateSystemPrompt(prevSummary, newScene string) string {

@@ -56,7 +56,11 @@ func (w *GenerateSceneWorker) Work(ctx context.Context, job *river.Job[GenerateS
 		return fmt.Errorf("generate scene: %w", err)
 	}
 
-	return w.Queries.UpdateGenerationOutput(ctx, toUUID(args.GenID), resp.Content, string(llm.ModelSonnet))
+	model := string(llm.ModelSonnet)
+	if resp != nil && resp.Model != "" {
+		model = resp.Model
+	}
+	return w.Queries.UpdateGenerationOutput(ctx, toUUID(args.GenID), resp.Content, model)
 }
 
 func (w *GenerateSceneWorker) compilePromptParams(ctx context.Context, args GenerateSceneArgs) (*llm.PromptParams, error) {
@@ -78,11 +82,11 @@ func (w *GenerateSceneWorker) compilePromptParams(ctx context.Context, args Gene
 		var rels map[string]string
 		json.Unmarshal(c.Relationships, &rels)
 		charCards = append(charCards, canon.Card{
-			Name:         c.Name,
-			Description:  c.Persona,
-			Type:         "character",
-			Traits:       traits,
-			VoiceSamples: c.VoiceSamples,
+			Name:          c.Name,
+			Description:   c.Persona,
+			Type:          "character",
+			Traits:        traits,
+			VoiceSamples:  c.VoiceSamples,
 			Relationships: rels,
 		})
 	}
@@ -142,10 +146,11 @@ func (w *GenerateSceneWorker) compilePromptParams(ctx context.Context, args Gene
 // ── Extract State ─────────────────────────────────────────────
 
 type ExtractStateArgs struct {
-	StoryID      uuid.UUID `json:"story_id"`
-	NodeID       uuid.UUID `json:"node_id"`
-	GenerationID uuid.UUID `json:"generation_id"`
-	SceneText    string    `json:"scene_text"`
+	StoryID       uuid.UUID   `json:"story_id"`
+	NodeID        uuid.UUID   `json:"node_id"`
+	GenerationID  uuid.UUID   `json:"generation_id"`
+	SceneText     string      `json:"scene_text"`
+	CharacterRefs []uuid.UUID `json:"character_refs"`
 }
 
 func (ExtractStateArgs) Kind() string { return "extract_state" }
@@ -162,21 +167,22 @@ func NewExtractStateWorker(extract llm.ExtractionService, q *db.Queries) *Extrac
 
 func (w *ExtractStateWorker) Work(ctx context.Context, job *river.Job[ExtractStateArgs]) error {
 	args := job.Args
-	result, err := w.Extract.ExtractState(args.SceneText)
+	roster := make(map[string]string, len(args.CharacterRefs))
+	for _, ref := range args.CharacterRefs {
+		if w.Queries == nil {
+			break
+		}
+		c, err := w.Queries.GetCharacterLatest(ctx, toUUID(ref))
+		if err == nil {
+			roster[ref.String()] = c.Name
+		}
+	}
+	result, err := w.Extract.ExtractState(args.SceneText, roster)
 	if err != nil {
 		return fmt.Errorf("extract state: %w", err)
 	}
 
-	data, err := json.Marshal(result)
-	if err != nil {
-		return fmt.Errorf("marshal extract result: %w", err)
-	}
-	var deltas ledger.StateDeltas
-	if err := json.Unmarshal(data, &deltas); err != nil {
-		return fmt.Errorf("unmarshal state deltas: %w", err)
-	}
-
-	for _, d := range deltas.Deltas {
+	for _, d := range result.Deltas {
 		cs := ledger.CharacterState{
 			StoryID:     args.StoryID,
 			CharacterID: d.Character,
@@ -246,11 +252,11 @@ func (w *UpdateSummaryWorker) Work(ctx context.Context, job *river.Job[UpdateSum
 // ── Merge Branches ────────────────────────────────────────────
 
 type MergeBranchesArgs struct {
-	StoryID     uuid.UUID `json:"story_id"`
-	JoinNodeID  uuid.UUID `json:"join_node_id"`
-	SummaryA    string    `json:"summary_a"`
-	SummaryB    string    `json:"summary_b"`
-	TimelineNote string   `json:"timeline_note"`
+	StoryID      uuid.UUID `json:"story_id"`
+	JoinNodeID   uuid.UUID `json:"join_node_id"`
+	SummaryA     string    `json:"summary_a"`
+	SummaryB     string    `json:"summary_b"`
+	TimelineNote string    `json:"timeline_note"`
 }
 
 func (MergeBranchesArgs) Kind() string { return "merge_branches" }
@@ -297,10 +303,11 @@ func (ValidateSceneArgs) Kind() string { return "validate_scene" }
 type ValidateSceneWorker struct {
 	river.WorkerDefaults[ValidateSceneArgs]
 	Validate llm.ValidationService
+	Queries  *db.Queries
 }
 
-func NewValidateSceneWorker(svc llm.ValidationService) *ValidateSceneWorker {
-	return &ValidateSceneWorker{Validate: svc}
+func NewValidateSceneWorker(svc llm.ValidationService, q *db.Queries) *ValidateSceneWorker {
+	return &ValidateSceneWorker{Validate: svc, Queries: q}
 }
 
 func (w *ValidateSceneWorker) Work(ctx context.Context, job *river.Job[ValidateSceneArgs]) error {
@@ -310,6 +317,11 @@ func (w *ValidateSceneWorker) Work(ctx context.Context, job *river.Job[ValidateS
 		return fmt.Errorf("validate scene: %w", err)
 	}
 	data, _ := json.Marshal(result)
+	if w.Queries != nil {
+		if err := w.Queries.UpdateGenerationValidation(ctx, toUUID(args.GenerationID), data); err != nil {
+			return fmt.Errorf("persist validation: %w", err)
+		}
+	}
 	log.Printf("validation result for generation %s: %s", args.GenerationID, string(data))
 	return nil
 }
@@ -317,16 +329,17 @@ func (w *ValidateSceneWorker) Work(ctx context.Context, job *river.Job[ValidateS
 // ── Generate Story ────────────────────────────────────────────
 
 type GenerateStoryArgs struct {
-	Synopsis string `json:"synopsis"`
+	StoryID  uuid.UUID `json:"story_id,omitempty"`
+	Synopsis string    `json:"synopsis"`
 }
 
 func (GenerateStoryArgs) Kind() string { return "generate_story" }
 
 type GenerateStoryWorker struct {
 	river.WorkerDefaults[GenerateStoryArgs]
-	Outline  llm.OutlineService
-	Queries  *db.Queries
-	Prose    llm.ProseService
+	Outline llm.OutlineService
+	Queries *db.Queries
+	Prose   llm.ProseService
 }
 
 func NewGenerateStoryWorker(outline llm.OutlineService, q *db.Queries, prose llm.ProseService) *GenerateStoryWorker {
@@ -341,11 +354,17 @@ func (w *GenerateStoryWorker) Work(ctx context.Context, job *river.Job[GenerateS
 		return fmt.Errorf("generate outline: %w", err)
 	}
 
-	story, err := w.Queries.CreateStory(ctx, outline.Title)
-	if err != nil {
-		return fmt.Errorf("create story: %w", err)
+	storyID := args.StoryID
+	if storyID == uuid.Nil {
+		story, err := w.Queries.CreateStory(ctx, outline.Title)
+		if err != nil {
+			return fmt.Errorf("create story: %w", err)
+		}
+		storyID = fromUUID(story.ID)
 	}
-	storyID := fromUUID(story.ID)
+	if err := w.Queries.UpdateStoryTitle(ctx, toUUID(storyID), outline.Title); err != nil {
+		return fmt.Errorf("update story title: %w", err)
+	}
 
 	charNameToID := make(map[string]pgtype.UUID)
 	for _, oc := range outline.Characters {
@@ -432,7 +451,7 @@ func Workers(deps *Dependencies) *river.Workers {
 	river.AddWorker(workers, NewExtractStateWorker(deps.Extract, deps.Queries))
 	river.AddWorker(workers, NewUpdateSummaryWorker(deps.Summary, deps.Queries))
 	river.AddWorker(workers, NewMergeBranchesWorker(deps.Merge, deps.Queries))
-	river.AddWorker(workers, NewValidateSceneWorker(deps.Validate))
+	river.AddWorker(workers, NewValidateSceneWorker(deps.Validate, deps.Queries))
 	river.AddWorker(workers, NewGenerateStoryWorker(deps.Outline, deps.Queries, deps.Prose))
 	return workers
 }

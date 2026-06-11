@@ -3,6 +3,7 @@ package llm
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/premchand/story-builder/internal/compiler"
 	"github.com/premchand/story-builder/internal/ledger"
@@ -62,11 +63,11 @@ type ExtractionServiceImpl struct {
 	client LLMClient
 }
 
-func (s *ExtractionServiceImpl) ExtractState(sceneText string) (map[string]interface{}, error) {
+func (s *ExtractionServiceImpl) ExtractState(sceneText string, roster map[string]string) (*ledger.StateDeltas, error) {
 	cfg := PromptRegistry[PromptStateExtract]
 	req := CompletionRequest{
 		Model:       cfg.Model,
-		System:      compiler.BuildStateExtractSystemPrompt(),
+		System:      compiler.BuildStateExtractSystemPrompt(roster),
 		UserMessage: sceneText,
 		Temperature: cfg.Temperature,
 		MaxTokens:   1024,
@@ -75,11 +76,14 @@ func (s *ExtractionServiceImpl) ExtractState(sceneText string) (map[string]inter
 	if err != nil {
 		return nil, err
 	}
-	var result map[string]interface{}
-	if err := json.Unmarshal([]byte(res.Content), &result); err != nil {
-		result = map[string]interface{}{"raw": res.Content}
+	var result ledger.StateDeltas
+	if err := parseJSONPayload(res.Content, &result); err != nil {
+		return nil, fmt.Errorf("extract state: %w", err)
 	}
-	return result, nil
+	if result.Deltas == nil {
+		result.Deltas = []ledger.StateDelta{}
+	}
+	return &result, nil
 }
 
 func NewSummaryService(client LLMClient) *SummaryServiceImpl {
@@ -128,8 +132,8 @@ func (s *MergeServiceImpl) MergeBranches(summaryA, summaryB, timelineNote string
 		return nil, err
 	}
 	var result map[string]interface{}
-	if err := json.Unmarshal([]byte(res.Content), &result); err != nil {
-		return nil, fmt.Errorf("merge: JSON parse error: %w\nraw: %s", err, res.Content)
+	if err := parseJSONPayload(res.Content, &result); err != nil {
+		return nil, fmt.Errorf("merge: %w", err)
 	}
 	return result, nil
 }
@@ -156,8 +160,8 @@ func (s *ValidationServiceImpl) ValidateAgainstCanon(canonXML, charState, draft 
 		return nil, err
 	}
 	var result map[string]interface{}
-	if err := json.Unmarshal([]byte(res.Content), &result); err != nil {
-		return nil, fmt.Errorf("validate: JSON parse error: %w\nraw: %s", err, res.Content)
+	if err := parseJSONPayload(res.Content, &result); err != nil {
+		return nil, fmt.Errorf("validate: %w", err)
 	}
 	return result, nil
 }
@@ -185,10 +189,29 @@ func (s *OutlineServiceImpl) GenerateOutline(synopsis string) (*StoryOutline, er
 		return nil, fmt.Errorf("outline: %w", err)
 	}
 	var outline StoryOutline
-	if err := json.Unmarshal([]byte(res.Content), &outline); err != nil {
-		return nil, fmt.Errorf("outline: JSON parse error: %w\nraw: %s", err, res.Content)
+	if err := parseJSONPayload(res.Content, &outline); err != nil {
+		return nil, fmt.Errorf("outline: %w", err)
 	}
 	return &outline, nil
 }
 
-
+func parseJSONPayload[T any](content string, out *T) error {
+	payload := strings.TrimSpace(content)
+	if payload == "" {
+		return fmt.Errorf("empty response")
+	}
+	if strings.HasPrefix(payload, "```") {
+		payload = strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(payload, "```json"), "```"))
+	}
+	if !json.Valid([]byte(payload)) {
+		start := strings.Index(payload, "{")
+		end := strings.LastIndex(payload, "}")
+		if start >= 0 && end > start {
+			payload = payload[start : end+1]
+		}
+	}
+	if !json.Valid([]byte(payload)) {
+		return fmt.Errorf("invalid JSON: %s", payload)
+	}
+	return json.Unmarshal([]byte(payload), out)
+}

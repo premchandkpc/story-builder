@@ -78,7 +78,7 @@ func (c *AnthropicClient) Complete(req CompletionRequest) (*CompletionResponse, 
 			text += c.Text
 		}
 	}
-	return &CompletionResponse{Content: text}, nil
+	return &CompletionResponse{Content: text, Model: model}, nil
 }
 
 func NewOllamaClient(baseURL string) *OllamaClient {
@@ -145,5 +145,5 @@ func (c *OllamaClient) Complete(req CompletionRequest) (*CompletionResponse, err
 	if len(reply.Choices) == 0 {
 		return nil, fmt.Errorf("ollama: empty response")
 	}
-	return &CompletionResponse{Content: reply.Choices[0].Message.Content}, nil
+	return &CompletionResponse{Content: reply.Choices[0].Message.Content, Model: model}, nil
 }

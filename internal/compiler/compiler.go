@@ -11,15 +11,15 @@ import (
 )
 
 type CompiledContext struct {
-	CharacterCards []canon.Card            `json:"character_cards"`
-	LocationCard   *canon.Card             `json:"location_card,omitempty"`
-	BranchSummary  string                  `json:"branch_summary"`
+	CharacterCards []canon.Card                     `json:"character_cards"`
+	LocationCard   *canon.Card                      `json:"location_card,omitempty"`
+	BranchSummary  string                           `json:"branch_summary"`
 	CharState      map[string]ledger.CharacterState `json:"char_state"`
-	Lore           []string                `json:"lore"`
-	BeatIntent     string                  `json:"beat_intent"`
-	POV            string                  `json:"pov"`
-	Tone           string                  `json:"tone"`
-	TargetWords    int                     `json:"target_words"`
+	Lore           []string                         `json:"lore"`
+	BeatIntent     string                           `json:"beat_intent"`
+	POV            string                           `json:"pov"`
+	Tone           string                           `json:"tone"`
+	TargetWords    int                              `json:"target_words"`
 }
 
 func (c CompiledContext) Hash() string {
@@ -29,6 +29,10 @@ func (c CompiledContext) Hash() string {
 	}
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
+}
+
+func (c CompiledContext) BuildScenePromptSnapshot() string {
+	return fmt.Sprintf("SYSTEM:\n%s\n\nUSER:\n%s", c.BuildSceneProseSystemPrompt(), c.BuildSceneProseUserMessage())
 }
 
 type CompileInput struct {
