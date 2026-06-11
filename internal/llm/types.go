@@ -1,0 +1,116 @@
+package llm
+
+type ModelTier string
+
+const (
+	ModelSonnet ModelTier = "claude-sonnet"
+	ModelHaiku  ModelTier = "claude-haiku"
+	ModelLocal  ModelTier = "local-7b"
+)
+
+type PromptParams struct {
+	CharacterCards interface{}
+	LocationCard   interface{}
+	Lore           []string
+	CharState      map[string]interface{}
+	BranchSummary  string
+	BeatIntent     string
+	POV            string
+	Tone           string
+	TargetWords    int
+}
+
+type ToolDefinition struct {
+	Name        string
+	Description string
+	InputSchema map[string]interface{}
+}
+
+type CompletionRequest struct {
+	Model       ModelTier
+	System      string
+	UserMessage string
+	Temperature float64
+	MaxTokens   int
+	Tools       []ToolDefinition
+	ToolChoice  string
+}
+
+type CompletionResponse struct {
+	Content string
+	ToolUse map[string]interface{}
+}
+
+type ProseService interface {
+	GenerateScene(params PromptParams) (*CompletionResponse, error)
+}
+
+type ExtractionService interface {
+	ExtractState(sceneText string) (map[string]interface{}, error)
+}
+
+type SummaryService interface {
+	UpdateSummary(previousSummary, newScene string) (string, error)
+}
+
+type MergeService interface {
+	MergeBranches(summaryA, summaryB, timelineNote string) (map[string]interface{}, error)
+}
+
+type ValidationService interface {
+	ValidateAgainstCanon(canonXML, charState, draft string) (map[string]interface{}, error)
+}
+
+type LLMClient interface {
+	Complete(req CompletionRequest) (*CompletionResponse, error)
+}
+
+type PromptTemplate string
+
+const (
+	PromptSceneProse    PromptTemplate = "scene_prose"
+	PromptStateExtract  PromptTemplate = "state_extract"
+	PromptSummaryUpdate PromptTemplate = "summary_update"
+	PromptJoinMerge     PromptTemplate = "join_merge"
+	PromptCanonValidate PromptTemplate = "canon_validate"
+)
+
+type PromptConfig struct {
+	Template    PromptTemplate
+	Model       ModelTier
+	Temperature float64
+	SystemText  string
+}
+
+var PromptRegistry = map[PromptTemplate]PromptConfig{
+	PromptSceneProse: {
+		Template:    PromptSceneProse,
+		Model:       ModelSonnet,
+		Temperature: 0.8,
+		SystemText:  "You are a fiction co-writer. Write ONE scene and nothing else.",
+	},
+	PromptStateExtract: {
+		Template:    PromptStateExtract,
+		Model:       ModelLocal,
+		Temperature: 0,
+		SystemText:  "You are a continuity clerk. Read the scene and call record_state_deltas.",
+	},
+	PromptSummaryUpdate: {
+		Template:    PromptSummaryUpdate,
+		Model:       ModelLocal,
+		Temperature: 0.2,
+		SystemText:  "You maintain a running plot summary for one storyline branch.",
+	},
+	PromptJoinMerge: {
+		Template:    PromptJoinMerge,
+		Model:       ModelHaiku,
+		Temperature: 0.2,
+		SystemText:  "Two parallel storylines are converging. Merge their summaries.",
+	},
+	PromptCanonValidate: {
+		Template:    PromptCanonValidate,
+		Model:       ModelHaiku,
+		Temperature: 0,
+		SystemText:  "You are a strict continuity editor. Check this draft against canon.",
+	},
+}
