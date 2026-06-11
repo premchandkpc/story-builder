@@ -1,0 +1,108 @@
+@startuml
+
+' =============================================
+' Package Dependency Diagram
+' =============================================
+
+package "cmd/server" as CMD {
+  [main.go]
+}
+
+package "internal/api" as API {
+  [router.go]
+  [handlers_stories.go]
+  [handlers_characters.go]
+  [handlers_generation.go]
+  [request_validation.go]
+  [dbservices_stories.go]
+  [dbservices_characters.go]
+  [dbservices_lore.go]
+  [dbservices_scene.go]
+  [dbservices_summaries.go]
+  [dbservices_helpers.go]
+  [services_scene.go]
+  [services_stories.go]
+  [services_lore.go]
+  [services_characters.go]
+  [services_summaries.go]
+}
+
+package "internal/graph" as GRAPH {
+  [models.go]
+  [traversal.go]
+  [memory.go]
+}
+
+package "internal/canon" as CANON {
+  [models.go]
+  [memory.go]
+}
+
+package "internal/ledger" as LEDGER {
+  [models.go]
+  [memory.go]
+}
+
+package "internal/compiler" as COMPILER {
+  [compiler.go]
+  [prompts.go]
+  [summary.go]
+  [memory.go]
+}
+
+package "internal/llm" as LLM {
+  [types.go]
+  [services.go]
+  [client.go]
+}
+
+package "internal/scene" as SCENE {
+  [types.go]
+  [agent.go]
+  [turn.go]
+}
+
+package "internal/river" as RIVER {
+  [jobs.go]
+}
+
+package "internal/db" as DB {
+  [db.go]
+  [models.go]
+  [querier.go]
+  [queries.sql.go]
+  [extras.go]
+}
+
+package "internal/migrate" as MIGRATE {
+  [runner.go]
+}
+
+CMD --> API : HTTP handlers
+CMD --> DB : pgxpool
+CMD --> LLM : clients
+CMD --> RIVER : workers
+CMD --> MIGRATE : runner
+CMD --> GRAPH : memory store (fallback)
+CMD --> CANON : memory store (fallback)
+CMD --> LEDGER : memory store (fallback)
+CMD --> COMPILER : memory store (fallback)
+
+API --> DB : queries
+API --> GRAPH : domain types
+API --> CANON : domain types
+API --> COMPILER : generation types
+API --> SCENE : scene service
+
+RIVER --> DB : queries
+RIVER --> LLM : service calls
+RIVER --> CANON : card types
+RIVER --> LEDGER : state types
+RIVER --> COMPILER : prompt builders
+
+COMPILER --> CANON : card types
+COMPILER --> LEDGER : state types
+
+GRAPH --> CANON : domain types (via API)
+
+@enduml

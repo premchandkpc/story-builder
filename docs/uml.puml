@@ -1,0 +1,190 @@
+@startuml
+
+' =============================================
+' DB Entity Relationship Diagram
+' =============================================
+
+entity stories {
+  * id: uuid <<PK>>
+  --
+  * title: text
+  * canon_pins: jsonb
+  * created_at: timestamptz
+}
+
+entity nodes {
+  * id: uuid <<PK>>
+  --
+  * story_id: uuid <<FK>>
+  * beat_intent: text
+  character_refs: uuid[]
+  location_ref: uuid
+  pov: text
+  tone: text
+  target_words: int
+  status: text
+  scene_structure: jsonb
+  * created_at: timestamptz
+  * updated_at: timestamptz
+}
+
+entity edges {
+  * story_id: uuid <<FK>>
+  * from_node: uuid <<FK>>
+  * to_node: uuid <<FK>>
+  --
+  * edge_type: text
+}
+
+entity generations {
+  * id: uuid <<PK>>
+  --
+  * node_id: uuid <<FK>>
+  * context_hash: text
+  * prompt_snapshot: text
+  * output: text
+  * model: text
+  * accepted: bool
+  * created_at: timestamptz
+}
+
+entity characters {
+  * id: uuid
+  * version: int
+  --
+  * name: text
+  persona: text
+  backstory: text
+  moral_alignment: text
+  personality: jsonb
+  flaws: jsonb
+  goals: jsonb
+  traits: jsonb
+  voice_samples: text[]
+  relationships: jsonb
+  parent_id: uuid
+  * created_at: timestamptz
+}
+
+entity locations {
+  * id: uuid
+  * version: int
+  --
+  * name: text
+  description: text
+  props: jsonb
+  * created_at: timestamptz
+}
+
+entity lore {
+  * id: uuid <<PK>>
+  --
+  tags: text[]
+  * content: text
+  embedding: vector(768)
+  * created_at: timestamptz
+}
+
+entity character_state {
+  * story_id: uuid <<FK>>
+  * character_id: uuid
+  * as_of_node: uuid <<FK>>
+  --
+  * state: jsonb
+  * updated_at: timestamptz
+}
+
+entity actors {
+  * id: uuid <<PK>>
+  --
+  * name: text
+  gender: text
+  ethnicity: text
+  race: text
+  skin_tone: text
+  eye_color: text
+  hair_color: text
+  hair_style: text
+  build: text
+  height_cm: int
+  weight_kg: int
+  age: int
+  nationality: text
+  traits: jsonb
+  * created_at: timestamptz
+}
+
+entity character_traits {
+  * id: uuid <<PK>>
+  --
+  * name: text
+  category: text
+  description: text
+  * created_at: timestamptz
+}
+
+entity character_trait_assignments {
+  * character_id: uuid
+  * trait_id: uuid <<FK>>
+  --
+  intensity: int
+  note: text
+}
+
+entity casting {
+  * id: uuid <<PK>>
+  --
+  * story_id: uuid <<FK>>
+  * actor_id: uuid <<FK>>
+  * character_id: uuid
+  role_type: text
+  * created_at: timestamptz
+}
+
+entity scene_turns {
+  * id: uuid <<PK>>
+  --
+  * node_id: uuid <<FK>>
+  * turn_number: int
+  actor_ids: uuid[]
+  prompt: text
+  output: text
+  model: text
+  status: text
+  * created_at: timestamptz
+}
+
+entity story_summaries {
+  * id: uuid <<PK>>
+  --
+  * story_id: uuid <<FK>>
+  node_id: uuid <<FK>>
+  * level: text
+  * content: text
+  word_count: int
+  * created_at: timestamptz
+}
+
+' --- Relationships ---
+
+stories ||--o{ nodes : "story_id"
+stories ||--o{ edges : "story_id"
+stories ||--o{ character_state : "story_id"
+stories ||--o{ casting : "story_id"
+stories ||--o{ story_summaries : "story_id"
+
+nodes ||--o{ edges : "from_node"
+nodes ||--o{ edges : "to_node"
+nodes ||--o{ generations : "node_id"
+nodes ||--o{ scene_turns : "node_id"
+nodes ||--o{ character_state : "as_of_node"
+nodes ||--o{ story_summaries : "node_id"
+
+characters ||--o{ character_state : "character_id"
+characters ||--o{ casting : "character_id"
+characters ||--o{ character_trait_assignments : "character_id"
+
+actors ||--o{ casting : "actor_id"
+character_traits ||--o{ character_trait_assignments : "trait_id"
+
+@enduml

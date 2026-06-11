@@ -1,0 +1,44 @@
+@startuml
+
+' =============================================
+' Scene Generation Flow
+' =============================================
+
+actor User
+entity "React Frontend" as UI
+entity "API Handler" as API
+database "PostgreSQL" as DB
+entity "River Queue" as RIVER
+entity "GenerateSceneWorker" as GENWORKER
+entity "LLM Service" as LLM
+
+User -> UI : Click "Generate"
+UI -> API : POST /nodes/{id}/generate
+API -> DB : GetNode(id)
+API -> DB : compileContext (characters, location, lore)
+API -> API : Compute Hash()
+API -> DB : INSERT generation
+API -> RIVER : Insert GenerateSceneArgs
+API -> UI : Response 202 { generation_id, context_hash }
+UI -> User : Show pending
+
+RIVER -> GENWORKER : Process job
+GENWORKER -> DB : Load characters (GetCharacterLatest)
+GENWORKER -> DB : Load location (GetLocationLatest)
+GENWORKER -> DB : Load lore (SearchLoreByTags)
+GENWORKER -> DB : Load state (GetStatesForNode)
+GENWORKER -> DB : Load branch summary
+GENWORKER -> LLM : GenerateScene(params)
+LLM -> LLM : Build system prompt + user message
+LLM -> LLM : Call Anthropic/Ollama API
+LLM -> GENWORKER : Return prose
+GENWORKER -> DB : UpdateGenerationOutput(id, output, model)
+GENWORKER -> RIVER : Done
+
+User -> UI : Click "Accept"
+UI -> API : POST /nodes/{id}/accept
+API -> DB : AcceptGeneration(id)
+API -> DB : RejectOtherGenerations(node_id, id)
+API -> UI : 200 OK
+
+@enduml

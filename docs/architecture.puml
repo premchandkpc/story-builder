@@ -1,0 +1,46 @@
+@startuml
+left to right direction
+skinparam monochrome true
+skinparam shadowing false
+
+actor User
+package "Web App" {
+  component React
+  component "Story Graph"
+}
+
+package "API" {
+  component Router
+  component Handlers
+  component Services
+}
+
+package "Domain" {
+  component Canon
+  component Graph
+  component Ledger
+  component Compiler
+  component LLM
+}
+
+package "Data" {
+  database Postgres
+  database pgvector
+}
+
+User --> React
+React --> Router
+Router --> Handlers
+Handlers --> Services
+Services --> Canon
+Services --> Graph
+Services --> Ledger
+Services --> Compiler
+Services --> LLM
+Compiler --> Canon
+Compiler --> Ledger
+LLM --> Postgres
+Services --> Postgres
+Postgres --> pgvector
+StoryGraph --> Router
+@enduml

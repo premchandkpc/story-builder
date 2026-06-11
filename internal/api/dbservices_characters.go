@@ -195,12 +195,19 @@ func (s *dbActorService) Create(name, gender, ethnicity, race, skinTone, eyeColo
 		WeightKg:    int32(weightKg),
 		Age:         int32(age),
 		Nationality: nationality,
-		Traits:      jsonBytes(traits),
+		Traits:      jsonBytes(map[string]interface{}{}),
 	})
 	if err != nil {
 		return nil, err
 	}
-	return toDomainActor(a), nil
+	if err := s.persistActorTraits(a.ID, traits); err != nil {
+		return nil, err
+	}
+	loadedTraits, err := s.loadActorTraits(a.ID)
+	if err != nil {
+		return nil, err
+	}
+	return toDomainActor(a, loadedTraits), nil
 }
 
 func (s *dbActorService) Get(id uuid.UUID) (*canon.Actor, error) {
@@ -208,7 +215,11 @@ func (s *dbActorService) Get(id uuid.UUID) (*canon.Actor, error) {
 	if err != nil {
 		return nil, err
 	}
-	return toDomainActor(a), nil
+	loadedTraits, err := s.loadActorTraits(a.ID)
+	if err != nil {
+		return nil, err
+	}
+	return toDomainActor(a, loadedTraits), nil
 }
 
 func (s *dbActorService) Update(id uuid.UUID, name, gender, ethnicity, race, skinTone, eyeColor, hairColor, hairStyle, build, nationality string, heightCm, weightKg, age int, traits map[string]interface{}) (*canon.Actor, error) {
@@ -230,12 +241,19 @@ func (s *dbActorService) Update(id uuid.UUID, name, gender, ethnicity, race, ski
 		WeightKg:    int32(weightKg),
 		Age:         int32(age),
 		Nationality: nationality,
-		Column15:    jsonBytes(traits),
+		Column15:    jsonBytes(map[string]interface{}{}),
 	})
 	if err != nil {
 		return nil, err
 	}
-	return toDomainActor(a), nil
+	if err := s.persistActorTraits(a.ID, traits); err != nil {
+		return nil, err
+	}
+	loadedTraits, err := s.loadActorTraits(a.ID)
+	if err != nil {
+		return nil, err
+	}
+	return toDomainActor(a, loadedTraits), nil
 }
 
 func (s *dbActorService) List() ([]canon.Actor, error) {
@@ -245,14 +263,68 @@ func (s *dbActorService) List() ([]canon.Actor, error) {
 	}
 	result := make([]canon.Actor, len(actors))
 	for i, a := range actors {
-		result[i] = *toDomainActor(a)
+		loadedTraits, err := s.loadActorTraits(a.ID)
+		if err != nil {
+			return nil, err
+		}
+		result[i] = *toDomainActor(a, loadedTraits)
 	}
 	return result, nil
 }
 
-func toDomainActor(a db.Actor) *canon.Actor {
-	var traits map[string]interface{}
-	json.Unmarshal(a.Traits, &traits)
+func (s *dbActorService) persistActorTraits(actorID pgtype.UUID, traits map[string]interface{}) error {
+	if err := s.q.DeleteActorTraits(context.Background(), actorID); err != nil {
+		return err
+	}
+	for key, value := range traits {
+		encoded, err := actorTraitValueToJSON(value)
+		if err != nil {
+			return err
+		}
+		if _, err := s.q.CreateActorTrait(context.Background(), db.CreateActorTraitParams{ActorID: actorID, TraitKey: key, TraitValue: encoded}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *dbActorService) loadActorTraits(actorID pgtype.UUID) (map[string]interface{}, error) {
+	rows, err := s.q.ListActorTraits(context.Background(), actorID)
+	if err != nil {
+		return nil, err
+	}
+	traits := make(map[string]interface{}, len(rows))
+	for _, row := range rows {
+		value, err := actorTraitValueFromJSON(row.TraitValue)
+		if err != nil {
+			traits[row.TraitKey] = row.TraitValue
+			continue
+		}
+		traits[row.TraitKey] = value
+	}
+	return traits, nil
+}
+
+func actorTraitValueToJSON(value interface{}) (string, error) {
+	if value == nil {
+		return "null", nil
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func actorTraitValueFromJSON(raw string) (interface{}, error) {
+	var value interface{}
+	if err := json.Unmarshal([]byte(raw), &value); err != nil {
+		return nil, err
+	}
+	return value, nil
+}
+
+func toDomainActor(a db.Actor, traits map[string]interface{}) *canon.Actor {
 	if traits == nil {
 		traits = make(map[string]interface{})
 	}
