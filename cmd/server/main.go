@@ -14,6 +14,7 @@ import (
 	"github.com/premchand/story-builder/internal/api"
 	"github.com/premchand/story-builder/internal/db"
 	"github.com/premchand/story-builder/internal/graph"
+	"github.com/premchand/story-builder/internal/llm"
 	"github.com/premchand/story-builder/internal/migrate"
 	"github.com/premchand/story-builder/internal/river"
 	riv "github.com/riverqueue/river"
@@ -62,22 +63,30 @@ func main() {
 	var genHandler *api.GenerationHandler
 	var sceneHandler *api.SceneHandler
 	var summaryHandler *api.SummaryHandler
+	var storyGenHandler *api.StoryGeneratorHandler
 
 	if dbOk {
 		q := db.New(pool)
-		charHandler = &api.CharacterHandler{Service: api.NewDBCharService(q)}
-		actorHandler = &api.ActorHandler{Service: api.NewDBActorService(q)}
-		traitHandler = &api.CharacterTraitHandler{Service: api.NewDBCharacterTraitService(q)}
-		castingHandler = &api.CastingHandler{Service: api.NewDBCastingService(q)}
-		locHandler = &api.LocationHandler{Service: api.NewDBLocService(q)}
-		loreHandler = &api.LoreHandler{Service: api.NewDBLoreService(q)}
-		storyHandler = &api.StoryHandler{Service: api.NewDBGraphStoryService(q)}
-		nodeHandler = &api.NodeHandler{Service: api.NewDBGraphNodeService(q)}
-		genHandler = &api.GenerationHandler{Service: api.NewDBGenerationService(q)}
-		sceneHandler = &api.SceneHandler{SceneService: api.NewDBSceneService(q)}
-		summaryHandler = &api.SummaryHandler{Service: api.NewDBSummaryService(q)}
 
-		workers := river.Workers()
+		llmClient := createLLMClient(cfg)
+		proseSvc := llm.NewProseService(llmClient)
+		extractSvc := llm.NewExtractionService(llmClient)
+		summarySvc := llm.NewSummaryService(llmClient)
+		mergeSvc := llm.NewMergeService(llmClient)
+		validateSvc := llm.NewValidationService(llmClient)
+		outlineSvc := llm.NewOutlineService(llmClient)
+
+		deps := &river.Dependencies{
+			Prose:    proseSvc,
+			Extract:  extractSvc,
+			Summary:  summarySvc,
+			Merge:    mergeSvc,
+			Validate: validateSvc,
+			Outline:  outlineSvc,
+			Queries:  q,
+		}
+		workers := river.Workers(deps)
+
 		migrator, err := rivermigrate.New(riverpgxv5.New(pool), nil)
 		if err != nil {
 			log.Printf("river migrator: %v", err)
@@ -94,16 +103,29 @@ func main() {
 				river.QueueValidate: {MaxWorkers: 1},
 			},
 		}
-		client, err := riv.NewClient(riverpgxv5.New(pool), rcfg)
+		rivClient, err := riv.NewClient(riverpgxv5.New(pool), rcfg)
 		if err != nil {
 			log.Printf("river init: %v", err)
 		} else {
-			if err := client.Start(ctx); err != nil {
+			if err := rivClient.Start(ctx); err != nil {
 				log.Printf("river start: %v", err)
 			} else {
-				defer client.Stop(ctx)
+				defer rivClient.Stop(ctx)
 			}
 		}
+
+		charHandler = &api.CharacterHandler{Service: api.NewDBCharService(q)}
+		actorHandler = &api.ActorHandler{Service: api.NewDBActorService(q)}
+		traitHandler = &api.CharacterTraitHandler{Service: api.NewDBCharacterTraitService(q)}
+		castingHandler = &api.CastingHandler{Service: api.NewDBCastingService(q)}
+		locHandler = &api.LocationHandler{Service: api.NewDBLocService(q)}
+		loreHandler = &api.LoreHandler{Service: api.NewDBLoreService(q)}
+		storyHandler = &api.StoryHandler{Service: api.NewDBGraphStoryService(q)}
+		nodeHandler = &api.NodeHandler{Service: api.NewDBGraphNodeService(q)}
+		genHandler = &api.GenerationHandler{Service: api.NewDBGenerationService(q, rivClient)}
+		sceneHandler = &api.SceneHandler{SceneService: api.NewDBSceneService(q)}
+		summaryHandler = &api.SummaryHandler{Service: api.NewDBSummaryService(q)}
+		storyGenHandler = &api.StoryGeneratorHandler{Service: api.NewDBStoryGeneratorService(q, rivClient)}
 	} else {
 		gs := graph.NewMemoryStore()
 		charHandler = &api.CharacterHandler{Service: api.NewCharService()}
@@ -117,9 +139,10 @@ func main() {
 		genHandler = &api.GenerationHandler{Service: api.NewGenerationService()}
 		sceneHandler = &api.SceneHandler{SceneService: api.NewMemorySceneService()}
 		summaryHandler = &api.SummaryHandler{Service: api.NewMemorySummaryService()}
+		storyGenHandler = &api.StoryGeneratorHandler{Service: api.NewMemoryStoryGeneratorService()}
 	}
 
-	srv := api.NewServer(charHandler, actorHandler, traitHandler, castingHandler, locHandler, loreHandler, storyHandler, nodeHandler, genHandler, sceneHandler, summaryHandler)
+	srv := api.NewServer(charHandler, actorHandler, traitHandler, castingHandler, locHandler, loreHandler, storyHandler, nodeHandler, genHandler, sceneHandler, summaryHandler, storyGenHandler)
 
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%s", cfg.Port),
@@ -170,4 +193,17 @@ func configFromEnv() config {
 		AnthropicKey: os.Getenv("ANTHROPIC_API_KEY"),
 		OllamaURL:    os.Getenv("OLLAMA_URL"),
 	}
+}
+
+func createLLMClient(cfg config) llm.LLMClient {
+	if cfg.AnthropicKey != "" {
+		log.Println("using anthropic client")
+		return llm.NewAnthropicClient(cfg.AnthropicKey)
+	}
+	ollamaURL := cfg.OllamaURL
+	if ollamaURL == "" {
+		ollamaURL = "http://localhost:11434"
+	}
+	log.Printf("using ollama client (%s)", ollamaURL)
+	return llm.NewOllamaClient(ollamaURL)
 }

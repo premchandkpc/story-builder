@@ -18,6 +18,7 @@ import type {
   Location,
   Lore,
   Story,
+  StoryGenerateResult,
   StorySummary,
   Topology,
   TraitAssignment,
@@ -107,6 +108,11 @@ export const api = {
     get: (id: string) => fetchJSON<Story>(`/stories/${id}`),
     create: (data: CreateStoryPayload) =>
       fetchJSON<Story>("/stories", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    generate: (data: { synopsis: string }) =>
+      fetchJSON<StoryGenerateResult>("/stories/generate", {
         method: "POST",
         body: JSON.stringify(data),
       }),

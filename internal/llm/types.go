@@ -1,5 +1,7 @@
 package llm
 
+import "github.com/premchand/story-builder/internal/canon"
+
 type ModelTier string
 
 const (
@@ -9,8 +11,8 @@ const (
 )
 
 type PromptParams struct {
-	CharacterCards interface{}
-	LocationCard   interface{}
+	CharacterCards []canon.Card
+	LocationCard   *canon.Card
 	Lore           []string
 	CharState      map[string]interface{}
 	BranchSummary  string
@@ -61,6 +63,10 @@ type ValidationService interface {
 	ValidateAgainstCanon(canonXML, charState, draft string) (map[string]interface{}, error)
 }
 
+type OutlineService interface {
+	GenerateOutline(synopsis string) (*StoryOutline, error)
+}
+
 type LLMClient interface {
 	Complete(req CompletionRequest) (*CompletionResponse, error)
 }
@@ -73,7 +79,44 @@ const (
 	PromptSummaryUpdate PromptTemplate = "summary_update"
 	PromptJoinMerge     PromptTemplate = "join_merge"
 	PromptCanonValidate PromptTemplate = "canon_validate"
+	PromptOutlineStory  PromptTemplate = "outline_story"
 )
+
+type StoryOutlineCharacter struct {
+	Name            string   `json:"name"`
+	Persona         string   `json:"persona"`
+	Backstory       string   `json:"backstory"`
+	MoralAlignment  string   `json:"moral_alignment"`
+	Personality     []string `json:"personality"`
+	Flaws           []string `json:"flaws"`
+	Goals           []string `json:"goals"`
+	VoiceSamples    []string `json:"voice_samples,omitempty"`
+}
+
+type StoryOutlineBeat struct {
+	Title         string   `json:"title"`
+	BeatIntent    string   `json:"beat_intent"`
+	CharacterNames []string `json:"character_names"`
+	LocationName  string   `json:"location_name,omitempty"`
+	POV           string   `json:"pov"`
+	Tone          string   `json:"tone"`
+	TargetWords   int      `json:"target_words"`
+	Act           int      `json:"act"`
+}
+
+type StoryOutlineEdge struct {
+	From   string `json:"from"`
+	To     string `json:"to"`
+	Type   string `json:"type"`
+}
+
+type StoryOutline struct {
+	Title      string                `json:"title"`
+	Synopsis   string                `json:"synopsis"`
+	Characters []StoryOutlineCharacter `json:"characters"`
+	Beats      []StoryOutlineBeat    `json:"beats"`
+	Edges      []StoryOutlineEdge    `json:"edges"`
+}
 
 type PromptConfig struct {
 	Template    PromptTemplate
@@ -112,5 +155,11 @@ var PromptRegistry = map[PromptTemplate]PromptConfig{
 		Model:       ModelHaiku,
 		Temperature: 0,
 		SystemText:  "You are a strict continuity editor. Check this draft against canon.",
+	},
+	PromptOutlineStory: {
+		Template:    PromptOutlineStory,
+		Model:       ModelSonnet,
+		Temperature: 0.7,
+		SystemText:  "You are a master story architect. Given a synopsis, generate a structured story outline with characters, plot beats, and narrative flow.",
 	},
 }

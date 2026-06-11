@@ -15,7 +15,10 @@ import (
 	"github.com/premchand/story-builder/internal/compiler"
 	"github.com/premchand/story-builder/internal/db"
 	"github.com/premchand/story-builder/internal/graph"
+	"github.com/premchand/story-builder/internal/llm"
+	"github.com/premchand/story-builder/internal/river"
 	"github.com/premchand/story-builder/internal/scene"
+	riv "github.com/riverqueue/river"
 )
 
 func NewDBCharService(q *db.Queries) *dbCharService {
@@ -291,8 +294,9 @@ func (s *dbLoreService) Create(tags []string, content string) (*canon.Lore, erro
 		tags = []string{}
 	}
 	l, err := s.q.CreateLore(context.Background(), db.CreateLoreParams{
-		Tags:    tags,
-		Content: content,
+		Tags:      tags,
+		Content:   content,
+		Embedding: pgvector.Vector{},
 	})
 	if err != nil {
 		return nil, err
@@ -590,18 +594,137 @@ func listNodes(q *db.Queries, storyID uuid.UUID) ([]graph.Node, error) {
 	return result, nil
 }
 
-type dbGenerationService struct{ q *db.Queries }
+type dbGenerationService struct {
+	q          *db.Queries
+	rivClient  *riv.Client[pgx.Tx]
+}
 
-func NewDBGenerationService(q *db.Queries) *dbGenerationService {
-	return &dbGenerationService{q: q}
+func NewDBGenerationService(q *db.Queries, rivClient *riv.Client[pgx.Tx]) *dbGenerationService {
+	return &dbGenerationService{q: q, rivClient: rivClient}
 }
 
 func (s *dbGenerationService) Generate(nodeID uuid.UUID) (*compiler.Generation, error) {
-	return nil, fmt.Errorf("generation requires LLM integration — not implemented")
+	node, err := s.q.GetNode(context.Background(), toUUID(nodeID))
+	if err != nil {
+		return nil, fmt.Errorf("get node: %w", err)
+	}
+
+	storyID := fromUUID(node.StoryID)
+	compiled, err := s.compileContext(storyID, node)
+	if err != nil {
+		return nil, fmt.Errorf("compile context: %w", err)
+	}
+
+	hash := compiled.Hash()
+	promptSnapshot := fmt.Sprintf("POV: %s | Tone: %s | Beat: %s", node.Pov, node.Tone, node.BeatIntent)
+
+	dbGen, err := s.q.CreateGeneration(context.Background(), db.CreateGenerationParams{
+		NodeID:         toUUID(nodeID),
+		ContextHash:    hash,
+		PromptSnapshot: promptSnapshot,
+		Output:         "",
+		Model:          string(llm.ModelSonnet),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create generation: %w", err)
+	}
+
+	genID := fromUUID(dbGen.ID)
+
+	charRefs := make([]uuid.UUID, len(node.CharacterRefs))
+	for i, ref := range node.CharacterRefs {
+		charRefs[i] = fromUUID(ref)
+	}
+	var locRef *uuid.UUID
+	if node.LocationRef.Valid {
+		lr := fromUUID(node.LocationRef)
+		locRef = &lr
+	}
+
+	_, err = s.rivClient.Insert(context.Background(), &river.GenerateSceneArgs{
+		StoryID:       storyID,
+		NodeID:        nodeID,
+		GenID:         genID,
+		ContextHash:   hash,
+		CharacterRefs: charRefs,
+		LocationRef:   locRef,
+		BeatIntent:    node.BeatIntent,
+		POV:           node.Pov,
+		Tone:          node.Tone,
+		TargetWords:   int(node.TargetWords),
+	}, &riv.InsertOpts{
+		Queue: river.QueueGenerate,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("enqueue generate: %w", err)
+	}
+
+	return &compiler.Generation{
+		ID:             genID.String(),
+		NodeID:         nodeID.String(),
+		ContextHash:    hash,
+		PromptSnapshot: promptSnapshot,
+		Output:         "",
+		Model:          string(llm.ModelSonnet),
+	}, nil
+}
+
+func (s *dbGenerationService) compileContext(storyID uuid.UUID, node db.Node) (*compiler.CompiledContext, error) {
+	ctx := &compiler.CompiledContext{
+		BeatIntent:  node.BeatIntent,
+		POV:         node.Pov,
+		Tone:        node.Tone,
+		TargetWords: int(node.TargetWords),
+	}
+
+	var charCards []canon.Card
+	for _, ref := range node.CharacterRefs {
+		c, err := s.q.GetCharacterLatest(context.Background(), ref)
+		if err != nil {
+			continue
+		}
+		charCards = append(charCards, canon.Card{
+			Name:         c.Name,
+			Description:  c.Persona,
+			Type:         "character",
+		})
+	}
+	ctx.CharacterCards = charCards
+
+	if node.LocationRef.Valid {
+		loc, err := s.q.GetLocationLatest(context.Background(), node.LocationRef)
+		if err == nil {
+			ctx.LocationCard = &canon.Card{
+				Name:        loc.Name,
+				Description: loc.Description,
+				Type:        "location",
+			}
+		}
+	}
+
+	loreTags := make([]string, 0)
+	for _, cc := range charCards {
+		loreTags = append(loreTags, cc.Name)
+	}
+	lore, err := s.q.SearchLoreByTags(context.Background(), loreTags)
+	if err == nil {
+		for _, l := range lore {
+			ctx.Lore = append(ctx.Lore, l.Content)
+		}
+	}
+
+	return ctx, nil
 }
 
 func (s *dbGenerationService) AcceptGeneration(nodeID, genID uuid.UUID) error {
-	return s.q.AcceptGeneration(context.Background(), toUUID(genID))
+	ctx := context.Background()
+	if err := s.q.AcceptGeneration(ctx, toUUID(genID)); err != nil {
+		return err
+	}
+	return s.q.RejectOtherGenerations(ctx, db.RejectOtherGenerationsParams{
+		NodeID: toUUID(nodeID),
+		ID:     toUUID(genID),
+	})
 }
 
 func (s *dbGenerationService) ListGenerations(nodeID uuid.UUID) ([]compiler.Generation, error) {
@@ -622,6 +745,30 @@ func (s *dbGenerationService) ListGenerations(nodeID uuid.UUID) ([]compiler.Gene
 		}
 	}
 	return result, nil
+}
+
+type dbStoryGeneratorService struct {
+	q         *db.Queries
+	rivClient *riv.Client[pgx.Tx]
+}
+
+func NewDBStoryGeneratorService(q *db.Queries, rivClient *riv.Client[pgx.Tx]) *dbStoryGeneratorService {
+	return &dbStoryGeneratorService{q: q, rivClient: rivClient}
+}
+
+func (s *dbStoryGeneratorService) GenerateStory(synopsis string) (*StoryGenerateResult, error) {
+	_, err := s.rivClient.Insert(context.Background(), &river.GenerateStoryArgs{
+		Synopsis: synopsis,
+	}, &riv.InsertOpts{
+		Queue: river.QueueDefault,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("enqueue story generation: %w", err)
+	}
+	return &StoryGenerateResult{
+		StoryID: "",
+		Status:  "pending",
+	}, nil
 }
 
 type dbSceneService struct{ q *db.Queries }

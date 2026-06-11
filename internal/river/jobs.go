@@ -2,15 +2,25 @@ package river
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/premchand/story-builder/internal/canon"
+	"github.com/premchand/story-builder/internal/db"
+	"github.com/premchand/story-builder/internal/ledger"
+	"github.com/premchand/story-builder/internal/llm"
 	"github.com/riverqueue/river"
 )
+
+// ── Generate Scene ────────────────────────────────────────────
 
 type GenerateSceneArgs struct {
 	StoryID       uuid.UUID   `json:"story_id"`
 	NodeID        uuid.UUID   `json:"node_id"`
+	GenID         uuid.UUID   `json:"gen_id"`
 	ContextHash   string      `json:"context_hash"`
 	CharacterRefs []uuid.UUID `json:"character_refs"`
 	LocationRef   *uuid.UUID  `json:"location_ref"`
@@ -24,13 +34,111 @@ func (GenerateSceneArgs) Kind() string { return "generate_scene" }
 
 type GenerateSceneWorker struct {
 	river.WorkerDefaults[GenerateSceneArgs]
+	Prose   llm.ProseService
+	Queries *db.Queries
+}
+
+func NewGenerateSceneWorker(prose llm.ProseService, q *db.Queries) *GenerateSceneWorker {
+	return &GenerateSceneWorker{Prose: prose, Queries: q}
 }
 
 func (w *GenerateSceneWorker) Work(ctx context.Context, job *river.Job[GenerateSceneArgs]) error {
 	args := job.Args
-	_ = args
-	return nil
+
+	params, err := w.compilePromptParams(ctx, args)
+	if err != nil {
+		return fmt.Errorf("compile prompt params: %w", err)
+	}
+
+	resp, err := w.Prose.GenerateScene(*params)
+	if err != nil {
+		return fmt.Errorf("generate scene: %w", err)
+	}
+
+	return w.Queries.UpdateGenerationOutput(ctx, toUUID(args.GenID), resp.Content, string(llm.ModelSonnet))
 }
+
+func (w *GenerateSceneWorker) compilePromptParams(ctx context.Context, args GenerateSceneArgs) (*llm.PromptParams, error) {
+	params := &llm.PromptParams{
+		BeatIntent:  args.BeatIntent,
+		POV:         args.POV,
+		Tone:        args.Tone,
+		TargetWords: args.TargetWords,
+	}
+
+	var charCards []canon.Card
+	for _, ref := range args.CharacterRefs {
+		c, err := w.Queries.GetCharacterLatest(ctx, toUUID(ref))
+		if err != nil {
+			continue
+		}
+		var traits []string
+		json.Unmarshal(c.Traits, &traits)
+		var rels map[string]string
+		json.Unmarshal(c.Relationships, &rels)
+		charCards = append(charCards, canon.Card{
+			Name:         c.Name,
+			Description:  c.Persona,
+			Type:         "character",
+			Traits:       traits,
+			VoiceSamples: c.VoiceSamples,
+			Relationships: rels,
+		})
+	}
+	params.CharacterCards = charCards
+
+	if args.LocationRef != nil {
+		loc, err := w.Queries.GetLocationLatest(ctx, toUUID(*args.LocationRef))
+		if err == nil {
+			var props []string
+			json.Unmarshal(loc.Props, &props)
+			params.LocationCard = &canon.Card{
+				Name:        loc.Name,
+				Description: loc.Description,
+				Type:        "location",
+				Props:       props,
+			}
+		}
+	}
+
+	tags := make([]string, len(charCards))
+	for i, c := range charCards {
+		tags[i] = c.Name
+	}
+	lore, err := w.Queries.SearchLoreByTags(ctx, tags)
+	if err == nil {
+		for _, l := range lore {
+			params.Lore = append(params.Lore, l.Content)
+		}
+	}
+
+	states, err := w.Queries.GetStatesForNode(ctx, db.GetStatesForNodeParams{
+		StoryID:  toUUID(args.StoryID),
+		AsOfNode: toUUID(args.NodeID),
+	})
+	if err == nil {
+		params.CharState = make(map[string]interface{})
+		for _, s := range states {
+			var cs ledger.CharacterState
+			if json.Unmarshal(s.State, &cs) == nil {
+				charID := fromUUID(s.CharacterID)
+				params.CharState[charID.String()] = cs
+			}
+		}
+	}
+
+	summary, err := w.Queries.GetSummaryByLevel(ctx, db.GetSummaryByLevelParams{
+		StoryID: toUUID(args.StoryID),
+		Level:   "scene",
+	})
+	if err == nil {
+		params.BranchSummary = summary.Content
+	}
+
+	return params, nil
+}
+
+// ── Extract State ─────────────────────────────────────────────
 
 type ExtractStateArgs struct {
 	StoryID      uuid.UUID `json:"story_id"`
@@ -43,13 +151,24 @@ func (ExtractStateArgs) Kind() string { return "extract_state" }
 
 type ExtractStateWorker struct {
 	river.WorkerDefaults[ExtractStateArgs]
+	Extract llm.ExtractionService
+	Queries *db.Queries
+}
+
+func NewExtractStateWorker(extract llm.ExtractionService, q *db.Queries) *ExtractStateWorker {
+	return &ExtractStateWorker{Extract: extract, Queries: q}
 }
 
 func (w *ExtractStateWorker) Work(ctx context.Context, job *river.Job[ExtractStateArgs]) error {
 	args := job.Args
-	_ = args
+	_, err := w.Extract.ExtractState(args.SceneText)
+	if err != nil {
+		return fmt.Errorf("extract state: %w", err)
+	}
 	return nil
 }
+
+// ── Update Summary ────────────────────────────────────────────
 
 type UpdateSummaryArgs struct {
 	StoryID         uuid.UUID `json:"story_id"`
@@ -62,13 +181,28 @@ func (UpdateSummaryArgs) Kind() string { return "update_summary" }
 
 type UpdateSummaryWorker struct {
 	river.WorkerDefaults[UpdateSummaryArgs]
+	Summary llm.SummaryService
+	Queries *db.Queries
+}
+
+func NewUpdateSummaryWorker(svc llm.SummaryService, q *db.Queries) *UpdateSummaryWorker {
+	return &UpdateSummaryWorker{Summary: svc, Queries: q}
 }
 
 func (w *UpdateSummaryWorker) Work(ctx context.Context, job *river.Job[UpdateSummaryArgs]) error {
 	args := job.Args
-	_ = args
-	return nil
+	updated, err := w.Summary.UpdateSummary(args.PreviousSummary, args.AcceptedScene)
+	if err != nil {
+		return fmt.Errorf("update summary: %w", err)
+	}
+	return w.Queries.UpsertSceneSummary(ctx, db.UpsertSceneSummaryParams{
+		StoryID: toUUID(args.StoryID),
+		NodeID:  toUUID(args.NodeID),
+		Content: updated,
+	})
 }
+
+// ── Merge Branches ────────────────────────────────────────────
 
 type MergeBranchesArgs struct {
 	StoryID     uuid.UUID `json:"story_id"`
@@ -82,13 +216,31 @@ func (MergeBranchesArgs) Kind() string { return "merge_branches" }
 
 type MergeBranchesWorker struct {
 	river.WorkerDefaults[MergeBranchesArgs]
+	Merge   llm.MergeService
+	Queries *db.Queries
+}
+
+func NewMergeBranchesWorker(svc llm.MergeService, q *db.Queries) *MergeBranchesWorker {
+	return &MergeBranchesWorker{Merge: svc, Queries: q}
 }
 
 func (w *MergeBranchesWorker) Work(ctx context.Context, job *river.Job[MergeBranchesArgs]) error {
 	args := job.Args
-	_ = args
-	return nil
+	result, err := w.Merge.MergeBranches(args.SummaryA, args.SummaryB, args.TimelineNote)
+	if err != nil {
+		return fmt.Errorf("merge branches: %w", err)
+	}
+	summary, _ := result["merged_summary"].(string)
+	if summary == "" {
+		return nil
+	}
+	return w.Queries.UpsertStorySummary(ctx, db.UpsertStorySummaryParams{
+		StoryID: toUUID(args.StoryID),
+		Content: summary,
+	})
 }
+
+// ── Validate Scene ────────────────────────────────────────────
 
 type ValidateSceneArgs struct {
 	StoryID       uuid.UUID `json:"story_id"`
@@ -103,23 +255,146 @@ func (ValidateSceneArgs) Kind() string { return "validate_scene" }
 
 type ValidateSceneWorker struct {
 	river.WorkerDefaults[ValidateSceneArgs]
+	Validate llm.ValidationService
+}
+
+func NewValidateSceneWorker(svc llm.ValidationService) *ValidateSceneWorker {
+	return &ValidateSceneWorker{Validate: svc}
 }
 
 func (w *ValidateSceneWorker) Work(ctx context.Context, job *river.Job[ValidateSceneArgs]) error {
 	args := job.Args
-	_ = args
+	_, err := w.Validate.ValidateAgainstCanon(args.CompiledCanon, args.CharState, args.SceneText)
+	if err != nil {
+		return fmt.Errorf("validate scene: %w", err)
+	}
 	return nil
 }
 
-func Workers() *river.Workers {
+// ── Generate Story ────────────────────────────────────────────
+
+type GenerateStoryArgs struct {
+	Synopsis string `json:"synopsis"`
+}
+
+func (GenerateStoryArgs) Kind() string { return "generate_story" }
+
+type GenerateStoryWorker struct {
+	river.WorkerDefaults[GenerateStoryArgs]
+	Outline  llm.OutlineService
+	Queries  *db.Queries
+	Prose    llm.ProseService
+}
+
+func NewGenerateStoryWorker(outline llm.OutlineService, q *db.Queries, prose llm.ProseService) *GenerateStoryWorker {
+	return &GenerateStoryWorker{Outline: outline, Queries: q, Prose: prose}
+}
+
+func (w *GenerateStoryWorker) Work(ctx context.Context, job *river.Job[GenerateStoryArgs]) error {
+	args := job.Args
+
+	outline, err := w.Outline.GenerateOutline(args.Synopsis)
+	if err != nil {
+		return fmt.Errorf("generate outline: %w", err)
+	}
+
+	story, err := w.Queries.CreateStory(ctx, outline.Title)
+	if err != nil {
+		return fmt.Errorf("create story: %w", err)
+	}
+	storyID := fromUUID(story.ID)
+
+	charNameToID := make(map[string]pgtype.UUID)
+	for _, oc := range outline.Characters {
+		c, err := w.Queries.CreateCharacter(ctx, db.CreateCharacterParams{
+			Name:           oc.Name,
+			Persona:        oc.Persona,
+			Backstory:      oc.Backstory,
+			MoralAlignment: oc.MoralAlignment,
+			Personality:    jsonBytes(oc.Personality),
+			Flaws:          jsonBytes(oc.Flaws),
+			Goals:          jsonBytes(oc.Goals),
+			Traits:         jsonBytes([]string{}),
+			VoiceSamples:   oc.VoiceSamples,
+			Relationships:  jsonBytes(map[string]string{}),
+			ParentID:       pgtype.UUID{Valid: false},
+		})
+		if err != nil {
+			return fmt.Errorf("create character %s: %w", oc.Name, err)
+		}
+		charNameToID[oc.Name] = c.ID
+	}
+
+	beatTitleToID := make(map[string]pgtype.UUID)
+	for _, beat := range outline.Beats {
+		charRefs := make([]pgtype.UUID, 0, len(beat.CharacterNames))
+		for _, name := range beat.CharacterNames {
+			if id, ok := charNameToID[name]; ok {
+				charRefs = append(charRefs, id)
+			}
+		}
+
+		node, err := w.Queries.CreateNode(ctx, db.CreateNodeParams{
+			StoryID:       toUUID(storyID),
+			BeatIntent:    beat.BeatIntent,
+			CharacterRefs: charRefs,
+			Pov:           beat.POV,
+			Tone:          beat.Tone,
+			TargetWords:   int32(beat.TargetWords),
+		})
+		if err != nil {
+			return fmt.Errorf("create node %s: %w", beat.Title, err)
+		}
+		beatTitleToID[beat.Title] = node.ID
+	}
+
+	for _, edge := range outline.Edges {
+		fromID, ok := beatTitleToID[edge.From]
+		if !ok {
+			continue
+		}
+		toID, ok := beatTitleToID[edge.To]
+		if !ok {
+			continue
+		}
+		err := w.Queries.CreateEdge(ctx, db.CreateEdgeParams{
+			StoryID:  toUUID(storyID),
+			FromNode: fromID,
+			ToNode:   toID,
+			EdgeType: edge.Type,
+		})
+		if err != nil {
+			return fmt.Errorf("create edge %s->%s: %w", edge.From, edge.To, err)
+		}
+	}
+
+	return nil
+}
+
+// ── Workers Registry ──────────────────────────────────────────
+
+type Dependencies struct {
+	Prose    llm.ProseService
+	Extract  llm.ExtractionService
+	Summary  llm.SummaryService
+	Merge    llm.MergeService
+	Validate llm.ValidationService
+	Outline  llm.OutlineService
+	Queries  *db.Queries
+}
+
+func Workers(deps *Dependencies) *river.Workers {
 	workers := river.NewWorkers()
-	river.AddWorker(workers, &GenerateSceneWorker{})
-	river.AddWorker(workers, &ExtractStateWorker{})
-	river.AddWorker(workers, &UpdateSummaryWorker{})
-	river.AddWorker(workers, &MergeBranchesWorker{})
-	river.AddWorker(workers, &ValidateSceneWorker{})
+	river.AddWorker(workers, NewGenerateSceneWorker(deps.Prose, deps.Queries))
+	river.AddWorker(workers, NewExtractStateWorker(deps.Extract, deps.Queries))
+	river.AddWorker(workers, NewUpdateSummaryWorker(deps.Summary, deps.Queries))
+	river.AddWorker(workers, NewMergeBranchesWorker(deps.Merge, deps.Queries))
+	river.AddWorker(workers, NewValidateSceneWorker(deps.Validate))
+	river.AddWorker(workers, NewGenerateStoryWorker(deps.Outline, deps.Queries, deps.Prose))
 	return workers
 }
+
+// ── Queue names ───────────────────────────────────────────────
 
 const (
 	QueueDefault  = "default"
@@ -139,4 +414,20 @@ type InsertGenerateSceneParams struct {
 	Queue       string
 	MaxAttempts int
 	SchedFor    *time.Time
+}
+
+// ── helpers ───────────────────────────────────────────────────
+
+func toUUID(id uuid.UUID) pgtype.UUID {
+	return pgtype.UUID{Bytes: id, Valid: true}
+}
+
+func fromUUID(u pgtype.UUID) uuid.UUID {
+	id, _ := uuid.FromBytes(u.Bytes[:])
+	return id
+}
+
+func jsonBytes(v interface{}) []byte {
+	b, _ := json.Marshal(v)
+	return b
 }

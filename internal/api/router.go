@@ -22,6 +22,7 @@ type Server struct {
 	genHandler          *GenerationHandler
 	sceneHandler        *SceneHandler
 	summaryHandler      *SummaryHandler
+	storyGenHandler     *StoryGeneratorHandler
 }
 
 func NewServer(
@@ -36,6 +37,7 @@ func NewServer(
 	genH *GenerationHandler,
 	sceneH *SceneHandler,
 	summaryH *SummaryHandler,
+	storyGenH *StoryGeneratorHandler,
 ) *Server {
 	s := &Server{
 		router:           chi.NewRouter(),
@@ -50,6 +52,7 @@ func NewServer(
 		genHandler:       genH,
 		sceneHandler:     sceneH,
 		summaryHandler:   summaryH,
+		storyGenHandler:  storyGenH,
 	}
 	s.routes()
 	return s
@@ -70,6 +73,8 @@ func (s *Server) routes() {
 	}))
 
 	r.Route("/api/v1", func(r chi.Router) {
+		r.Post("/stories/generate", s.storyGenHandler.Generate)
+
 		r.Route("/actors", func(r chi.Router) {
 			r.Post("/", s.actorHandler.Create)
 			r.Get("/", s.actorHandler.List)

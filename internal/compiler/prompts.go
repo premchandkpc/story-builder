@@ -1,35 +1,42 @@
 package compiler
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
+
+func esc(s string) string {
+	return strings.NewReplacer("<", "＜", ">", "＞").Replace(s)
+}
 
 func (c *CompiledContext) BuildSceneProseSystemPrompt() string {
 	canon := ""
 
 	for _, card := range c.CharacterCards {
-		canon += fmt.Sprintf("<character name=\"%s\">\n", card.Name)
+		canon += fmt.Sprintf("<character name=\"%s\">\n", esc(card.Name))
 		canon += fmt.Sprintf("Traits: %v\n", card.Traits)
 		canon += fmt.Sprintf("Relationships: %v\n", card.Relationships)
 		canon += "Voice samples:\n"
 		for _, v := range card.VoiceSamples {
-			canon += fmt.Sprintf("- \"%s\"\n", v)
+			canon += fmt.Sprintf("- \"%s\"\n", esc(v))
 		}
 		canon += "</character>\n"
 	}
 
 	if c.LocationCard != nil {
-		canon += fmt.Sprintf("<location name=\"%s\">%s\n", c.LocationCard.Name, c.LocationCard.Description)
+		canon += fmt.Sprintf("<location name=\"%s\">%s\n", esc(c.LocationCard.Name), esc(c.LocationCard.Description))
 		canon += fmt.Sprintf("Props available: %v</location>\n", c.LocationCard.Props)
 	}
 
 	canon += "<world_rules>\n"
 	for _, l := range c.Lore {
-		canon += fmt.Sprintf("- %s\n", l)
+		canon += fmt.Sprintf("- %s\n", esc(l))
 	}
 	canon += "</world_rules>"
 
 	stateBlock := ""
 	for char, st := range c.CharState {
-		stateBlock += fmt.Sprintf("%s: at %s, mood %s,\n", char, st.Location, st.Mood)
+		stateBlock += fmt.Sprintf("%s: at %s, mood %s,\n", esc(char), esc(st.Location), esc(st.Mood))
 		stateBlock += fmt.Sprintf("knows: %v,\n", st.Knows)
 		if st.DoesNotKnow != nil {
 			stateBlock += fmt.Sprintf("does NOT know: %v\n", st.DoesNotKnow)
@@ -58,12 +65,12 @@ HARD RULES:
 5. End the scene when the beat resolves. Do not set up the next scene.
 6. Length: %d words, ±20%%.
 7. Output prose only — no titles, no notes, no "Scene:" headers.`,
-		canon, stateBlock, c.BranchSummary, c.TargetWords)
+		canon, stateBlock, esc(c.BranchSummary), c.TargetWords)
 }
 
 func (c *CompiledContext) BuildSceneProseUserMessage() string {
 	return fmt.Sprintf("Write the scene where: %s. POV: %s. Tone: %s.",
-		c.BeatIntent, c.POV, c.Tone)
+		esc(c.BeatIntent), esc(c.POV), esc(c.Tone))
 }
 
 func BuildStateExtractSystemPrompt() string {
@@ -86,7 +93,7 @@ Produce an updated summary. Rules:
 - Preserve every fact from the previous summary unless the new scene
   explicitly supersedes it.
 - Chronological order. Present tense.
-- Output the summary only.`, prevSummary, newScene)
+- Output the summary only.`, esc(prevSummary), esc(newScene))
 }
 
 func BuildJoinMergeSystemPrompt(summaryA, summaryB, timelineNote string) string {
@@ -102,7 +109,7 @@ Output JSON: {"merged_summary": "...", "conflicts": [{"description": "...",
 A conflict is: the same character acting in both branches, contradictory
 facts, or events that cannot coexist on the stated timeline. If branches
 are cleanly disjoint, conflicts is []. Interleave events chronologically
-in the merged summary.`, summaryA, summaryB, timelineNote)
+in the merged summary.`, esc(summaryA), esc(summaryB), esc(timelineNote))
 }
 
 func BuildCanonValidateSystemPrompt(compiledCanon, charState, draft string) string {
@@ -120,5 +127,54 @@ Check specifically: (1) any character using knowledge from their does-not-know
 list, (2) dialogue that doesn't match voice samples, (3) trait contradictions,
 (4) physical impossibilities given locations, (5) world-rule breaks.
 Empty array if clean. Do not comment on writing quality — continuity only.`,
-		compiledCanon, charState, draft)
+		esc(compiledCanon), esc(charState), esc(draft))
+}
+
+func BuildOutlineStorySystemPrompt(synopsis string) string {
+	return fmt.Sprintf(`You are a master story architect. Given a synopsis, generate a structured story outline.
+
+<synopsis>%s</synopsis>
+
+Output VALID JSON only — no markdown, no code fences, no commentary. Schema:
+{
+  "title": "...",
+  "synopsis": "...",
+  "characters": [
+    {
+      "name": "...",
+      "persona": "archetype and role",
+      "backstory": "2-3 sentence backstory",
+      "moral_alignment": "good|neutral|evil|ambiguous",
+      "personality": ["trait1", "trait2"],
+      "flaws": ["flaw1"],
+      "goals": ["goal1", "goal2"],
+      "voice_samples": ["sample line 1", "sample line 2"]
+    }
+  ],
+  "beats": [
+    {
+      "title": "scene title",
+      "beat_intent": "what happens in this scene",
+      "character_names": ["char1", "char2"],
+      "location_name": "where (optional)",
+      "pov": "POV character name",
+      "tone": "mood",
+      "target_words": 500,
+      "act": 1
+    }
+  ],
+  "edges": [
+    { "from": "scene title", "to": "next scene title", "type": "seq" }
+  ]
+}
+
+RULES:
+1. 5-12 beats. First beat = inciting incident. Last beat = climax + resolution.
+2. Each character has at least one goal and one flaw.
+3. Character names must exactly match across beats, edges, and characters array.
+4. Edge types: seq (scene follows previous), fork (branch point), join (convergence).
+5. Assign acts (1-3) so each act has 2-5 beats.
+6. target_words per beat: 300-800.
+7. Provide voice_samples (2 per character) that reveal personality.`,
+		esc(synopsis))
 }

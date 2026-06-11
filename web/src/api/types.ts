@@ -225,7 +225,12 @@ export interface StorySummary {
 }
 
 export interface ElevateCheck {
-  should_elevate: boolean
-  level: string
-  threshold: number
+	should_elevate: boolean
+	level: string
+	threshold: number
+}
+
+export interface StoryGenerateResult {
+	story_id: string
+	status: string
 }
