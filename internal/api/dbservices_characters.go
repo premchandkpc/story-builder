@@ -103,15 +103,15 @@ func (s *dbCharService) List() ([]canon.Character, error) {
 
 func toDomainChar(c db.Character) *canon.Character {
 	var traits []string
-	json.Unmarshal(c.Traits, &traits)
+	_ = json.Unmarshal(c.Traits, &traits)
 	var personality []string
-	json.Unmarshal(c.Personality, &personality)
+	_ = json.Unmarshal(c.Personality, &personality)
 	var flaws []string
-	json.Unmarshal(c.Flaws, &flaws)
+	_ = json.Unmarshal(c.Flaws, &flaws)
 	var goals []string
-	json.Unmarshal(c.Goals, &goals)
+	_ = json.Unmarshal(c.Goals, &goals)
 	var rel map[string]string
-	json.Unmarshal(c.Relationships, &rel)
+	_ = json.Unmarshal(c.Relationships, &rel)
 	var parentID *uuid.UUID
 	if c.ParentID.Valid {
 		p := fromUUID(c.ParentID)
@@ -137,15 +137,15 @@ func toDomainChar(c db.Character) *canon.Character {
 
 func toDomainCharFromLatest(c db.LatestCharacter) *canon.Character {
 	var traits []string
-	json.Unmarshal(c.Traits, &traits)
+	_ = json.Unmarshal(c.Traits, &traits)
 	var personality []string
-	json.Unmarshal(c.Personality, &personality)
+	_ = json.Unmarshal(c.Personality, &personality)
 	var flaws []string
-	json.Unmarshal(c.Flaws, &flaws)
+	_ = json.Unmarshal(c.Flaws, &flaws)
 	var goals []string
-	json.Unmarshal(c.Goals, &goals)
+	_ = json.Unmarshal(c.Goals, &goals)
 	var rel map[string]string
-	json.Unmarshal(c.Relationships, &rel)
+	_ = json.Unmarshal(c.Relationships, &rel)
 	var parentID *uuid.UUID
 	if c.ParentID.Valid {
 		p := fromUUID(c.ParentID)

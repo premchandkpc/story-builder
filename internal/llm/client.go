@@ -52,7 +52,9 @@ func (c *AnthropicClient) Complete(req CompletionRequest) (*CompletionResponse, 
 	if err != nil {
 		return nil, fmt.Errorf("anthropic: %w", err)
 	}
-	defer res.Body.Close()
+	defer func() {
+		_ = res.Body.Close()
+	}()
 
 	raw, err := io.ReadAll(res.Body)
 	if err != nil {
@@ -122,7 +124,9 @@ func (c *OllamaClient) Complete(req CompletionRequest) (*CompletionResponse, err
 	if err != nil {
 		return nil, fmt.Errorf("ollama: %w", err)
 	}
-	defer res.Body.Close()
+	defer func() {
+		_ = res.Body.Close()
+	}()
 
 	raw, err := io.ReadAll(res.Body)
 	if err != nil {

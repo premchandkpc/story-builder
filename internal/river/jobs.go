@@ -78,9 +78,9 @@ func (w *GenerateSceneWorker) compilePromptParams(ctx context.Context, args Gene
 			continue
 		}
 		var traits []string
-		json.Unmarshal(c.Traits, &traits)
+		_ = json.Unmarshal(c.Traits, &traits)
 		var rels map[string]string
-		json.Unmarshal(c.Relationships, &rels)
+		_ = json.Unmarshal(c.Relationships, &rels)
 		charCards = append(charCards, canon.Card{
 			Name:          c.Name,
 			Description:   c.Persona,
@@ -96,7 +96,7 @@ func (w *GenerateSceneWorker) compilePromptParams(ctx context.Context, args Gene
 		loc, err := w.Queries.GetLocationLatest(ctx, toUUID(*args.LocationRef))
 		if err == nil {
 			var props []string
-			json.Unmarshal(loc.Props, &props)
+			_ = json.Unmarshal(loc.Props, &props)
 			params.LocationCard = &canon.Card{
 				Name:        loc.Name,
 				Description: loc.Description,

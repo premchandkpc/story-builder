@@ -1,4 +1,4 @@
-.PHONY: all dev run frontend db db/stop build sqlc clean
+.PHONY: all dev run frontend db db/stop build lint test test-integration simulate sqlc clean
 
 all: build
 
@@ -29,6 +29,18 @@ db/stop:
 build:
 	go build ./...
 	cd web && npm run build
+
+lint:
+	golangci-lint run
+
+test:
+	go test ./...
+
+test-integration:
+	go test ./... -tags=integration
+
+simulate:
+	go run ./cmd/simulate
 
 sqlc:
 	sqlc generate -f sqlc/sqlc.yaml

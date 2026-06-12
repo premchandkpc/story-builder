@@ -15,8 +15,8 @@ import (
 )
 
 type Runner struct {
-	pool   *pgxpool.Pool
-	dir    string
+	pool *pgxpool.Pool
+	dir  string
 }
 
 func New(pool *pgxpool.Pool, migrationsDir string) *Runner {
@@ -120,7 +120,9 @@ func (r *Runner) apply(ctx context.Context, filename string) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
 
 	if _, err := tx.Exec(ctx, string(content)); err != nil {
 		return err

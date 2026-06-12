@@ -53,7 +53,9 @@ func TestSmoke_CriticalFlows(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		if res.StatusCode != 200 {
 			t.Fatalf("expected 200, got %d", res.StatusCode)
 		}
@@ -330,6 +332,17 @@ func TestSmoke_CriticalFlows(t *testing.T) {
 
 	t.Run("404 on unknown story", func(t *testing.T) {
 		res, err := client.Get(ts.URL + "/api/v1/stories/00000000-0000-0000-0000-000000000000")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		if res.StatusCode != 404 {
+			t.Fatalf("expected 404, got %d", res.StatusCode)
+		}
+	})
+
+	t.Run("404 on unknown node", func(t *testing.T) {
+		res, err := client.Get(ts.URL + "/api/v1/stories/00000000-0000-0000-0000-000000000000/nodes/00000000-0000-0000-0000-000000000000")
 		if err != nil {
 			t.Fatal(err)
 		}

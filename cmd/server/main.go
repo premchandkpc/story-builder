@@ -113,7 +113,11 @@ func main() {
 			if err := rivClient.Start(ctx); err != nil {
 				log.Printf("river start: %v", err)
 			} else {
-				defer rivClient.Stop(ctx)
+				defer func() {
+					if stopErr := rivClient.Stop(ctx); stopErr != nil {
+						log.Printf("river stop: %v", stopErr)
+					}
+				}()
 			}
 		}
 
@@ -192,10 +196,11 @@ func main() {
 
 	log.Println("shutting down...")
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer shutdownCancel()
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		shutdownCancel()
 		log.Fatalf("shutdown: %v", err)
 	}
+	shutdownCancel()
 }
 
 type config struct {

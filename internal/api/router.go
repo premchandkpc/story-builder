@@ -175,7 +175,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		http.Error(w, "encode response", http.StatusInternalServerError)
+	}
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {

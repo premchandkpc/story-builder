@@ -61,7 +61,7 @@ func TestParseOptionalUUID(t *testing.T) {
 		t.Fatalf("unexpected UUID: %s", v)
 	}
 
-	v, err = parseOptionalUUID(&nilStr)
+	_, err = parseOptionalUUID(&nilStr)
 	if err == nil {
 		t.Fatal("expected invalid UUID to be rejected")
 	}
