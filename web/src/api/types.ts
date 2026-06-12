@@ -81,6 +81,13 @@ export interface Story {
   created_at: string
 }
 
+export interface StoryStats {
+  total: number
+  generated: number
+  accepted: number
+  stale: number
+}
+
 export type NodeStatus = "draft" | "generated" | "accepted" | "stale"
 
 export type EdgeType = "seq" | "fork" | "join" | "choice"
@@ -225,12 +232,39 @@ export interface StorySummary {
 }
 
 export interface ElevateCheck {
-	should_elevate: boolean
-	level: string
-	threshold: number
+  should_elevate: boolean
+  level: string
+  threshold: number
 }
 
 export interface StoryGenerateResult {
-	story_id: string
-	status: string
+  story_id: string
+  status: string
 }
+
+const inputStyle: Record<string, string | number> = {
+  width: "100%",
+  padding: "10px 12px",
+  background: "#1e293b",
+  border: "1px solid #334155",
+  borderRadius: 6,
+  color: "#e2e8f0",
+  fontSize: 14,
+  boxSizing: "border-box",
+  outline: "none",
+}
+
+export function btnStyle(bg: string, disabled = false): Record<string, string | number> {
+  return {
+    padding: "10px 16px",
+    background: disabled ? "#64748b" : bg,
+    color: "#fff",
+    border: "none",
+    borderRadius: 6,
+    cursor: disabled ? "not-allowed" : "pointer",
+    fontWeight: 600,
+    fontSize: 14,
+  }
+}
+
+export { inputStyle }
