@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/premchand/story-builder/internal/graph"
+	"github.com/premchand/story-builder/internal/llm"
 )
 
 type StoryHandler struct {
@@ -246,6 +247,36 @@ type StoryGenerateResult struct {
 
 type StoryGeneratorHandler struct {
 	Service StoryGeneratorService
+}
+
+type TitleHandler struct {
+	Service llm.TitleService
+}
+
+type generateTitleRequest struct {
+	Synopsis string `json:"synopsis"`
+}
+
+type generateTitleResponse struct {
+	Title string `json:"title"`
+}
+
+func (h *TitleHandler) Generate(w http.ResponseWriter, r *http.Request) {
+	var req generateTitleRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Synopsis == "" {
+		writeError(w, http.StatusBadRequest, "synopsis is required")
+		return
+	}
+	title, err := h.Service.GenerateTitle(r.Context(), req.Synopsis)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, generateTitleResponse{Title: title})
 }
 
 type storyGenerateRequest struct {

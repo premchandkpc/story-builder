@@ -74,6 +74,10 @@ type OutlineService interface {
 	GenerateOutline(ctx context.Context, synopsis string) (*StoryOutline, error)
 }
 
+type TitleService interface {
+	GenerateTitle(ctx context.Context, synopsis string) (string, error)
+}
+
 type LLMClient interface {
 	Complete(ctx context.Context, req CompletionRequest) (*CompletionResponse, error)
 }
@@ -81,12 +85,13 @@ type LLMClient interface {
 type PromptTemplate string
 
 const (
-	PromptSceneProse    PromptTemplate = "scene_prose"
-	PromptStateExtract  PromptTemplate = "state_extract"
-	PromptSummaryUpdate PromptTemplate = "summary_update"
-	PromptJoinMerge     PromptTemplate = "join_merge"
-	PromptCanonValidate PromptTemplate = "canon_validate"
-	PromptOutlineStory  PromptTemplate = "outline_story"
+	PromptSceneProse     PromptTemplate = "scene_prose"
+	PromptStateExtract   PromptTemplate = "state_extract"
+	PromptSummaryUpdate  PromptTemplate = "summary_update"
+	PromptJoinMerge      PromptTemplate = "join_merge"
+	PromptCanonValidate  PromptTemplate = "canon_validate"
+	PromptOutlineStory   PromptTemplate = "outline_story"
+	PromptGenerateTitle  PromptTemplate = "generate_title"
 )
 
 type StoryOutlineCharacter struct {
@@ -165,8 +170,14 @@ var PromptRegistry = map[PromptTemplate]PromptConfig{
 	},
 	PromptOutlineStory: {
 		Template:    PromptOutlineStory,
-		Model:       ModelSonnet,
+		Model:       ModelLocal,
 		Temperature: 0.7,
 		SystemText:  "You are a master story architect. Given a synopsis, generate a structured story outline with characters, plot beats, and narrative flow.",
+	},
+	PromptGenerateTitle: {
+		Template:    PromptGenerateTitle,
+		Model:       ModelLocal,
+		Temperature: 0.5,
+		SystemText:  "You are a creative title generator. Given a synopsis, generate a short, engaging story title (3-8 words). Return ONLY the title, no quotes or punctuation.",
 	},
 }

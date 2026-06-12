@@ -24,6 +24,7 @@ type Server struct {
 	sceneHandler     *SceneHandler
 	summaryHandler   *SummaryHandler
 	storyGenHandler  *StoryGeneratorHandler
+	titleHandler     *TitleHandler
 	rateLimiter      *cache.SlidingWindowRateLimiter
 }
 
@@ -40,6 +41,7 @@ func NewServer(
 	sceneH *SceneHandler,
 	summaryH *SummaryHandler,
 	storyGenH *StoryGeneratorHandler,
+	titleH *TitleHandler,
 	rlOpt ...*cache.SlidingWindowRateLimiter,
 ) *Server {
 	s := &Server{
@@ -56,6 +58,7 @@ func NewServer(
 		sceneHandler:     sceneH,
 		summaryHandler:   summaryH,
 		storyGenHandler:  storyGenH,
+		titleHandler:     titleH,
 	}
 	if len(rlOpt) > 0 {
 		s.rateLimiter = rlOpt[0]
@@ -87,6 +90,7 @@ func (s *Server) routes() {
 			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		})
 		r.Post("/stories/generate", s.storyGenHandler.Generate)
+		r.Post("/stories/generate-title", s.titleHandler.Generate)
 
 		r.Route("/actors", func(r chi.Router) {
 			r.Post("/", s.actorHandler.Create)

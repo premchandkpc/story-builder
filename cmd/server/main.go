@@ -80,13 +80,14 @@ func main() {
 	var sceneHandler *api.SceneHandler
 	var summaryHandler *api.SummaryHandler
 	var storyGenHandler *api.StoryGeneratorHandler
+	var titleHandler *api.TitleHandler
 	blueprintService := api.NewInMemoryBlueprintService()
 	timelineService := api.NewInMemoryTimelineService()
 
+	llmClient := createLLMClient(cfg)
+
 	if dbOk {
 		q := db.New(pool)
-
-		llmClient := createLLMClient(cfg)
 
 		if promptCache != nil {
 			llmClient = cache.NewCachedLLMClient(llmClient, promptCache)
@@ -123,6 +124,7 @@ func main() {
 		rcfg := &riv.Config{
 			Workers: workers,
 			Queues: map[string]riv.QueueConfig{
+				river.QueueDefault:  {MaxWorkers: 1},
 				river.QueueGenerate: {MaxWorkers: 2},
 				river.QueueExtract:  {MaxWorkers: 4},
 				river.QueueMerge:    {MaxWorkers: 2},
@@ -156,6 +158,7 @@ func main() {
 		sceneHandler = &api.SceneHandler{SceneService: api.NewDBSceneService(q)}
 		summaryHandler = &api.SummaryHandler{Service: api.NewDBSummaryService(q)}
 		storyGenHandler = &api.StoryGeneratorHandler{Service: api.NewDBStoryGeneratorService(q, rivClient)}
+		titleHandler = &api.TitleHandler{Service: llm.NewTitleService(llmClient)}
 	} else {
 		gs := graph.NewMemoryStore()
 		charHandler = &api.CharacterHandler{Service: api.NewCharService()}
@@ -170,9 +173,10 @@ func main() {
 		sceneHandler = &api.SceneHandler{SceneService: api.NewMemorySceneService()}
 		summaryHandler = &api.SummaryHandler{Service: api.NewMemorySummaryService()}
 		storyGenHandler = &api.StoryGeneratorHandler{Service: api.NewMemoryStoryGeneratorService()}
+		titleHandler = &api.TitleHandler{Service: llm.NewTitleService(llmClient)}
 	}
 
-	srv := api.NewServer(charHandler, actorHandler, traitHandler, castingHandler, locHandler, loreHandler, storyHandler, nodeHandler, genHandler, sceneHandler, summaryHandler, storyGenHandler, rateLimiter)
+	srv := api.NewServer(charHandler, actorHandler, traitHandler, castingHandler, locHandler, loreHandler, storyHandler, nodeHandler, genHandler, sceneHandler, summaryHandler, storyGenHandler, titleHandler, rateLimiter)
 
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%s", cfg.Port),

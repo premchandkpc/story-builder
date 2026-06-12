@@ -196,6 +196,30 @@ func (s *OutlineServiceImpl) GenerateOutline(ctx context.Context, synopsis strin
 	return &outline, nil
 }
 
+func NewTitleService(client LLMClient) *TitleServiceImpl {
+	return &TitleServiceImpl{client: client}
+}
+
+type TitleServiceImpl struct {
+	client LLMClient
+}
+
+func (s *TitleServiceImpl) GenerateTitle(ctx context.Context, synopsis string) (string, error) {
+	cfg := PromptRegistry[PromptGenerateTitle]
+	req := CompletionRequest{
+		Model:       cfg.Model,
+		System:      cfg.SystemText,
+		UserMessage: synopsis,
+		Temperature: cfg.Temperature,
+		MaxTokens:   64,
+	}
+	res, err := s.client.Complete(ctx, req)
+	if err != nil {
+		return "", fmt.Errorf("title: %w", err)
+	}
+	return strings.TrimSpace(res.Content), nil
+}
+
 func parseJSONPayload[T any](content string, out *T) error {
 	payload := strings.TrimSpace(content)
 	if payload == "" {

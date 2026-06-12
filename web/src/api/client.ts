@@ -119,6 +119,11 @@ export const api = {
         method: "POST",
         body: JSON.stringify(data),
       }),
+    generateTitle: (data: { synopsis: string }) =>
+      fetchJSON<{ title: string }>("/stories/generate-title", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
   },
 
   // Nodes
