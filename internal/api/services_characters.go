@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -17,7 +18,7 @@ func NewCharService() *charService {
 	return &charService{version: make(map[uuid.UUID]int)}
 }
 
-func (s *charService) Create(name, persona, backstory, moralAlignment string, personality, flaws, goals, traits, voiceSamples []string, parentID *uuid.UUID, relationships map[string]string) (*canon.Character, error) {
+func (s *charService) Create(ctx context.Context, name, persona, backstory, moralAlignment string, personality, flaws, goals, traits, voiceSamples []string, parentID *uuid.UUID, relationships map[string]string) (*canon.Character, error) {
 	c := canon.Character{
 		ID:             uuid.New(),
 		Version:        1,
@@ -39,7 +40,7 @@ func (s *charService) Create(name, persona, backstory, moralAlignment string, pe
 	return &c, nil
 }
 
-func (s *charService) Get(id uuid.UUID, version int) (*canon.Character, error) {
+func (s *charService) Get(ctx context.Context, id uuid.UUID, version int) (*canon.Character, error) {
 	var latest *canon.Character
 	for i := range s.chars {
 		if s.chars[i].ID == id {
@@ -57,7 +58,7 @@ func (s *charService) Get(id uuid.UUID, version int) (*canon.Character, error) {
 	return latest, nil
 }
 
-func (s *charService) Update(id uuid.UUID, name, persona, backstory, moralAlignment string, personality, flaws, goals, traits, voiceSamples []string, parentID *uuid.UUID, relationships map[string]string) (*canon.Character, error) {
+func (s *charService) Update(ctx context.Context, id uuid.UUID, name, persona, backstory, moralAlignment string, personality, flaws, goals, traits, voiceSamples []string, parentID *uuid.UUID, relationships map[string]string) (*canon.Character, error) {
 	next := s.version[id]
 	if next == 0 {
 		return nil, fmt.Errorf("character %s not found", id)
@@ -83,7 +84,7 @@ func (s *charService) Update(id uuid.UUID, name, persona, backstory, moralAlignm
 	return &c, nil
 }
 
-func (s *charService) List() ([]canon.Character, error) {
+func (s *charService) List(ctx context.Context) ([]canon.Character, error) {
 	latest := make(map[uuid.UUID]canon.Character)
 	for _, c := range s.chars {
 		if existing, ok := latest[c.ID]; !ok || c.Version > existing.Version {
@@ -105,7 +106,7 @@ func NewActorService() *actorService {
 	return &actorService{}
 }
 
-func (s *actorService) Create(name, gender, ethnicity, race, skinTone, eyeColor, hairColor, hairStyle, build, nationality string, heightCm, weightKg, age int, traits map[string]interface{}) (*canon.Actor, error) {
+func (s *actorService) Create(ctx context.Context, name, gender, ethnicity, race, skinTone, eyeColor, hairColor, hairStyle, build, nationality string, heightCm, weightKg, age int, traits map[string]interface{}) (*canon.Actor, error) {
 	if traits == nil {
 		traits = make(map[string]interface{})
 	}
@@ -131,7 +132,7 @@ func (s *actorService) Create(name, gender, ethnicity, race, skinTone, eyeColor,
 	return &a, nil
 }
 
-func (s *actorService) Get(id uuid.UUID) (*canon.Actor, error) {
+func (s *actorService) Get(ctx context.Context, id uuid.UUID) (*canon.Actor, error) {
 	for i := range s.actors {
 		if s.actors[i].ID == id {
 			return &s.actors[i], nil
@@ -140,7 +141,7 @@ func (s *actorService) Get(id uuid.UUID) (*canon.Actor, error) {
 	return nil, fmt.Errorf("actor %s not found", id)
 }
 
-func (s *actorService) Update(id uuid.UUID, name, gender, ethnicity, race, skinTone, eyeColor, hairColor, hairStyle, build, nationality string, heightCm, weightKg, age int, traits map[string]interface{}) (*canon.Actor, error) {
+func (s *actorService) Update(ctx context.Context, id uuid.UUID, name, gender, ethnicity, race, skinTone, eyeColor, hairColor, hairStyle, build, nationality string, heightCm, weightKg, age int, traits map[string]interface{}) (*canon.Actor, error) {
 	for i := range s.actors {
 		if s.actors[i].ID == id {
 			if traits == nil {
@@ -166,7 +167,7 @@ func (s *actorService) Update(id uuid.UUID, name, gender, ethnicity, race, skinT
 	return nil, fmt.Errorf("actor %s not found", id)
 }
 
-func (s *actorService) List() ([]canon.Actor, error) {
+func (s *actorService) List(ctx context.Context) ([]canon.Actor, error) {
 	r := make([]canon.Actor, len(s.actors))
 	copy(r, s.actors)
 	return r, nil
@@ -181,7 +182,7 @@ func NewCharacterTraitService() *characterTraitService {
 	return &characterTraitService{}
 }
 
-func (s *characterTraitService) Create(name, category, description string) (*canon.CharacterTrait, error) {
+func (s *characterTraitService) Create(ctx context.Context, name, category, description string) (*canon.CharacterTrait, error) {
 	t := canon.CharacterTrait{
 		ID:          uuid.New(),
 		Name:        name,
@@ -193,7 +194,7 @@ func (s *characterTraitService) Create(name, category, description string) (*can
 	return &t, nil
 }
 
-func (s *characterTraitService) Get(id uuid.UUID) (*canon.CharacterTrait, error) {
+func (s *characterTraitService) Get(ctx context.Context, id uuid.UUID) (*canon.CharacterTrait, error) {
 	for i := range s.traits {
 		if s.traits[i].ID == id {
 			return &s.traits[i], nil
@@ -202,13 +203,13 @@ func (s *characterTraitService) Get(id uuid.UUID) (*canon.CharacterTrait, error)
 	return nil, fmt.Errorf("trait %s not found", id)
 }
 
-func (s *characterTraitService) List() ([]canon.CharacterTrait, error) {
+func (s *characterTraitService) List(ctx context.Context) ([]canon.CharacterTrait, error) {
 	r := make([]canon.CharacterTrait, len(s.traits))
 	copy(r, s.traits)
 	return r, nil
 }
 
-func (s *characterTraitService) Assign(characterID, traitID uuid.UUID, intensity int, note string) error {
+func (s *characterTraitService) Assign(ctx context.Context, characterID, traitID uuid.UUID, intensity int, note string) error {
 	for i := range s.assignments {
 		if s.assignments[i].CharacterID == characterID && s.assignments[i].TraitID == traitID {
 			s.assignments[i].Intensity = intensity
@@ -225,7 +226,7 @@ func (s *characterTraitService) Assign(characterID, traitID uuid.UUID, intensity
 	return nil
 }
 
-func (s *characterTraitService) Unassign(characterID, traitID uuid.UUID) error {
+func (s *characterTraitService) Unassign(ctx context.Context, characterID, traitID uuid.UUID) error {
 	for i := range s.assignments {
 		if s.assignments[i].CharacterID == characterID && s.assignments[i].TraitID == traitID {
 			s.assignments = append(s.assignments[:i], s.assignments[i+1:]...)
@@ -235,7 +236,7 @@ func (s *characterTraitService) Unassign(characterID, traitID uuid.UUID) error {
 	return nil
 }
 
-func (s *characterTraitService) GetAssignments(characterID uuid.UUID) ([]canon.TraitAssignment, error) {
+func (s *characterTraitService) GetAssignments(ctx context.Context, characterID uuid.UUID) ([]canon.TraitAssignment, error) {
 	var result []canon.TraitAssignment
 	for _, a := range s.assignments {
 		if a.CharacterID == characterID {
@@ -253,7 +254,7 @@ func NewCastingService() *castingService {
 	return &castingService{}
 }
 
-func (s *castingService) Create(storyID, actorID, characterID uuid.UUID, roleType string) (*canon.Casting, error) {
+func (s *castingService) Create(ctx context.Context, storyID, actorID, characterID uuid.UUID, roleType string) (*canon.Casting, error) {
 	c := canon.Casting{
 		ID:          uuid.New(),
 		StoryID:     storyID,
@@ -266,7 +267,7 @@ func (s *castingService) Create(storyID, actorID, characterID uuid.UUID, roleTyp
 	return &c, nil
 }
 
-func (s *castingService) GetForStory(storyID uuid.UUID) ([]canon.Casting, error) {
+func (s *castingService) GetForStory(ctx context.Context, storyID uuid.UUID) ([]canon.Casting, error) {
 	var result []canon.Casting
 	for _, c := range s.casts {
 		if c.StoryID == storyID {
@@ -276,7 +277,7 @@ func (s *castingService) GetForStory(storyID uuid.UUID) ([]canon.Casting, error)
 	return result, nil
 }
 
-func (s *castingService) GetForCharacter(characterID uuid.UUID) ([]canon.Casting, error) {
+func (s *castingService) GetForCharacter(ctx context.Context, characterID uuid.UUID) ([]canon.Casting, error) {
 	var result []canon.Casting
 	for _, c := range s.casts {
 		if c.CharacterID == characterID {
@@ -286,7 +287,7 @@ func (s *castingService) GetForCharacter(characterID uuid.UUID) ([]canon.Casting
 	return result, nil
 }
 
-func (s *castingService) GetForActor(actorID uuid.UUID) ([]canon.Casting, error) {
+func (s *castingService) GetForActor(ctx context.Context, actorID uuid.UUID) ([]canon.Casting, error) {
 	var result []canon.Casting
 	for _, c := range s.casts {
 		if c.ActorID == actorID {

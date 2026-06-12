@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"context"
 	"fmt"
 	"time"
 )
@@ -15,7 +16,7 @@ func NewRouter(anthropic, ollama LLMClient) *Router {
 	return &Router{anthropic: anthropic, ollama: ollama}
 }
 
-func (r *Router) Complete(req CompletionRequest) (*CompletionResponse, error) {
+func (r *Router) Complete(ctx context.Context, req CompletionRequest) (*CompletionResponse, error) {
 	if req.MaxRetries <= 0 {
 		req.MaxRetries = 2
 	}
@@ -27,7 +28,10 @@ func (r *Router) Complete(req CompletionRequest) (*CompletionResponse, error) {
 
 	var lastErr error
 	for attempt := 0; attempt <= req.MaxRetries; attempt++ {
-		resp, err := client.Complete(req)
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		resp, err := client.Complete(ctx, req)
 		if err == nil {
 			if resp != nil && resp.Model == "" {
 				resp.Model = string(req.Model)
@@ -36,7 +40,13 @@ func (r *Router) Complete(req CompletionRequest) (*CompletionResponse, error) {
 		}
 		lastErr = err
 		if attempt < req.MaxRetries {
-			time.Sleep(time.Duration(250*(attempt+1)) * time.Millisecond)
+			timer := time.NewTimer(time.Duration(250*(attempt+1)) * time.Millisecond)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return nil, ctx.Err()
+			case <-timer.C:
+			}
 		}
 	}
 	return nil, lastErr

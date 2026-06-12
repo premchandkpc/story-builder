@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"log"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -16,7 +17,7 @@ func NewDBCharService(q *db.Queries) *dbCharService {
 
 type dbCharService struct{ q *db.Queries }
 
-func (s *dbCharService) Create(name, persona, backstory, moralAlignment string, personality, flaws, goals, traits, voiceSamples []string, parentID *uuid.UUID, relationships map[string]string) (*canon.Character, error) {
+func (s *dbCharService) Create(ctx context.Context, name, persona, backstory, moralAlignment string, personality, flaws, goals, traits, voiceSamples []string, parentID *uuid.UUID, relationships map[string]string) (*canon.Character, error) {
 	if voiceSamples == nil {
 		voiceSamples = []string{}
 	}
@@ -24,7 +25,7 @@ func (s *dbCharService) Create(name, persona, backstory, moralAlignment string, 
 	if parentID != nil {
 		pid = toUUID(*parentID)
 	}
-	c, err := s.q.CreateCharacter(context.Background(), db.CreateCharacterParams{
+	c, err := s.q.CreateCharacter(ctx, db.CreateCharacterParams{
 		Name:           name,
 		Persona:        persona,
 		Backstory:      backstory,
@@ -43,9 +44,9 @@ func (s *dbCharService) Create(name, persona, backstory, moralAlignment string, 
 	return toDomainChar(c), nil
 }
 
-func (s *dbCharService) Get(id uuid.UUID, version int) (*canon.Character, error) {
+func (s *dbCharService) Get(ctx context.Context, id uuid.UUID, version int) (*canon.Character, error) {
 	if version > 0 {
-		c, err := s.q.GetCharacterAtVersion(context.Background(), db.GetCharacterAtVersionParams{
+		c, err := s.q.GetCharacterAtVersion(ctx, db.GetCharacterAtVersionParams{
 			ID:      toUUID(id),
 			Version: int32(version),
 		})
@@ -54,14 +55,14 @@ func (s *dbCharService) Get(id uuid.UUID, version int) (*canon.Character, error)
 		}
 		return toDomainChar(c), nil
 	}
-	c, err := s.q.GetCharacterLatest(context.Background(), toUUID(id))
+	c, err := s.q.GetCharacterLatest(ctx, toUUID(id))
 	if err != nil {
 		return nil, err
 	}
 	return toDomainCharFromLatest(c), nil
 }
 
-func (s *dbCharService) Update(id uuid.UUID, name, persona, backstory, moralAlignment string, personality, flaws, goals, traits, voiceSamples []string, parentID *uuid.UUID, relationships map[string]string) (*canon.Character, error) {
+func (s *dbCharService) Update(ctx context.Context, id uuid.UUID, name, persona, backstory, moralAlignment string, personality, flaws, goals, traits, voiceSamples []string, parentID *uuid.UUID, relationships map[string]string) (*canon.Character, error) {
 	if voiceSamples == nil {
 		voiceSamples = []string{}
 	}
@@ -69,7 +70,7 @@ func (s *dbCharService) Update(id uuid.UUID, name, persona, backstory, moralAlig
 	if parentID != nil {
 		pid = toUUID(*parentID)
 	}
-	c, err := s.q.UpdateCharacter(context.Background(), db.UpdateCharacterParams{
+	c, err := s.q.UpdateCharacter(ctx, db.UpdateCharacterParams{
 		ID:             toUUID(id),
 		Name:           name,
 		Persona:        persona,
@@ -89,8 +90,8 @@ func (s *dbCharService) Update(id uuid.UUID, name, persona, backstory, moralAlig
 	return toDomainChar(c), nil
 }
 
-func (s *dbCharService) List() ([]canon.Character, error) {
-	chars, err := s.q.ListCharacters(context.Background())
+func (s *dbCharService) List(ctx context.Context) ([]canon.Character, error) {
+	chars, err := s.q.ListCharacters(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -103,15 +104,25 @@ func (s *dbCharService) List() ([]canon.Character, error) {
 
 func toDomainChar(c db.Character) *canon.Character {
 	var traits []string
-	_ = json.Unmarshal(c.Traits, &traits)
+	if err := json.Unmarshal(c.Traits, &traits); err != nil {
+		log.Printf("unmarshal traits for character %s: %v", fromUUID(c.ID), err)
+	}
 	var personality []string
-	_ = json.Unmarshal(c.Personality, &personality)
+	if err := json.Unmarshal(c.Personality, &personality); err != nil {
+		log.Printf("unmarshal personality for character %s: %v", fromUUID(c.ID), err)
+	}
 	var flaws []string
-	_ = json.Unmarshal(c.Flaws, &flaws)
+	if err := json.Unmarshal(c.Flaws, &flaws); err != nil {
+		log.Printf("unmarshal flaws for character %s: %v", fromUUID(c.ID), err)
+	}
 	var goals []string
-	_ = json.Unmarshal(c.Goals, &goals)
+	if err := json.Unmarshal(c.Goals, &goals); err != nil {
+		log.Printf("unmarshal goals for character %s: %v", fromUUID(c.ID), err)
+	}
 	var rel map[string]string
-	_ = json.Unmarshal(c.Relationships, &rel)
+	if err := json.Unmarshal(c.Relationships, &rel); err != nil {
+		log.Printf("unmarshal relationships for character %s: %v", fromUUID(c.ID), err)
+	}
 	var parentID *uuid.UUID
 	if c.ParentID.Valid {
 		p := fromUUID(c.ParentID)
@@ -137,15 +148,25 @@ func toDomainChar(c db.Character) *canon.Character {
 
 func toDomainCharFromLatest(c db.LatestCharacter) *canon.Character {
 	var traits []string
-	_ = json.Unmarshal(c.Traits, &traits)
+	if err := json.Unmarshal(c.Traits, &traits); err != nil {
+		log.Printf("unmarshal traits for character %s: %v", fromUUID(c.ID), err)
+	}
 	var personality []string
-	_ = json.Unmarshal(c.Personality, &personality)
+	if err := json.Unmarshal(c.Personality, &personality); err != nil {
+		log.Printf("unmarshal personality for character %s: %v", fromUUID(c.ID), err)
+	}
 	var flaws []string
-	_ = json.Unmarshal(c.Flaws, &flaws)
+	if err := json.Unmarshal(c.Flaws, &flaws); err != nil {
+		log.Printf("unmarshal flaws for character %s: %v", fromUUID(c.ID), err)
+	}
 	var goals []string
-	_ = json.Unmarshal(c.Goals, &goals)
+	if err := json.Unmarshal(c.Goals, &goals); err != nil {
+		log.Printf("unmarshal goals for character %s: %v", fromUUID(c.ID), err)
+	}
 	var rel map[string]string
-	_ = json.Unmarshal(c.Relationships, &rel)
+	if err := json.Unmarshal(c.Relationships, &rel); err != nil {
+		log.Printf("unmarshal relationships for character %s: %v", fromUUID(c.ID), err)
+	}
 	var parentID *uuid.UUID
 	if c.ParentID.Valid {
 		p := fromUUID(c.ParentID)
@@ -177,11 +198,11 @@ func NewDBActorService(q *db.Queries) *dbActorService {
 
 type dbActorService struct{ q *db.Queries }
 
-func (s *dbActorService) Create(name, gender, ethnicity, race, skinTone, eyeColor, hairColor, hairStyle, build, nationality string, heightCm, weightKg, age int, traits map[string]interface{}) (*canon.Actor, error) {
+func (s *dbActorService) Create(ctx context.Context, name, gender, ethnicity, race, skinTone, eyeColor, hairColor, hairStyle, build, nationality string, heightCm, weightKg, age int, traits map[string]interface{}) (*canon.Actor, error) {
 	if traits == nil {
 		traits = make(map[string]interface{})
 	}
-	a, err := s.q.CreateActor(context.Background(), db.CreateActorParams{
+	a, err := s.q.CreateActor(ctx, db.CreateActorParams{
 		Name:        name,
 		Gender:      gender,
 		Ethnicity:   ethnicity,
@@ -200,33 +221,33 @@ func (s *dbActorService) Create(name, gender, ethnicity, race, skinTone, eyeColo
 	if err != nil {
 		return nil, err
 	}
-	if err := s.persistActorTraits(a.ID, traits); err != nil {
+	if err := s.persistActorTraits(ctx, a.ID, traits); err != nil {
 		return nil, err
 	}
-	loadedTraits, err := s.loadActorTraits(a.ID)
+	loadedTraits, err := s.loadActorTraits(ctx, a.ID)
 	if err != nil {
 		return nil, err
 	}
 	return toDomainActor(a, loadedTraits), nil
 }
 
-func (s *dbActorService) Get(id uuid.UUID) (*canon.Actor, error) {
-	a, err := s.q.GetActor(context.Background(), toUUID(id))
+func (s *dbActorService) Get(ctx context.Context, id uuid.UUID) (*canon.Actor, error) {
+	a, err := s.q.GetActor(ctx, toUUID(id))
 	if err != nil {
 		return nil, err
 	}
-	loadedTraits, err := s.loadActorTraits(a.ID)
+	loadedTraits, err := s.loadActorTraits(ctx, a.ID)
 	if err != nil {
 		return nil, err
 	}
 	return toDomainActor(a, loadedTraits), nil
 }
 
-func (s *dbActorService) Update(id uuid.UUID, name, gender, ethnicity, race, skinTone, eyeColor, hairColor, hairStyle, build, nationality string, heightCm, weightKg, age int, traits map[string]interface{}) (*canon.Actor, error) {
+func (s *dbActorService) Update(ctx context.Context, id uuid.UUID, name, gender, ethnicity, race, skinTone, eyeColor, hairColor, hairStyle, build, nationality string, heightCm, weightKg, age int, traits map[string]interface{}) (*canon.Actor, error) {
 	if traits == nil {
 		traits = make(map[string]interface{})
 	}
-	a, err := s.q.UpdateActor(context.Background(), db.UpdateActorParams{
+	a, err := s.q.UpdateActor(ctx, db.UpdateActorParams{
 		ID:          toUUID(id),
 		Name:        name,
 		Gender:      gender,
@@ -246,24 +267,24 @@ func (s *dbActorService) Update(id uuid.UUID, name, gender, ethnicity, race, ski
 	if err != nil {
 		return nil, err
 	}
-	if err := s.persistActorTraits(a.ID, traits); err != nil {
+	if err := s.persistActorTraits(ctx, a.ID, traits); err != nil {
 		return nil, err
 	}
-	loadedTraits, err := s.loadActorTraits(a.ID)
+	loadedTraits, err := s.loadActorTraits(ctx, a.ID)
 	if err != nil {
 		return nil, err
 	}
 	return toDomainActor(a, loadedTraits), nil
 }
 
-func (s *dbActorService) List() ([]canon.Actor, error) {
-	actors, err := s.q.ListActors(context.Background())
+func (s *dbActorService) List(ctx context.Context) ([]canon.Actor, error) {
+	actors, err := s.q.ListActors(ctx)
 	if err != nil {
 		return nil, err
 	}
 	result := make([]canon.Actor, len(actors))
 	for i, a := range actors {
-		loadedTraits, err := s.loadActorTraits(a.ID)
+		loadedTraits, err := s.loadActorTraits(ctx, a.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -272,8 +293,8 @@ func (s *dbActorService) List() ([]canon.Actor, error) {
 	return result, nil
 }
 
-func (s *dbActorService) persistActorTraits(actorID pgtype.UUID, traits map[string]interface{}) error {
-	if err := s.q.DeleteActorTraits(context.Background(), actorID); err != nil {
+func (s *dbActorService) persistActorTraits(ctx context.Context, actorID pgtype.UUID, traits map[string]interface{}) error {
+	if err := s.q.DeleteActorTraits(ctx, actorID); err != nil {
 		return err
 	}
 	for key, value := range traits {
@@ -281,15 +302,15 @@ func (s *dbActorService) persistActorTraits(actorID pgtype.UUID, traits map[stri
 		if err != nil {
 			return err
 		}
-		if _, err := s.q.CreateActorTrait(context.Background(), db.CreateActorTraitParams{ActorID: actorID, TraitKey: key, TraitValue: encoded}); err != nil {
+		if _, err := s.q.CreateActorTrait(ctx, db.CreateActorTraitParams{ActorID: actorID, TraitKey: key, TraitValue: encoded}); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *dbActorService) loadActorTraits(actorID pgtype.UUID) (map[string]interface{}, error) {
-	rows, err := s.q.ListActorTraits(context.Background(), actorID)
+func (s *dbActorService) loadActorTraits(ctx context.Context, actorID pgtype.UUID) (map[string]interface{}, error) {
+	rows, err := s.q.ListActorTraits(ctx, actorID)
 	if err != nil {
 		return nil, err
 	}
@@ -356,8 +377,8 @@ func NewDBCharacterTraitService(q *db.Queries) *dbCharacterTraitService {
 
 type dbCharacterTraitService struct{ q *db.Queries }
 
-func (s *dbCharacterTraitService) Create(name, category, description string) (*canon.CharacterTrait, error) {
-	t, err := s.q.CreateCharacterTrait(context.Background(), db.CreateCharacterTraitParams{
+func (s *dbCharacterTraitService) Create(ctx context.Context, name, category, description string) (*canon.CharacterTrait, error) {
+	t, err := s.q.CreateCharacterTrait(ctx, db.CreateCharacterTraitParams{
 		Name:        name,
 		Category:    category,
 		Description: description,
@@ -374,8 +395,8 @@ func (s *dbCharacterTraitService) Create(name, category, description string) (*c
 	}, nil
 }
 
-func (s *dbCharacterTraitService) Get(id uuid.UUID) (*canon.CharacterTrait, error) {
-	t, err := s.q.GetCharacterTrait(context.Background(), toUUID(id))
+func (s *dbCharacterTraitService) Get(ctx context.Context, id uuid.UUID) (*canon.CharacterTrait, error) {
+	t, err := s.q.GetCharacterTrait(ctx, toUUID(id))
 	if err != nil {
 		return nil, err
 	}
@@ -388,8 +409,8 @@ func (s *dbCharacterTraitService) Get(id uuid.UUID) (*canon.CharacterTrait, erro
 	}, nil
 }
 
-func (s *dbCharacterTraitService) List() ([]canon.CharacterTrait, error) {
-	traits, err := s.q.ListCharacterTraits(context.Background())
+func (s *dbCharacterTraitService) List(ctx context.Context) ([]canon.CharacterTrait, error) {
+	traits, err := s.q.ListCharacterTraits(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -406,8 +427,8 @@ func (s *dbCharacterTraitService) List() ([]canon.CharacterTrait, error) {
 	return result, nil
 }
 
-func (s *dbCharacterTraitService) Assign(characterID, traitID uuid.UUID, intensity int, note string) error {
-	return s.q.AssignTrait(context.Background(), db.AssignTraitParams{
+func (s *dbCharacterTraitService) Assign(ctx context.Context, characterID, traitID uuid.UUID, intensity int, note string) error {
+	return s.q.AssignTrait(ctx, db.AssignTraitParams{
 		CharacterID: toUUID(characterID),
 		TraitID:     toUUID(traitID),
 		Intensity:   int32(intensity),
@@ -415,15 +436,15 @@ func (s *dbCharacterTraitService) Assign(characterID, traitID uuid.UUID, intensi
 	})
 }
 
-func (s *dbCharacterTraitService) Unassign(characterID, traitID uuid.UUID) error {
-	return s.q.UnassignTrait(context.Background(), db.UnassignTraitParams{
+func (s *dbCharacterTraitService) Unassign(ctx context.Context, characterID, traitID uuid.UUID) error {
+	return s.q.UnassignTrait(ctx, db.UnassignTraitParams{
 		CharacterID: toUUID(characterID),
 		TraitID:     toUUID(traitID),
 	})
 }
 
-func (s *dbCharacterTraitService) GetAssignments(characterID uuid.UUID) ([]canon.TraitAssignment, error) {
-	rows, err := s.q.GetTraitAssignments(context.Background(), toUUID(characterID))
+func (s *dbCharacterTraitService) GetAssignments(ctx context.Context, characterID uuid.UUID) ([]canon.TraitAssignment, error) {
+	rows, err := s.q.GetTraitAssignments(ctx, toUUID(characterID))
 	if err != nil {
 		return nil, err
 	}
@@ -447,8 +468,8 @@ func NewDBCastingService(q *db.Queries) *dbCastingService {
 
 type dbCastingService struct{ q *db.Queries }
 
-func (s *dbCastingService) Create(storyID, actorID, characterID uuid.UUID, roleType string) (*canon.Casting, error) {
-	c, err := s.q.CreateCasting(context.Background(), db.CreateCastingParams{
+func (s *dbCastingService) Create(ctx context.Context, storyID, actorID, characterID uuid.UUID, roleType string) (*canon.Casting, error) {
+	c, err := s.q.CreateCasting(ctx, db.CreateCastingParams{
 		StoryID:     toUUID(storyID),
 		ActorID:     toUUID(actorID),
 		CharacterID: toUUID(characterID),
@@ -467,8 +488,8 @@ func (s *dbCastingService) Create(storyID, actorID, characterID uuid.UUID, roleT
 	}, nil
 }
 
-func (s *dbCastingService) GetForStory(storyID uuid.UUID) ([]canon.Casting, error) {
-	rows, err := s.q.ListCastingForStory(context.Background(), toUUID(storyID))
+func (s *dbCastingService) GetForStory(ctx context.Context, storyID uuid.UUID) ([]canon.Casting, error) {
+	rows, err := s.q.ListCastingForStory(ctx, toUUID(storyID))
 	if err != nil {
 		return nil, err
 	}
@@ -486,8 +507,8 @@ func (s *dbCastingService) GetForStory(storyID uuid.UUID) ([]canon.Casting, erro
 	return result, nil
 }
 
-func (s *dbCastingService) GetForCharacter(characterID uuid.UUID) ([]canon.Casting, error) {
-	rows, err := s.q.ListCastingForCharacter(context.Background(), toUUID(characterID))
+func (s *dbCastingService) GetForCharacter(ctx context.Context, characterID uuid.UUID) ([]canon.Casting, error) {
+	rows, err := s.q.ListCastingForCharacter(ctx, toUUID(characterID))
 	if err != nil {
 		return nil, err
 	}
@@ -505,8 +526,8 @@ func (s *dbCastingService) GetForCharacter(characterID uuid.UUID) ([]canon.Casti
 	return result, nil
 }
 
-func (s *dbCastingService) GetForActor(actorID uuid.UUID) ([]canon.Casting, error) {
-	rows, err := s.q.ListCastingForActor(context.Background(), toUUID(actorID))
+func (s *dbCastingService) GetForActor(ctx context.Context, actorID uuid.UUID) ([]canon.Casting, error) {
+	rows, err := s.q.ListCastingForActor(ctx, toUUID(actorID))
 	if err != nil {
 		return nil, err
 	}

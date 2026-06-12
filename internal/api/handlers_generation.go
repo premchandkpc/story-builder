@@ -33,7 +33,7 @@ func (h *LoreHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	lore, err := h.Service.Create(req.Tags, req.Content)
+	lore, err := h.Service.Create(r.Context(), req.Tags, req.Content)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -42,7 +42,7 @@ func (h *LoreHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *LoreHandler) List(w http.ResponseWriter, r *http.Request) {
-	items, err := h.Service.List()
+	items, err := h.Service.List(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -57,7 +57,7 @@ func (h *LoreHandler) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(req.Embedding) > 0 {
-		results, err := h.Service.SearchSimilar(req.Embedding, req.Limit)
+		results, err := h.Service.SearchSimilar(r.Context(), req.Embedding, req.Limit)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -65,7 +65,7 @@ func (h *LoreHandler) Search(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, results)
 		return
 	}
-	results, err := h.Service.SearchByTags(req.Tags)
+	results, err := h.Service.SearchByTags(r.Context(), req.Tags)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -87,7 +87,7 @@ func (h *GenerationHandler) Generate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid node id")
 		return
 	}
-	gen, err := h.Service.Generate(nodeID)
+	gen, err := h.Service.Generate(r.Context(), nodeID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -111,7 +111,7 @@ func (h *GenerationHandler) AcceptGeneration(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusBadRequest, "invalid generation_id")
 		return
 	}
-	if err := h.Service.AcceptGeneration(nodeID, genID); err != nil {
+	if err := h.Service.AcceptGeneration(r.Context(), nodeID, genID); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -124,7 +124,7 @@ func (h *GenerationHandler) ListGenerations(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, "invalid node id")
 		return
 	}
-	gens, err := h.Service.ListGenerations(nodeID)
+	gens, err := h.Service.ListGenerations(r.Context(), nodeID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -151,7 +151,7 @@ func (h *SceneHandler) SetStructure(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if err := h.SceneService.SetSceneStructure(nodeID, req.SceneStructure); err != nil {
+	if err := h.SceneService.SetSceneStructure(r.Context(), nodeID, req.SceneStructure); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -164,7 +164,7 @@ func (h *SceneHandler) GetStructure(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid node id")
 		return
 	}
-	ss, err := h.SceneService.GetSceneStructure(nodeID)
+	ss, err := h.SceneService.GetSceneStructure(r.Context(), nodeID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -178,7 +178,7 @@ func (h *SceneHandler) Start(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid node id")
 		return
 	}
-	turn, err := h.SceneService.StartScene(nodeID)
+	turn, err := h.SceneService.StartScene(r.Context(), nodeID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -192,7 +192,7 @@ func (h *SceneHandler) Next(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid node id")
 		return
 	}
-	turn, err := h.SceneService.NextTurn(nodeID)
+	turn, err := h.SceneService.NextTurn(r.Context(), nodeID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -206,7 +206,7 @@ func (h *SceneHandler) Finish(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid node id")
 		return
 	}
-	output, err := h.SceneService.FinishScene(nodeID)
+	output, err := h.SceneService.FinishScene(r.Context(), nodeID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -220,7 +220,7 @@ func (h *SceneHandler) Turns(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid node id")
 		return
 	}
-	turns, err := h.SceneService.GetTurns(nodeID)
+	turns, err := h.SceneService.GetTurns(r.Context(), nodeID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -243,7 +243,7 @@ func (h *SummaryHandler) GetSceneSummary(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "invalid node id")
 		return
 	}
-	summary, err := h.Service.GetSceneSummary(storyID, nodeID)
+	summary, err := h.Service.GetSceneSummary(r.Context(), storyID, nodeID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -261,7 +261,7 @@ func (h *SummaryHandler) GetByLevel(w http.ResponseWriter, r *http.Request) {
 	if level != compiler.SummaryAct && level != compiler.SummaryStory {
 		level = compiler.SummaryAct
 	}
-	summary, err := h.Service.GetSummaryByLevel(storyID, level)
+	summary, err := h.Service.GetSummaryByLevel(r.Context(), storyID, level)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -279,7 +279,7 @@ func (h *SummaryHandler) CountByLevel(w http.ResponseWriter, r *http.Request) {
 	if level != compiler.SummaryScene && level != compiler.SummaryAct && level != compiler.SummaryStory {
 		level = compiler.SummaryScene
 	}
-	count, err := h.Service.CountSummariesByLevel(storyID, level)
+	count, err := h.Service.CountSummariesByLevel(r.Context(), storyID, level)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -300,7 +300,7 @@ func (h *SummaryHandler) ShouldElevate(w http.ResponseWriter, r *http.Request) {
 			threshold = v
 		}
 	}
-	should, err := h.Service.ShouldElevate(storyID, level, threshold)
+	should, err := h.Service.ShouldElevate(r.Context(), storyID, level, threshold)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

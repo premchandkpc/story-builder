@@ -16,8 +16,8 @@ func NewDBSummaryService(q *db.Queries) *dbSummaryService {
 
 type dbSummaryService struct{ q *db.Queries }
 
-func (s *dbSummaryService) UpsertSceneSummary(storyID, nodeID uuid.UUID, content string) error {
-	return s.q.UpsertSceneSummary(context.Background(), db.UpsertSceneSummaryParams{
+func (s *dbSummaryService) UpsertSceneSummary(ctx context.Context, storyID, nodeID uuid.UUID, content string) error {
+	return s.q.UpsertSceneSummary(ctx, db.UpsertSceneSummaryParams{
 		StoryID:   toUUID(storyID),
 		NodeID:    toUUID(nodeID),
 		Content:   content,
@@ -25,24 +25,24 @@ func (s *dbSummaryService) UpsertSceneSummary(storyID, nodeID uuid.UUID, content
 	})
 }
 
-func (s *dbSummaryService) UpsertActSummary(storyID uuid.UUID, content string) error {
-	return s.q.UpsertActSummary(context.Background(), db.UpsertActSummaryParams{
+func (s *dbSummaryService) UpsertActSummary(ctx context.Context, storyID uuid.UUID, content string) error {
+	return s.q.UpsertActSummary(ctx, db.UpsertActSummaryParams{
 		StoryID:   toUUID(storyID),
 		Content:   content,
 		WordCount: int32(len(strings.Fields(content))),
 	})
 }
 
-func (s *dbSummaryService) UpsertStorySummary(storyID uuid.UUID, content string) error {
-	return s.q.UpsertStorySummary(context.Background(), db.UpsertStorySummaryParams{
+func (s *dbSummaryService) UpsertStorySummary(ctx context.Context, storyID uuid.UUID, content string) error {
+	return s.q.UpsertStorySummary(ctx, db.UpsertStorySummaryParams{
 		StoryID:   toUUID(storyID),
 		Content:   content,
 		WordCount: int32(len(strings.Fields(content))),
 	})
 }
 
-func (s *dbSummaryService) GetSceneSummary(storyID, nodeID uuid.UUID) (*compiler.StorySummary, error) {
-	row, err := s.q.GetSceneSummary(context.Background(), db.GetSceneSummaryParams{
+func (s *dbSummaryService) GetSceneSummary(ctx context.Context, storyID, nodeID uuid.UUID) (*compiler.StorySummary, error) {
+	row, err := s.q.GetSceneSummary(ctx, db.GetSceneSummaryParams{
 		StoryID: toUUID(storyID),
 		NodeID:  toUUID(nodeID),
 	})
@@ -52,8 +52,8 @@ func (s *dbSummaryService) GetSceneSummary(storyID, nodeID uuid.UUID) (*compiler
 	return toDomainSummary(row), nil
 }
 
-func (s *dbSummaryService) GetSummaryByLevel(storyID uuid.UUID, level compiler.SummaryLevel) (*compiler.StorySummary, error) {
-	row, err := s.q.GetSummaryByLevel(context.Background(), db.GetSummaryByLevelParams{
+func (s *dbSummaryService) GetSummaryByLevel(ctx context.Context, storyID uuid.UUID, level compiler.SummaryLevel) (*compiler.StorySummary, error) {
+	row, err := s.q.GetSummaryByLevel(ctx, db.GetSummaryByLevelParams{
 		StoryID: toUUID(storyID),
 		Level:   string(level),
 	})
@@ -63,8 +63,8 @@ func (s *dbSummaryService) GetSummaryByLevel(storyID uuid.UUID, level compiler.S
 	return toDomainSummary(row), nil
 }
 
-func (s *dbSummaryService) ListSummariesByLevel(storyID uuid.UUID, level compiler.SummaryLevel) ([]compiler.StorySummary, error) {
-	rows, err := s.q.ListSummariesByLevel(context.Background(), db.ListSummariesByLevelParams{
+func (s *dbSummaryService) ListSummariesByLevel(ctx context.Context, storyID uuid.UUID, level compiler.SummaryLevel) ([]compiler.StorySummary, error) {
+	rows, err := s.q.ListSummariesByLevel(ctx, db.ListSummariesByLevelParams{
 		StoryID: toUUID(storyID),
 		Level:   string(level),
 	})
@@ -78,8 +78,8 @@ func (s *dbSummaryService) ListSummariesByLevel(storyID uuid.UUID, level compile
 	return result, nil
 }
 
-func (s *dbSummaryService) CountSummariesByLevel(storyID uuid.UUID, level compiler.SummaryLevel) (int, error) {
-	count, err := s.q.CountSummariesByLevel(context.Background(), db.CountSummariesByLevelParams{
+func (s *dbSummaryService) CountSummariesByLevel(ctx context.Context, storyID uuid.UUID, level compiler.SummaryLevel) (int, error) {
+	count, err := s.q.CountSummariesByLevel(ctx, db.CountSummariesByLevelParams{
 		StoryID: toUUID(storyID),
 		Level:   string(level),
 	})
@@ -89,8 +89,8 @@ func (s *dbSummaryService) CountSummariesByLevel(storyID uuid.UUID, level compil
 	return int(count), nil
 }
 
-func (s *dbSummaryService) ShouldElevate(storyID uuid.UUID, level compiler.SummaryLevel, threshold int) (bool, error) {
-	count, err := s.CountSummariesByLevel(storyID, level)
+func (s *dbSummaryService) ShouldElevate(ctx context.Context, storyID uuid.UUID, level compiler.SummaryLevel, threshold int) (bool, error) {
+	count, err := s.CountSummariesByLevel(ctx, storyID, level)
 	if err != nil {
 		return false, err
 	}

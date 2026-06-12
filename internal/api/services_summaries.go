@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -23,23 +24,23 @@ func NewMemorySummaryService() *memorySummaryService {
 	}
 }
 
-func (s *memorySummaryService) UpsertSceneSummary(storyID, nodeID uuid.UUID, content string) error {
+func (s *memorySummaryService) UpsertSceneSummary(ctx context.Context, storyID, nodeID uuid.UUID, content string) error {
 	s.scene[nodeID] = content
 	s.sceneStory[nodeID] = storyID
 	return nil
 }
 
-func (s *memorySummaryService) UpsertActSummary(storyID uuid.UUID, content string) error {
+func (s *memorySummaryService) UpsertActSummary(ctx context.Context, storyID uuid.UUID, content string) error {
 	s.act[storyID] = content
 	return nil
 }
 
-func (s *memorySummaryService) UpsertStorySummary(storyID uuid.UUID, content string) error {
+func (s *memorySummaryService) UpsertStorySummary(ctx context.Context, storyID uuid.UUID, content string) error {
 	s.story[storyID] = content
 	return nil
 }
 
-func (s *memorySummaryService) GetSceneSummary(storyID, nodeID uuid.UUID) (*compiler.StorySummary, error) {
+func (s *memorySummaryService) GetSceneSummary(ctx context.Context, storyID, nodeID uuid.UUID) (*compiler.StorySummary, error) {
 	content, ok := s.scene[nodeID]
 	if !ok {
 		return nil, fmt.Errorf("scene summary not found for node %s", nodeID)
@@ -54,7 +55,7 @@ func (s *memorySummaryService) GetSceneSummary(storyID, nodeID uuid.UUID) (*comp
 	}, nil
 }
 
-func (s *memorySummaryService) GetSummaryByLevel(storyID uuid.UUID, level compiler.SummaryLevel) (*compiler.StorySummary, error) {
+func (s *memorySummaryService) GetSummaryByLevel(ctx context.Context, storyID uuid.UUID, level compiler.SummaryLevel) (*compiler.StorySummary, error) {
 	switch level {
 	case compiler.SummaryAct:
 		content, ok := s.act[storyID]
@@ -85,15 +86,15 @@ func (s *memorySummaryService) GetSummaryByLevel(storyID uuid.UUID, level compil
 	}
 }
 
-func (s *memorySummaryService) ListSummariesByLevel(storyID uuid.UUID, level compiler.SummaryLevel) ([]compiler.StorySummary, error) {
-	summary, err := s.GetSummaryByLevel(storyID, level)
+func (s *memorySummaryService) ListSummariesByLevel(ctx context.Context, storyID uuid.UUID, level compiler.SummaryLevel) ([]compiler.StorySummary, error) {
+	summary, err := s.GetSummaryByLevel(ctx, storyID, level)
 	if err != nil {
 		return nil, err
 	}
 	return []compiler.StorySummary{*summary}, nil
 }
 
-func (s *memorySummaryService) CountSummariesByLevel(storyID uuid.UUID, level compiler.SummaryLevel) (int, error) {
+func (s *memorySummaryService) CountSummariesByLevel(ctx context.Context, storyID uuid.UUID, level compiler.SummaryLevel) (int, error) {
 	if level == compiler.SummaryScene {
 		count := 0
 		for nodeID, v := range s.scene {
@@ -106,8 +107,8 @@ func (s *memorySummaryService) CountSummariesByLevel(storyID uuid.UUID, level co
 	return 0, nil
 }
 
-func (s *memorySummaryService) ShouldElevate(storyID uuid.UUID, level compiler.SummaryLevel, threshold int) (bool, error) {
-	count, err := s.CountSummariesByLevel(storyID, level)
+func (s *memorySummaryService) ShouldElevate(ctx context.Context, storyID uuid.UUID, level compiler.SummaryLevel, threshold int) (bool, error) {
+	count, err := s.CountSummariesByLevel(ctx, storyID, level)
 	if err != nil {
 		return false, err
 	}

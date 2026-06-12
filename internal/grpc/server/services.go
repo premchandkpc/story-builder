@@ -14,12 +14,14 @@ import (
 	"github.com/premchand/story-builder/internal/scene"
 	pb "github.com/premchand/story-builder/internal/grpc/gen/storybuilder/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"
+	"google.golang.org/grpc/status"
 )
 
 // StoryGenService has a different signature than api.StoryGeneratorService
 type StoryGenService interface {
-	GenerateStory(synopsis string) (storyID string, status string, err error)
+	GenerateStory(ctx context.Context, synopsis string) (storyID string, status string, err error)
 }
 
 // ── gRPC service implementations ───────────────────────────────
@@ -32,10 +34,13 @@ type characterSrv struct {
 func (s *characterSrv) CreateCharacter(ctx context.Context, req *pb.CreateCharacterRequest) (*pb.Character, error) {
 	var pid *uuid.UUID
 	if req.ParentId != nil {
-		v := uuid.MustParse(req.ParentId.Value)
+		v, err := parseProtoUUID(req.ParentId)
+		if err != nil {
+			return nil, err
+		}
 		pid = &v
 	}
-	r, err := s.svc.Create(req.Name, req.Persona, req.Backstory, req.MoralAlignment, req.Personality, req.Flaws, req.Goals, req.Traits, req.VoiceSamples, pid, req.Relationships)
+	r, err := s.svc.Create(ctx, req.Name, req.Persona, req.Backstory, req.MoralAlignment, req.Personality, req.Flaws, req.Goals, req.Traits, req.VoiceSamples, pid, req.Relationships)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +48,11 @@ func (s *characterSrv) CreateCharacter(ctx context.Context, req *pb.CreateCharac
 }
 
 func (s *characterSrv) GetCharacter(ctx context.Context, req *pb.GetCharacterRequest) (*pb.Character, error) {
-	r, err := s.svc.Get(uuid.MustParse(req.Id.Value), int(req.Version))
+	id, err := parseProtoUUID(req.Id)
+	if err != nil {
+		return nil, err
+	}
+	r, err := s.svc.Get(ctx, id, int(req.Version))
 	if err != nil {
 		return nil, err
 	}
@@ -51,12 +60,19 @@ func (s *characterSrv) GetCharacter(ctx context.Context, req *pb.GetCharacterReq
 }
 
 func (s *characterSrv) UpdateCharacter(ctx context.Context, req *pb.UpdateCharacterRequest) (*pb.Character, error) {
+	id, err := parseProtoUUID(req.Id)
+	if err != nil {
+		return nil, err
+	}
 	var pid *uuid.UUID
 	if req.ParentId != nil {
-		v := uuid.MustParse(req.ParentId.Value)
+		v, err := parseProtoUUID(req.ParentId)
+		if err != nil {
+			return nil, err
+		}
 		pid = &v
 	}
-	r, err := s.svc.Update(uuid.MustParse(req.Id.Value), req.Name, req.Persona, req.Backstory, req.MoralAlignment, req.Personality, req.Flaws, req.Goals, req.Traits, req.VoiceSamples, pid, req.Relationships)
+	r, err := s.svc.Update(ctx, id, req.Name, req.Persona, req.Backstory, req.MoralAlignment, req.Personality, req.Flaws, req.Goals, req.Traits, req.VoiceSamples, pid, req.Relationships)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +80,7 @@ func (s *characterSrv) UpdateCharacter(ctx context.Context, req *pb.UpdateCharac
 }
 
 func (s *characterSrv) ListCharacters(ctx context.Context, _ *pb.Empty) (*pb.ListCharactersResponse, error) {
-	list, err := s.svc.List()
+	list, err := s.svc.List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +123,7 @@ func (s *actorSrv) CreateActor(ctx context.Context, req *pb.CreateActorRequest) 
 	for k, v := range req.Traits {
 		traits[k] = v
 	}
-	r, err := s.svc.Create(req.Name, req.Gender, req.Ethnicity, req.Race, req.SkinTone, req.EyeColor, req.HairColor, req.HairStyle, req.Build, req.Nationality, int(req.HeightCm), int(req.WeightKg), int(req.Age), traits)
+	r, err := s.svc.Create(ctx, req.Name, req.Gender, req.Ethnicity, req.Race, req.SkinTone, req.EyeColor, req.HairColor, req.HairStyle, req.Build, req.Nationality, int(req.HeightCm), int(req.WeightKg), int(req.Age), traits)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +131,11 @@ func (s *actorSrv) CreateActor(ctx context.Context, req *pb.CreateActorRequest) 
 }
 
 func (s *actorSrv) GetActor(ctx context.Context, req *pb.GetActorRequest) (*pb.Actor, error) {
-	r, err := s.svc.Get(uuid.MustParse(req.Id.Value))
+	id, err := parseProtoUUID(req.Id)
+	if err != nil {
+		return nil, err
+	}
+	r, err := s.svc.Get(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -123,11 +143,15 @@ func (s *actorSrv) GetActor(ctx context.Context, req *pb.GetActorRequest) (*pb.A
 }
 
 func (s *actorSrv) UpdateActor(ctx context.Context, req *pb.UpdateActorRequest) (*pb.Actor, error) {
+	id, err := parseProtoUUID(req.Id)
+	if err != nil {
+		return nil, err
+	}
 	traits := make(map[string]interface{}, len(req.Traits))
 	for k, v := range req.Traits {
 		traits[k] = v
 	}
-	r, err := s.svc.Update(uuid.MustParse(req.Id.Value), req.Name, req.Gender, req.Ethnicity, req.Race, req.SkinTone, req.EyeColor, req.HairColor, req.HairStyle, req.Build, req.Nationality, int(req.HeightCm), int(req.WeightKg), int(req.Age), traits)
+	r, err := s.svc.Update(ctx, id, req.Name, req.Gender, req.Ethnicity, req.Race, req.SkinTone, req.EyeColor, req.HairColor, req.HairStyle, req.Build, req.Nationality, int(req.HeightCm), int(req.WeightKg), int(req.Age), traits)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +159,7 @@ func (s *actorSrv) UpdateActor(ctx context.Context, req *pb.UpdateActorRequest) 
 }
 
 func (s *actorSrv) ListActors(ctx context.Context, _ *pb.Empty) (*pb.ListActorsResponse, error) {
-	list, err := s.svc.List()
+	list, err := s.svc.List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +201,7 @@ type traitSrv struct {
 }
 
 func (s *traitSrv) CreateTrait(ctx context.Context, req *pb.CreateCharacterTraitRequest) (*pb.CharacterTrait, error) {
-	r, err := s.svc.Create(req.Name, req.Category, req.Description)
+	r, err := s.svc.Create(ctx, req.Name, req.Category, req.Description)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +215,11 @@ func (s *traitSrv) CreateTrait(ctx context.Context, req *pb.CreateCharacterTrait
 }
 
 func (s *traitSrv) GetTrait(ctx context.Context, req *pb.GetCharacterTraitRequest) (*pb.CharacterTrait, error) {
-	r, err := s.svc.Get(uuid.MustParse(req.Id.Value))
+	id, err := parseProtoUUID(req.Id)
+	if err != nil {
+		return nil, err
+	}
+	r, err := s.svc.Get(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +233,7 @@ func (s *traitSrv) GetTrait(ctx context.Context, req *pb.GetCharacterTraitReques
 }
 
 func (s *traitSrv) ListTraits(ctx context.Context, _ *pb.Empty) (*pb.ListCharacterTraitsResponse, error) {
-	list, err := s.svc.List()
+	list, err := s.svc.List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -223,21 +251,41 @@ func (s *traitSrv) ListTraits(ctx context.Context, _ *pb.Empty) (*pb.ListCharact
 }
 
 func (s *traitSrv) AssignTrait(ctx context.Context, req *pb.AssignTraitRequest) (*pb.Empty, error) {
-	if err := s.svc.Assign(uuid.MustParse(req.CharacterId.Value), uuid.MustParse(req.TraitId.Value), int(req.Intensity), req.Note); err != nil {
+	charID, err := parseProtoUUID(req.CharacterId)
+	if err != nil {
+		return nil, err
+	}
+	traitID, err := parseProtoUUID(req.TraitId)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.svc.Assign(ctx, charID, traitID, int(req.Intensity), req.Note); err != nil {
 		return nil, err
 	}
 	return &pb.Empty{}, nil
 }
 
 func (s *traitSrv) UnassignTrait(ctx context.Context, req *pb.UnassignTraitRequest) (*pb.Empty, error) {
-	if err := s.svc.Unassign(uuid.MustParse(req.CharacterId.Value), uuid.MustParse(req.TraitId.Value)); err != nil {
+	charID, err := parseProtoUUID(req.CharacterId)
+	if err != nil {
+		return nil, err
+	}
+	traitID, err := parseProtoUUID(req.TraitId)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.svc.Unassign(ctx, charID, traitID); err != nil {
 		return nil, err
 	}
 	return &pb.Empty{}, nil
 }
 
 func (s *traitSrv) GetTraitAssignments(ctx context.Context, req *pb.GetTraitAssignmentsRequest) (*pb.GetTraitAssignmentsResponse, error) {
-	list, err := s.svc.GetAssignments(uuid.MustParse(req.CharacterId.Value))
+	charID, err := parseProtoUUID(req.CharacterId)
+	if err != nil {
+		return nil, err
+	}
+	list, err := s.svc.GetAssignments(ctx, charID)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +307,19 @@ type castingSrv struct {
 }
 
 func (s *castingSrv) CreateCasting(ctx context.Context, req *pb.CreateCastingRequest) (*pb.Casting, error) {
-	r, err := s.svc.Create(uuid.MustParse(req.StoryId.Value), uuid.MustParse(req.ActorId.Value), uuid.MustParse(req.CharacterId.Value), req.RoleType)
+	storyID, err := parseProtoUUID(req.StoryId)
+	if err != nil {
+		return nil, err
+	}
+	actorID, err := parseProtoUUID(req.ActorId)
+	if err != nil {
+		return nil, err
+	}
+	charID, err := parseProtoUUID(req.CharacterId)
+	if err != nil {
+		return nil, err
+	}
+	r, err := s.svc.Create(ctx, storyID, actorID, charID, req.RoleType)
 	if err != nil {
 		return nil, err
 	}
@@ -274,15 +334,27 @@ func (s *castingSrv) CreateCasting(ctx context.Context, req *pb.CreateCastingReq
 }
 
 func (s *castingSrv) ListCastingForStory(ctx context.Context, req *pb.ListCastingForStoryRequest) (*pb.ListCastingResponse, error) {
-	return listCasting(s.svc.GetForStory(uuid.MustParse(req.StoryId.Value)))
+	id, err := parseProtoUUID(req.StoryId)
+	if err != nil {
+		return nil, err
+	}
+	return listCasting(s.svc.GetForStory(ctx, id))
 }
 
 func (s *castingSrv) ListCastingForActor(ctx context.Context, req *pb.ListCastingForActorRequest) (*pb.ListCastingResponse, error) {
-	return listCasting(s.svc.GetForActor(uuid.MustParse(req.ActorId.Value)))
+	id, err := parseProtoUUID(req.ActorId)
+	if err != nil {
+		return nil, err
+	}
+	return listCasting(s.svc.GetForActor(ctx, id))
 }
 
 func (s *castingSrv) ListCastingForCharacter(ctx context.Context, req *pb.ListCastingForCharacterRequest) (*pb.ListCastingResponse, error) {
-	return listCasting(s.svc.GetForCharacter(uuid.MustParse(req.CharacterId.Value)))
+	id, err := parseProtoUUID(req.CharacterId)
+	if err != nil {
+		return nil, err
+	}
+	return listCasting(s.svc.GetForCharacter(ctx, id))
 }
 
 func listCasting(list []canon.Casting, err error) (*pb.ListCastingResponse, error) {
@@ -309,7 +381,7 @@ type locationSrv struct {
 }
 
 func (s *locationSrv) CreateLocation(ctx context.Context, req *pb.CreateLocationRequest) (*pb.Location, error) {
-	r, err := s.svc.Create(req.Name, req.Description, req.Props)
+	r, err := s.svc.Create(ctx, req.Name, req.Description, req.Props)
 	if err != nil {
 		return nil, err
 	}
@@ -317,7 +389,11 @@ func (s *locationSrv) CreateLocation(ctx context.Context, req *pb.CreateLocation
 }
 
 func (s *locationSrv) GetLocation(ctx context.Context, req *pb.GetLocationRequest) (*pb.Location, error) {
-	r, err := s.svc.Get(uuid.MustParse(req.Id.Value), int(req.Version))
+	id, err := parseProtoUUID(req.Id)
+	if err != nil {
+		return nil, err
+	}
+	r, err := s.svc.Get(ctx, id, int(req.Version))
 	if err != nil {
 		return nil, err
 	}
@@ -325,7 +401,11 @@ func (s *locationSrv) GetLocation(ctx context.Context, req *pb.GetLocationReques
 }
 
 func (s *locationSrv) UpdateLocation(ctx context.Context, req *pb.UpdateLocationRequest) (*pb.Location, error) {
-	r, err := s.svc.Update(uuid.MustParse(req.Id.Value), req.Description, req.Props)
+	id, err := parseProtoUUID(req.Id)
+	if err != nil {
+		return nil, err
+	}
+	r, err := s.svc.Update(ctx, id, req.Description, req.Props)
 	if err != nil {
 		return nil, err
 	}
@@ -333,7 +413,7 @@ func (s *locationSrv) UpdateLocation(ctx context.Context, req *pb.UpdateLocation
 }
 
 func (s *locationSrv) ListLocations(ctx context.Context, _ *pb.Empty) (*pb.ListLocationsResponse, error) {
-	list, err := s.svc.List()
+	list, err := s.svc.List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -361,7 +441,7 @@ type loreSrv struct {
 }
 
 func (s *loreSrv) CreateLore(ctx context.Context, req *pb.CreateLoreRequest) (*pb.Lore, error) {
-	r, err := s.svc.Create(req.Tags, req.Content)
+	r, err := s.svc.Create(ctx, req.Tags, req.Content)
 	if err != nil {
 		return nil, err
 	}
@@ -374,7 +454,7 @@ func (s *loreSrv) CreateLore(ctx context.Context, req *pb.CreateLoreRequest) (*p
 }
 
 func (s *loreSrv) ListLore(ctx context.Context, _ *pb.Empty) (*pb.ListLoreResponse, error) {
-	list, err := s.svc.List()
+	list, err := s.svc.List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -391,7 +471,7 @@ func (s *loreSrv) ListLore(ctx context.Context, _ *pb.Empty) (*pb.ListLoreRespon
 }
 
 func (s *loreSrv) SearchByTags(ctx context.Context, req *pb.SearchLoreByTagsRequest) (*pb.ListLoreResponse, error) {
-	list, err := s.svc.SearchByTags(req.Tags)
+	list, err := s.svc.SearchByTags(ctx, req.Tags)
 	if err != nil {
 		return nil, err
 	}
@@ -408,7 +488,7 @@ func (s *loreSrv) SearchByTags(ctx context.Context, req *pb.SearchLoreByTagsRequ
 }
 
 func (s *loreSrv) SearchSimilar(ctx context.Context, req *pb.SearchLoreSimilarRequest) (*pb.ListLoreResponse, error) {
-	list, err := s.svc.SearchSimilar(req.Embedding, int(req.Limit))
+	list, err := s.svc.SearchSimilar(ctx, req.Embedding, int(req.Limit))
 	if err != nil {
 		return nil, err
 	}
@@ -430,7 +510,7 @@ type storySrv struct {
 }
 
 func (s *storySrv) CreateStory(ctx context.Context, req *pb.CreateStoryRequest) (*pb.Story, error) {
-	r, err := s.svc.Create(req.Title)
+	r, err := s.svc.Create(ctx, req.Title)
 	if err != nil {
 		return nil, err
 	}
@@ -442,7 +522,11 @@ func (s *storySrv) CreateStory(ctx context.Context, req *pb.CreateStoryRequest) 
 }
 
 func (s *storySrv) GetStory(ctx context.Context, req *pb.GetStoryRequest) (*pb.Story, error) {
-	r, err := s.svc.Get(uuid.MustParse(req.Id.Value))
+	id, err := parseProtoUUID(req.Id)
+	if err != nil {
+		return nil, err
+	}
+	r, err := s.svc.Get(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -454,7 +538,7 @@ func (s *storySrv) GetStory(ctx context.Context, req *pb.GetStoryRequest) (*pb.S
 }
 
 func (s *storySrv) ListStories(ctx context.Context, _ *pb.Empty) (*pb.ListStoriesResponse, error) {
-	list, err := s.svc.List()
+	list, err := s.svc.List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -470,15 +554,31 @@ func (s *storySrv) ListStories(ctx context.Context, _ *pb.Empty) (*pb.ListStorie
 }
 
 func (s *storySrv) CreateEdge(ctx context.Context, req *pb.CreateEdgeRequest) (*pb.Empty, error) {
+	storyID, err := parseProtoUUID(req.StoryId)
+	if err != nil {
+		return nil, err
+	}
+	fromID, err := parseProtoUUID(req.FromNode)
+	if err != nil {
+		return nil, err
+	}
+	toID, err := parseProtoUUID(req.ToNode)
+	if err != nil {
+		return nil, err
+	}
 	et := protoEdgeTypeToDomain(req.EdgeType)
-	if err := s.svc.CreateEdge(uuid.MustParse(req.StoryId.Value), uuid.MustParse(req.FromNode.Value), uuid.MustParse(req.ToNode.Value), string(et)); err != nil {
+	if err := s.svc.CreateEdge(ctx, storyID, fromID, toID, string(et)); err != nil {
 		return nil, err
 	}
 	return &pb.Empty{}, nil
 }
 
 func (s *storySrv) ListEdges(ctx context.Context, req *pb.ListEdgesRequest) (*pb.ListEdgesResponse, error) {
-	list, err := s.svc.ListEdges(uuid.MustParse(req.StoryId.Value))
+	id, err := parseProtoUUID(req.StoryId)
+	if err != nil {
+		return nil, err
+	}
+	list, err := s.svc.ListEdges(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -490,11 +590,15 @@ func (s *storySrv) ListEdges(ctx context.Context, req *pb.ListEdgesRequest) (*pb
 }
 
 func (s *storySrv) GetTopology(ctx context.Context, req *pb.GetTopologyRequest) (*pb.Topology, error) {
-	nodes, err := s.svc.ListNodes(uuid.MustParse(req.StoryId.Value))
+	id, err := parseProtoUUID(req.StoryId)
 	if err != nil {
 		return nil, err
 	}
-	edges, err := s.svc.ListEdges(uuid.MustParse(req.StoryId.Value))
+	nodes, err := s.svc.ListNodes(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	edges, err := s.svc.ListEdges(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -553,22 +657,33 @@ type nodeSrv struct {
 }
 
 func (s *nodeSrv) CreateNode(ctx context.Context, req *pb.CreateNodeRequest) (*pb.Node, error) {
+	storyID, err := parseProtoUUID(req.StoryId)
+	if err != nil {
+		return nil, err
+	}
 	charRefs := make([]uuid.UUID, len(req.CharacterRefs))
 	for i, r := range req.CharacterRefs {
-		charRefs[i] = uuid.MustParse(r.Value)
+		id, err := parseProtoUUID(r)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid character_ref[%d]: %v", i, err)
+		}
+		charRefs[i] = id
 	}
 	var locRef *uuid.UUID
 	if req.LocationRef != nil {
-		v := uuid.MustParse(req.LocationRef.Value)
+		v, err := parseProtoUUID(req.LocationRef)
+		if err != nil {
+			return nil, err
+		}
 		locRef = &v
 	}
-	domainNode, err := s.svc.Create(uuid.MustParse(req.StoryId.Value), req.BeatIntent, charRefs, locRef, req.Pov, req.Tone, int(req.TargetWords))
+	domainNode, err := s.svc.Create(ctx, storyID, req.BeatIntent, charRefs, locRef, req.Pov, req.Tone, int(req.TargetWords))
 	if err != nil {
 		return nil, err
 	}
 	if req.SceneStructure != nil {
 		ss := protoSceneStructureToDomain(req.SceneStructure)
-		if err := s.svc.SetSceneStructure(domainNode.ID, ss); err != nil {
+		if err := s.svc.SetSceneStructure(ctx, domainNode.ID, ss); err != nil {
 			return nil, err
 		}
 		domainNode.SceneStructure = &ss
@@ -577,7 +692,11 @@ func (s *nodeSrv) CreateNode(ctx context.Context, req *pb.CreateNodeRequest) (*p
 }
 
 func (s *nodeSrv) GetNode(ctx context.Context, req *pb.GetNodeRequest) (*pb.Node, error) {
-	r, err := s.svc.Get(uuid.MustParse(req.Id.Value))
+	id, err := parseProtoUUID(req.Id)
+	if err != nil {
+		return nil, err
+	}
+	r, err := s.svc.Get(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -585,13 +704,24 @@ func (s *nodeSrv) GetNode(ctx context.Context, req *pb.GetNodeRequest) (*pb.Node
 }
 
 func (s *nodeSrv) UpdateNode(ctx context.Context, req *pb.UpdateNodeRequest) (*pb.Node, error) {
+	nodeID, err := parseProtoUUID(req.Id)
+	if err != nil {
+		return nil, err
+	}
 	charRefs := make([]uuid.UUID, len(req.CharacterRefs))
 	for i, r := range req.CharacterRefs {
-		charRefs[i] = uuid.MustParse(r.Value)
+		id, err := parseProtoUUID(r)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid character_ref[%d]: %v", i, err)
+		}
+		charRefs[i] = id
 	}
 	var locRef *uuid.UUID
 	if req.LocationRef != nil {
-		v := uuid.MustParse(req.LocationRef.Value)
+		v, err := parseProtoUUID(req.LocationRef)
+		if err != nil {
+			return nil, err
+		}
 		locRef = &v
 	}
 	var ss *graph.SceneStructure
@@ -599,7 +729,7 @@ func (s *nodeSrv) UpdateNode(ctx context.Context, req *pb.UpdateNodeRequest) (*p
 		v := protoSceneStructureToDomain(req.SceneStructure)
 		ss = &v
 	}
-	r, err := s.svc.Update(uuid.MustParse(req.Id.Value), req.BeatIntent, charRefs, locRef, req.Pov, req.Tone, int(req.TargetWords), ss)
+	r, err := s.svc.Update(ctx, nodeID, req.BeatIntent, charRefs, locRef, req.Pov, req.Tone, int(req.TargetWords), ss)
 	if err != nil {
 		return nil, err
 	}
@@ -607,7 +737,11 @@ func (s *nodeSrv) UpdateNode(ctx context.Context, req *pb.UpdateNodeRequest) (*p
 }
 
 func (s *nodeSrv) ListNodes(ctx context.Context, req *pb.ListNodesRequest) (*pb.ListNodesResponse, error) {
-	list, err := s.svc.List(uuid.MustParse(req.StoryId.Value))
+	id, err := parseProtoUUID(req.StoryId)
+	if err != nil {
+		return nil, err
+	}
+	list, err := s.svc.List(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -709,7 +843,11 @@ func domainSceneStructureToProto(ss *graph.SceneStructure) *pb.SceneStructure {
 func protoSceneStructureToDomain(ss *pb.SceneStructure) graph.SceneStructure {
 	charOrder := make([]uuid.UUID, len(ss.CharacterOrder))
 	for i, c := range ss.CharacterOrder {
-		charOrder[i] = uuid.MustParse(c.Value)
+		id, err := parseProtoUUID(c)
+		if err != nil {
+			return graph.SceneStructure{}
+		}
+		charOrder[i] = id
 	}
 	return graph.SceneStructure{
 		FlowType:       protoFlowTypeToDomain(ss.FlowType),
@@ -725,7 +863,11 @@ type generationSrv struct {
 }
 
 func (s *generationSrv) Generate(ctx context.Context, req *pb.GenerateRequest) (*pb.Generation, error) {
-	r, err := s.svc.Generate(uuid.MustParse(req.NodeId.Value))
+	nodeID, err := parseProtoUUID(req.NodeId)
+	if err != nil {
+		return nil, err
+	}
+	r, err := s.svc.Generate(ctx, nodeID)
 	if err != nil {
 		return nil, err
 	}
@@ -733,14 +875,26 @@ func (s *generationSrv) Generate(ctx context.Context, req *pb.GenerateRequest) (
 }
 
 func (s *generationSrv) AcceptGeneration(ctx context.Context, req *pb.AcceptGenerationRequest) (*pb.Empty, error) {
-	if err := s.svc.AcceptGeneration(uuid.MustParse(req.NodeId.Value), uuid.MustParse(req.GenerationId.Value)); err != nil {
+	nodeID, err := parseProtoUUID(req.NodeId)
+	if err != nil {
+		return nil, err
+	}
+	genID, err := parseProtoUUID(req.GenerationId)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.svc.AcceptGeneration(ctx, nodeID, genID); err != nil {
 		return nil, err
 	}
 	return &pb.Empty{}, nil
 }
 
 func (s *generationSrv) ListGenerations(ctx context.Context, req *pb.ListGenerationsRequest) (*pb.ListGenerationsResponse, error) {
-	list, err := s.svc.ListGenerations(uuid.MustParse(req.NodeId.Value))
+	nodeID, err := parseProtoUUID(req.NodeId)
+	if err != nil {
+		return nil, err
+	}
+	list, err := s.svc.ListGenerations(ctx, nodeID)
 	if err != nil {
 		return nil, err
 	}
@@ -771,14 +925,22 @@ type sceneSrv struct {
 }
 
 func (s *sceneSrv) SetSceneStructure(ctx context.Context, req *pb.SetSceneStructureRequest) (*pb.Empty, error) {
-	if err := s.svc.SetSceneStructure(uuid.MustParse(req.NodeId.Value), protoSceneStructureToDomain(req.SceneStructure)); err != nil {
+	nodeID, err := parseProtoUUID(req.NodeId)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.svc.SetSceneStructure(ctx, nodeID, protoSceneStructureToDomain(req.SceneStructure)); err != nil {
 		return nil, err
 	}
 	return &pb.Empty{}, nil
 }
 
 func (s *sceneSrv) GetSceneStructure(ctx context.Context, req *pb.GetSceneStructureRequest) (*pb.SceneStructure, error) {
-	r, err := s.svc.GetSceneStructure(uuid.MustParse(req.NodeId.Value))
+	nodeID, err := parseProtoUUID(req.NodeId)
+	if err != nil {
+		return nil, err
+	}
+	r, err := s.svc.GetSceneStructure(ctx, nodeID)
 	if err != nil {
 		return nil, err
 	}
@@ -789,7 +951,11 @@ func (s *sceneSrv) GetSceneStructure(ctx context.Context, req *pb.GetSceneStruct
 }
 
 func (s *sceneSrv) StartScene(ctx context.Context, req *pb.StartSceneRequest) (*pb.SceneTurn, error) {
-	r, err := s.svc.StartScene(uuid.MustParse(req.NodeId.Value))
+	nodeID, err := parseProtoUUID(req.NodeId)
+	if err != nil {
+		return nil, err
+	}
+	r, err := s.svc.StartScene(ctx, nodeID)
 	if err != nil {
 		return nil, err
 	}
@@ -797,7 +963,11 @@ func (s *sceneSrv) StartScene(ctx context.Context, req *pb.StartSceneRequest) (*
 }
 
 func (s *sceneSrv) NextTurn(ctx context.Context, req *pb.NextTurnRequest) (*pb.SceneTurn, error) {
-	r, err := s.svc.NextTurn(uuid.MustParse(req.NodeId.Value))
+	nodeID, err := parseProtoUUID(req.NodeId)
+	if err != nil {
+		return nil, err
+	}
+	r, err := s.svc.NextTurn(ctx, nodeID)
 	if err != nil {
 		return nil, err
 	}
@@ -805,7 +975,11 @@ func (s *sceneSrv) NextTurn(ctx context.Context, req *pb.NextTurnRequest) (*pb.S
 }
 
 func (s *sceneSrv) FinishScene(ctx context.Context, req *pb.FinishSceneRequest) (*pb.FinishSceneResponse, error) {
-	r, err := s.svc.FinishScene(uuid.MustParse(req.NodeId.Value))
+	nodeID, err := parseProtoUUID(req.NodeId)
+	if err != nil {
+		return nil, err
+	}
+	r, err := s.svc.FinishScene(ctx, nodeID)
 	if err != nil {
 		return nil, err
 	}
@@ -813,7 +987,11 @@ func (s *sceneSrv) FinishScene(ctx context.Context, req *pb.FinishSceneRequest) 
 }
 
 func (s *sceneSrv) GetTurns(ctx context.Context, req *pb.GetTurnsRequest) (*pb.ListTurnsResponse, error) {
-	list, err := s.svc.GetTurns(uuid.MustParse(req.NodeId.Value))
+	nodeID, err := parseProtoUUID(req.NodeId)
+	if err != nil {
+		return nil, err
+	}
+	list, err := s.svc.GetTurns(ctx, nodeID)
 	if err != nil {
 		return nil, err
 	}
@@ -848,7 +1026,15 @@ type summarySrv struct {
 }
 
 func (s *summarySrv) GetSceneSummary(ctx context.Context, req *pb.GetSceneSummaryRequest) (*pb.StorySummary, error) {
-	r, err := s.svc.GetSceneSummary(uuid.MustParse(req.StoryId.Value), uuid.MustParse(req.NodeId.Value))
+	storyID, err := parseProtoUUID(req.StoryId)
+	if err != nil {
+		return nil, err
+	}
+	nodeID, err := parseProtoUUID(req.NodeId)
+	if err != nil {
+		return nil, err
+	}
+	r, err := s.svc.GetSceneSummary(ctx, storyID, nodeID)
 	if err != nil {
 		return nil, err
 	}
@@ -856,7 +1042,11 @@ func (s *summarySrv) GetSceneSummary(ctx context.Context, req *pb.GetSceneSummar
 }
 
 func (s *summarySrv) GetSummaryByLevel(ctx context.Context, req *pb.GetSummaryByLevelRequest) (*pb.StorySummary, error) {
-	r, err := s.svc.GetSummaryByLevel(uuid.MustParse(req.StoryId.Value), compiler.SummaryLevel(req.Level))
+	storyID, err := parseProtoUUID(req.StoryId)
+	if err != nil {
+		return nil, err
+	}
+	r, err := s.svc.GetSummaryByLevel(ctx, storyID, compiler.SummaryLevel(req.Level))
 	if err != nil {
 		return nil, err
 	}
@@ -864,7 +1054,11 @@ func (s *summarySrv) GetSummaryByLevel(ctx context.Context, req *pb.GetSummaryBy
 }
 
 func (s *summarySrv) CountSummariesByLevel(ctx context.Context, req *pb.CountSummariesByLevelRequest) (*pb.CountSummariesByLevelResponse, error) {
-	count, err := s.svc.CountSummariesByLevel(uuid.MustParse(req.StoryId.Value), compiler.SummaryLevel(req.Level))
+	storyID, err := parseProtoUUID(req.StoryId)
+	if err != nil {
+		return nil, err
+	}
+	count, err := s.svc.CountSummariesByLevel(ctx, storyID, compiler.SummaryLevel(req.Level))
 	if err != nil {
 		return nil, err
 	}
@@ -872,7 +1066,11 @@ func (s *summarySrv) CountSummariesByLevel(ctx context.Context, req *pb.CountSum
 }
 
 func (s *summarySrv) ShouldElevate(ctx context.Context, req *pb.ShouldElevateRequest) (*pb.ShouldElevateResponse, error) {
-	should, err := s.svc.ShouldElevate(uuid.MustParse(req.StoryId.Value), compiler.SummaryLevel(req.Level), int(req.Threshold))
+	storyID, err := parseProtoUUID(req.StoryId)
+	if err != nil {
+		return nil, err
+	}
+	should, err := s.svc.ShouldElevate(ctx, storyID, compiler.SummaryLevel(req.Level), int(req.Threshold))
 	if err != nil {
 		return nil, err
 	}
@@ -903,7 +1101,7 @@ type storyGenSrv struct {
 }
 
 func (s *storyGenSrv) GenerateStory(ctx context.Context, req *pb.GenerateStoryRequest) (*pb.GenerateStoryResponse, error) {
-	storyID, status, err := s.svc.GenerateStory(req.Synopsis)
+	storyID, status, err := s.svc.GenerateStory(ctx, req.Synopsis)
 	if err != nil {
 		return nil, err
 	}
@@ -914,6 +1112,13 @@ func (s *storyGenSrv) GenerateStory(ctx context.Context, req *pb.GenerateStoryRe
 }
 
 // ── Helpers ────────────────────────────────────────────────────
+
+func parseProtoUUID(p *pb.UUID) (uuid.UUID, error) {
+	if p == nil {
+		return uuid.Nil, status.Error(codes.InvalidArgument, "uuid is nil")
+	}
+	return uuid.Parse(p.Value)
+}
 
 func uuidToProto(id uuid.UUID) *pb.UUID {
 	return &pb.UUID{Value: id.String()}

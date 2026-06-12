@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -17,7 +18,7 @@ func NewLocService() *locService {
 	return &locService{version: make(map[uuid.UUID]int)}
 }
 
-func (s *locService) Create(name, description string, props []string) (*canon.Location, error) {
+func (s *locService) Create(ctx context.Context, name, description string, props []string) (*canon.Location, error) {
 	l := canon.Location{
 		ID:          uuid.New(),
 		Version:     1,
@@ -31,7 +32,7 @@ func (s *locService) Create(name, description string, props []string) (*canon.Lo
 	return &l, nil
 }
 
-func (s *locService) Get(id uuid.UUID, version int) (*canon.Location, error) {
+func (s *locService) Get(ctx context.Context, id uuid.UUID, version int) (*canon.Location, error) {
 	var latest *canon.Location
 	for i := range s.locs {
 		if s.locs[i].ID == id {
@@ -49,7 +50,7 @@ func (s *locService) Get(id uuid.UUID, version int) (*canon.Location, error) {
 	return latest, nil
 }
 
-func (s *locService) Update(id uuid.UUID, description string, props []string) (*canon.Location, error) {
+func (s *locService) Update(ctx context.Context, id uuid.UUID, description string, props []string) (*canon.Location, error) {
 	next := s.version[id]
 	if next == 0 {
 		return nil, fmt.Errorf("location %s not found", id)
@@ -74,7 +75,7 @@ func (s *locService) Update(id uuid.UUID, description string, props []string) (*
 	return &l, nil
 }
 
-func (s *locService) List() ([]canon.Location, error) {
+func (s *locService) List(ctx context.Context) ([]canon.Location, error) {
 	latest := make(map[uuid.UUID]canon.Location)
 	for _, l := range s.locs {
 		if existing, ok := latest[l.ID]; !ok || l.Version > existing.Version {
@@ -96,7 +97,7 @@ func NewLoreService() *loreService {
 	return &loreService{}
 }
 
-func (s *loreService) Create(tags []string, content string) (*canon.Lore, error) {
+func (s *loreService) Create(ctx context.Context, tags []string, content string) (*canon.Lore, error) {
 	l := canon.Lore{
 		ID:        uuid.New(),
 		Tags:      tags,
@@ -107,13 +108,13 @@ func (s *loreService) Create(tags []string, content string) (*canon.Lore, error)
 	return &l, nil
 }
 
-func (s *loreService) List() ([]canon.Lore, error) {
+func (s *loreService) List(ctx context.Context) ([]canon.Lore, error) {
 	r := make([]canon.Lore, len(s.items))
 	copy(r, s.items)
 	return r, nil
 }
 
-func (s *loreService) SearchByTags(tags []string) ([]canon.Lore, error) {
+func (s *loreService) SearchByTags(ctx context.Context, tags []string) ([]canon.Lore, error) {
 	tagSet := make(map[string]bool, len(tags))
 	for _, t := range tags {
 		tagSet[t] = true
@@ -130,7 +131,7 @@ func (s *loreService) SearchByTags(tags []string) ([]canon.Lore, error) {
 	return result, nil
 }
 
-func (s *loreService) SearchSimilar(embedding []float32, limit int) ([]canon.Lore, error) {
+func (s *loreService) SearchSimilar(ctx context.Context, embedding []float32, limit int) ([]canon.Lore, error) {
 	if limit > len(s.items) {
 		limit = len(s.items)
 	}

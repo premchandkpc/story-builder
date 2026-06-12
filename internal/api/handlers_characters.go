@@ -37,7 +37,7 @@ func (h *CharacterHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid parent_id")
 		return
 	}
-	char, err := h.Service.Create(req.Name, req.Persona, req.Backstory, req.MoralAlignment, req.Personality, req.Flaws, req.Goals, req.Traits, req.VoiceSamples, parentID, req.Relationships)
+	char, err := h.Service.Create(r.Context(), req.Name, req.Persona, req.Backstory, req.MoralAlignment, req.Personality, req.Flaws, req.Goals, req.Traits, req.VoiceSamples, parentID, req.Relationships)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -51,7 +51,7 @@ func (h *CharacterHandler) Get(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	char, err := h.Service.Get(id, 0)
+	char, err := h.Service.Get(r.Context(), id, 0)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -75,7 +75,7 @@ func (h *CharacterHandler) Update(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid parent_id")
 		return
 	}
-	char, err := h.Service.Update(id, req.Name, req.Persona, req.Backstory, req.MoralAlignment, req.Personality, req.Flaws, req.Goals, req.Traits, req.VoiceSamples, parentID, req.Relationships)
+	char, err := h.Service.Update(r.Context(), id, req.Name, req.Persona, req.Backstory, req.MoralAlignment, req.Personality, req.Flaws, req.Goals, req.Traits, req.VoiceSamples, parentID, req.Relationships)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -84,7 +84,7 @@ func (h *CharacterHandler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CharacterHandler) List(w http.ResponseWriter, r *http.Request) {
-	chars, err := h.Service.List()
+	chars, err := h.Service.List(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -119,7 +119,7 @@ func (h *ActorHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	actor, err := h.Service.Create(req.Name, req.Gender, req.Ethnicity, req.Race, req.SkinTone, req.EyeColor, req.HairColor, req.HairStyle, req.Build, req.Nationality, req.HeightCm, req.WeightKg, req.Age, req.Traits)
+	actor, err := h.Service.Create(r.Context(), req.Name, req.Gender, req.Ethnicity, req.Race, req.SkinTone, req.EyeColor, req.HairColor, req.HairStyle, req.Build, req.Nationality, req.HeightCm, req.WeightKg, req.Age, req.Traits)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -133,7 +133,7 @@ func (h *ActorHandler) Get(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	actor, err := h.Service.Get(id)
+	actor, err := h.Service.Get(r.Context(), id)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -152,7 +152,7 @@ func (h *ActorHandler) Update(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	actor, err := h.Service.Update(id, req.Name, req.Gender, req.Ethnicity, req.Race, req.SkinTone, req.EyeColor, req.HairColor, req.HairStyle, req.Build, req.Nationality, req.HeightCm, req.WeightKg, req.Age, req.Traits)
+	actor, err := h.Service.Update(r.Context(), id, req.Name, req.Gender, req.Ethnicity, req.Race, req.SkinTone, req.EyeColor, req.HairColor, req.HairStyle, req.Build, req.Nationality, req.HeightCm, req.WeightKg, req.Age, req.Traits)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -161,7 +161,7 @@ func (h *ActorHandler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ActorHandler) List(w http.ResponseWriter, r *http.Request) {
-	actors, err := h.Service.List()
+	actors, err := h.Service.List(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -191,7 +191,7 @@ func (h *CharacterTraitHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	trait, err := h.Service.Create(req.Name, req.Category, req.Description)
+	trait, err := h.Service.Create(r.Context(), req.Name, req.Category, req.Description)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -200,7 +200,7 @@ func (h *CharacterTraitHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CharacterTraitHandler) List(w http.ResponseWriter, r *http.Request) {
-	traits, err := h.Service.List()
+	traits, err := h.Service.List(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -214,7 +214,7 @@ func (h *CharacterTraitHandler) Get(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	trait, err := h.Service.Get(id)
+	trait, err := h.Service.Get(r.Context(), id)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -238,7 +238,7 @@ func (h *CharacterTraitHandler) Assign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid trait_id")
 		return
 	}
-	if err := h.Service.Assign(charID, traitID, req.Intensity, req.Note); err != nil {
+	if err := h.Service.Assign(r.Context(), charID, traitID, req.Intensity, req.Note); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -256,7 +256,7 @@ func (h *CharacterTraitHandler) Unassign(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "invalid trait id")
 		return
 	}
-	if err := h.Service.Unassign(charID, traitID); err != nil {
+	if err := h.Service.Unassign(r.Context(), charID, traitID); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -269,7 +269,7 @@ func (h *CharacterTraitHandler) GetAssignments(w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusBadRequest, "invalid character id")
 		return
 	}
-	assignments, err := h.Service.GetAssignments(charID)
+	assignments, err := h.Service.GetAssignments(r.Context(), charID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -308,7 +308,7 @@ func (h *CastingHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid character_id")
 		return
 	}
-	cast, err := h.Service.Create(storyID, actorID, charID, req.RoleType)
+	cast, err := h.Service.Create(r.Context(), storyID, actorID, charID, req.RoleType)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -322,7 +322,7 @@ func (h *CastingHandler) ListForStory(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid story id")
 		return
 	}
-	cast, err := h.Service.GetForStory(storyID)
+	cast, err := h.Service.GetForStory(r.Context(), storyID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -336,7 +336,7 @@ func (h *CastingHandler) ListForCharacter(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, "invalid character id")
 		return
 	}
-	cast, err := h.Service.GetForCharacter(charID)
+	cast, err := h.Service.GetForCharacter(r.Context(), charID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -350,7 +350,7 @@ func (h *CastingHandler) ListForActor(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid actor id")
 		return
 	}
-	cast, err := h.Service.GetForActor(actorID)
+	cast, err := h.Service.GetForActor(r.Context(), actorID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -374,7 +374,7 @@ func (h *LocationHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	loc, err := h.Service.Create(req.Name, req.Description, req.Props)
+	loc, err := h.Service.Create(r.Context(), req.Name, req.Description, req.Props)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -388,7 +388,7 @@ func (h *LocationHandler) Get(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	loc, err := h.Service.Get(id, 0)
+	loc, err := h.Service.Get(r.Context(), id, 0)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -407,7 +407,7 @@ func (h *LocationHandler) Update(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	loc, err := h.Service.Update(id, req.Description, req.Props)
+	loc, err := h.Service.Update(r.Context(), id, req.Description, req.Props)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -416,7 +416,7 @@ func (h *LocationHandler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *LocationHandler) List(w http.ResponseWriter, r *http.Request) {
-	locs, err := h.Service.List()
+	locs, err := h.Service.List(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

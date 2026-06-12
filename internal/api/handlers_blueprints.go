@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -10,8 +11,8 @@ import (
 )
 
 type BlueprintService interface {
-	Save(storyID uuid.UUID, bp *narrative.Blueprint) error
-	Get(storyID uuid.UUID) (*narrative.Blueprint, error)
+	Save(ctx context.Context, storyID uuid.UUID, bp *narrative.Blueprint) error
+	Get(ctx context.Context, storyID uuid.UUID) (*narrative.Blueprint, error)
 }
 
 func (h *StoryHandler) UpsertBlueprint(w http.ResponseWriter, r *http.Request) {
@@ -25,7 +26,7 @@ func (h *StoryHandler) UpsertBlueprint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.Service != nil {
-		if _, err := h.Service.Get(storyID); err != nil {
+		if _, err := h.Service.Get(r.Context(), storyID); err != nil {
 			writeError(w, http.StatusNotFound, "story not found")
 			return
 		}
@@ -36,7 +37,7 @@ func (h *StoryHandler) UpsertBlueprint(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if err := h.BlueprintService.Save(storyID, &req); err != nil {
+	if err := h.BlueprintService.Save(r.Context(), storyID, &req); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -53,7 +54,7 @@ func (h *StoryHandler) GetBlueprint(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "blueprint service unavailable")
 		return
 	}
-	bp, err := h.BlueprintService.Get(storyID)
+	bp, err := h.BlueprintService.Get(r.Context(), storyID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, err.Error())
 		return

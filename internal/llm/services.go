@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -17,10 +18,10 @@ type ProseServiceImpl struct {
 	client LLMClient
 }
 
-func (s *ProseServiceImpl) GenerateScene(params PromptParams) (*CompletionResponse, error) {
+func (s *ProseServiceImpl) GenerateScene(ctx context.Context, params PromptParams) (*CompletionResponse, error) {
 	cfg := PromptRegistry[PromptSceneProse]
 
-	ctx := &compiler.CompiledContext{
+	cc := &compiler.CompiledContext{
 		CharacterCards: params.CharacterCards,
 		LocationCard:   params.LocationCard,
 		Lore:           params.Lore,
@@ -31,18 +32,18 @@ func (s *ProseServiceImpl) GenerateScene(params PromptParams) (*CompletionRespon
 		TargetWords:    params.TargetWords,
 	}
 	if params.CharState != nil {
-		ctx.CharState = make(map[string]ledger.CharacterState)
+		cc.CharState = make(map[string]ledger.CharacterState)
 		for k, v := range params.CharState {
 			b, _ := json.Marshal(v)
 			var cs ledger.CharacterState
 			if json.Unmarshal(b, &cs) == nil {
-				ctx.CharState[k] = cs
+				cc.CharState[k] = cs
 			}
 		}
 	}
 
-	systemPrompt := ctx.BuildSceneProseSystemPrompt()
-	userMessage := ctx.BuildSceneProseUserMessage()
+	systemPrompt := cc.BuildSceneProseSystemPrompt()
+	userMessage := cc.BuildSceneProseUserMessage()
 
 	req := CompletionRequest{
 		Model:       cfg.Model,
@@ -52,7 +53,7 @@ func (s *ProseServiceImpl) GenerateScene(params PromptParams) (*CompletionRespon
 		MaxTokens:   4096,
 	}
 
-	return s.client.Complete(req)
+	return s.client.Complete(ctx, req)
 }
 
 func NewExtractionService(client LLMClient) *ExtractionServiceImpl {
@@ -63,7 +64,7 @@ type ExtractionServiceImpl struct {
 	client LLMClient
 }
 
-func (s *ExtractionServiceImpl) ExtractState(sceneText string, roster map[string]string) (*ledger.StateDeltas, error) {
+func (s *ExtractionServiceImpl) ExtractState(ctx context.Context, sceneText string, roster map[string]string) (*ledger.StateDeltas, error) {
 	cfg := PromptRegistry[PromptStateExtract]
 	req := CompletionRequest{
 		Model:       cfg.Model,
@@ -72,7 +73,7 @@ func (s *ExtractionServiceImpl) ExtractState(sceneText string, roster map[string
 		Temperature: cfg.Temperature,
 		MaxTokens:   1024,
 	}
-	res, err := s.client.Complete(req)
+	res, err := s.client.Complete(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +95,7 @@ type SummaryServiceImpl struct {
 	client LLMClient
 }
 
-func (s *SummaryServiceImpl) UpdateSummary(previousSummary, newScene string) (string, error) {
+func (s *SummaryServiceImpl) UpdateSummary(ctx context.Context, previousSummary, newScene string) (string, error) {
 	cfg := PromptRegistry[PromptSummaryUpdate]
 	req := CompletionRequest{
 		Model:       cfg.Model,
@@ -103,7 +104,7 @@ func (s *SummaryServiceImpl) UpdateSummary(previousSummary, newScene string) (st
 		Temperature: cfg.Temperature,
 		MaxTokens:   1024,
 	}
-	res, err := s.client.Complete(req)
+	res, err := s.client.Complete(ctx, req)
 	if err != nil {
 		return "", err
 	}
@@ -118,7 +119,7 @@ type MergeServiceImpl struct {
 	client LLMClient
 }
 
-func (s *MergeServiceImpl) MergeBranches(summaryA, summaryB, timelineNote string) (map[string]interface{}, error) {
+func (s *MergeServiceImpl) MergeBranches(ctx context.Context, summaryA, summaryB, timelineNote string) (map[string]interface{}, error) {
 	cfg := PromptRegistry[PromptJoinMerge]
 	req := CompletionRequest{
 		Model:       cfg.Model,
@@ -127,7 +128,7 @@ func (s *MergeServiceImpl) MergeBranches(summaryA, summaryB, timelineNote string
 		Temperature: cfg.Temperature,
 		MaxTokens:   1024,
 	}
-	res, err := s.client.Complete(req)
+	res, err := s.client.Complete(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +147,7 @@ type ValidationServiceImpl struct {
 	client LLMClient
 }
 
-func (s *ValidationServiceImpl) ValidateAgainstCanon(canonXML, charState, draft string) (map[string]interface{}, error) {
+func (s *ValidationServiceImpl) ValidateAgainstCanon(ctx context.Context, canonXML, charState, draft string) (map[string]interface{}, error) {
 	cfg := PromptRegistry[PromptCanonValidate]
 	req := CompletionRequest{
 		Model:       cfg.Model,
@@ -155,7 +156,7 @@ func (s *ValidationServiceImpl) ValidateAgainstCanon(canonXML, charState, draft 
 		Temperature: cfg.Temperature,
 		MaxTokens:   2048,
 	}
-	res, err := s.client.Complete(req)
+	res, err := s.client.Complete(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +175,7 @@ type OutlineServiceImpl struct {
 	client LLMClient
 }
 
-func (s *OutlineServiceImpl) GenerateOutline(synopsis string) (*StoryOutline, error) {
+func (s *OutlineServiceImpl) GenerateOutline(ctx context.Context, synopsis string) (*StoryOutline, error) {
 	cfg := PromptRegistry[PromptOutlineStory]
 	systemPrompt := compiler.BuildOutlineStorySystemPrompt(synopsis)
 	req := CompletionRequest{
@@ -184,7 +185,7 @@ func (s *OutlineServiceImpl) GenerateOutline(synopsis string) (*StoryOutline, er
 		Temperature: cfg.Temperature,
 		MaxTokens:   4096,
 	}
-	res, err := s.client.Complete(req)
+	res, err := s.client.Complete(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("outline: %w", err)
 	}

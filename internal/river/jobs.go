@@ -51,7 +51,7 @@ func (w *GenerateSceneWorker) Work(ctx context.Context, job *river.Job[GenerateS
 		return fmt.Errorf("compile prompt params: %w", err)
 	}
 
-	resp, err := w.Prose.GenerateScene(*params)
+	resp, err := w.Prose.GenerateScene(ctx, *params)
 	if err != nil {
 		return fmt.Errorf("generate scene: %w", err)
 	}
@@ -78,9 +78,13 @@ func (w *GenerateSceneWorker) compilePromptParams(ctx context.Context, args Gene
 			continue
 		}
 		var traits []string
-		_ = json.Unmarshal(c.Traits, &traits)
+		if err := json.Unmarshal(c.Traits, &traits); err != nil {
+			log.Printf("unmarshal traits for character %s: %v", ref, err)
+		}
 		var rels map[string]string
-		_ = json.Unmarshal(c.Relationships, &rels)
+		if err := json.Unmarshal(c.Relationships, &rels); err != nil {
+			log.Printf("unmarshal relationships for character %s: %v", ref, err)
+		}
 		charCards = append(charCards, canon.Card{
 			Name:          c.Name,
 			Description:   c.Persona,
@@ -96,7 +100,9 @@ func (w *GenerateSceneWorker) compilePromptParams(ctx context.Context, args Gene
 		loc, err := w.Queries.GetLocationLatest(ctx, toUUID(*args.LocationRef))
 		if err == nil {
 			var props []string
-			_ = json.Unmarshal(loc.Props, &props)
+			if err := json.Unmarshal(loc.Props, &props); err != nil {
+				log.Printf("unmarshal props for location %s: %v", *args.LocationRef, err)
+			}
 			params.LocationCard = &canon.Card{
 				Name:        loc.Name,
 				Description: loc.Description,
@@ -177,7 +183,7 @@ func (w *ExtractStateWorker) Work(ctx context.Context, job *river.Job[ExtractSta
 			roster[ref.String()] = c.Name
 		}
 	}
-	result, err := w.Extract.ExtractState(args.SceneText, roster)
+	result, err := w.Extract.ExtractState(ctx, args.SceneText, roster)
 	if err != nil {
 		return fmt.Errorf("extract state: %w", err)
 	}
@@ -238,7 +244,7 @@ func NewUpdateSummaryWorker(svc llm.SummaryService, q *db.Queries) *UpdateSummar
 
 func (w *UpdateSummaryWorker) Work(ctx context.Context, job *river.Job[UpdateSummaryArgs]) error {
 	args := job.Args
-	updated, err := w.Summary.UpdateSummary(args.PreviousSummary, args.AcceptedScene)
+	updated, err := w.Summary.UpdateSummary(ctx, args.PreviousSummary, args.AcceptedScene)
 	if err != nil {
 		return fmt.Errorf("update summary: %w", err)
 	}
@@ -273,7 +279,7 @@ func NewMergeBranchesWorker(svc llm.MergeService, q *db.Queries) *MergeBranchesW
 
 func (w *MergeBranchesWorker) Work(ctx context.Context, job *river.Job[MergeBranchesArgs]) error {
 	args := job.Args
-	result, err := w.Merge.MergeBranches(args.SummaryA, args.SummaryB, args.TimelineNote)
+	result, err := w.Merge.MergeBranches(ctx, args.SummaryA, args.SummaryB, args.TimelineNote)
 	if err != nil {
 		return fmt.Errorf("merge branches: %w", err)
 	}
@@ -312,7 +318,7 @@ func NewValidateSceneWorker(svc llm.ValidationService, q *db.Queries) *ValidateS
 
 func (w *ValidateSceneWorker) Work(ctx context.Context, job *river.Job[ValidateSceneArgs]) error {
 	args := job.Args
-	result, err := w.Validate.ValidateAgainstCanon(args.CompiledCanon, args.CharState, args.SceneText)
+	result, err := w.Validate.ValidateAgainstCanon(ctx, args.CompiledCanon, args.CharState, args.SceneText)
 	if err != nil {
 		return fmt.Errorf("validate scene: %w", err)
 	}
@@ -349,7 +355,7 @@ func NewGenerateStoryWorker(outline llm.OutlineService, q *db.Queries, prose llm
 func (w *GenerateStoryWorker) Work(ctx context.Context, job *river.Job[GenerateStoryArgs]) error {
 	args := job.Args
 
-	outline, err := w.Outline.GenerateOutline(args.Synopsis)
+	outline, err := w.Outline.GenerateOutline(ctx, args.Synopsis)
 	if err != nil {
 		return fmt.Errorf("generate outline: %w", err)
 	}

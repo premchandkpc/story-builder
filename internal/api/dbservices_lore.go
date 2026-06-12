@@ -16,11 +16,11 @@ func NewDBLocService(q *db.Queries) *dbLocService {
 	return &dbLocService{q: q}
 }
 
-func (s *dbLocService) Create(name, description string, props []string) (*canon.Location, error) {
+func (s *dbLocService) Create(ctx context.Context, name, description string, props []string) (*canon.Location, error) {
 	if props == nil {
 		props = []string{}
 	}
-	l, err := s.q.CreateLocation(context.Background(), db.CreateLocationParams{
+	l, err := s.q.CreateLocation(ctx, db.CreateLocationParams{
 		Name:        name,
 		Description: description,
 		Props:       jsonBytes(props),
@@ -31,9 +31,9 @@ func (s *dbLocService) Create(name, description string, props []string) (*canon.
 	return toDomainLoc(l), nil
 }
 
-func (s *dbLocService) Get(id uuid.UUID, version int) (*canon.Location, error) {
+func (s *dbLocService) Get(ctx context.Context, id uuid.UUID, version int) (*canon.Location, error) {
 	if version > 0 {
-		l, err := s.q.GetLocationAtVersion(context.Background(), db.GetLocationAtVersionParams{
+		l, err := s.q.GetLocationAtVersion(ctx, db.GetLocationAtVersionParams{
 			ID:      toUUID(id),
 			Version: int32(version),
 		})
@@ -42,15 +42,15 @@ func (s *dbLocService) Get(id uuid.UUID, version int) (*canon.Location, error) {
 		}
 		return toDomainLoc(l), nil
 	}
-	l, err := s.q.GetLocationLatest(context.Background(), toUUID(id))
+	l, err := s.q.GetLocationLatest(ctx, toUUID(id))
 	if err != nil {
 		return nil, err
 	}
 	return toDomainLocFromLatest(l), nil
 }
 
-func (s *dbLocService) Update(id uuid.UUID, description string, props []string) (*canon.Location, error) {
-	l, err := s.q.UpdateLocation(context.Background(), db.UpdateLocationParams{
+func (s *dbLocService) Update(ctx context.Context, id uuid.UUID, description string, props []string) (*canon.Location, error) {
+	l, err := s.q.UpdateLocation(ctx, db.UpdateLocationParams{
 		ID:          toUUID(id),
 		Description: description,
 		Column3:     jsonBytes(props),
@@ -61,8 +61,8 @@ func (s *dbLocService) Update(id uuid.UUID, description string, props []string) 
 	return toDomainLoc(l), nil
 }
 
-func (s *dbLocService) List() ([]canon.Location, error) {
-	locs, err := s.q.ListLocations(context.Background())
+func (s *dbLocService) List(ctx context.Context) ([]canon.Location, error) {
+	locs, err := s.q.ListLocations(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -105,11 +105,11 @@ func NewDBLoreService(q *db.Queries) *dbLoreService {
 	return &dbLoreService{q: q}
 }
 
-func (s *dbLoreService) Create(tags []string, content string) (*canon.Lore, error) {
+func (s *dbLoreService) Create(ctx context.Context, tags []string, content string) (*canon.Lore, error) {
 	if tags == nil {
 		tags = []string{}
 	}
-	l, err := s.q.CreateLore(context.Background(), db.CreateLoreParams{
+	l, err := s.q.CreateLore(ctx, db.CreateLoreParams{
 		Tags:      tags,
 		Content:   content,
 		Embedding: pgvector.Vector{},
@@ -125,8 +125,8 @@ func (s *dbLoreService) Create(tags []string, content string) (*canon.Lore, erro
 	}, nil
 }
 
-func (s *dbLoreService) List() ([]canon.Lore, error) {
-	items, err := s.q.ListLore(context.Background())
+func (s *dbLoreService) List(ctx context.Context) ([]canon.Lore, error) {
+	items, err := s.q.ListLore(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -142,8 +142,8 @@ func (s *dbLoreService) List() ([]canon.Lore, error) {
 	return result, nil
 }
 
-func (s *dbLoreService) SearchByTags(tags []string) ([]canon.Lore, error) {
-	items, err := s.q.SearchLoreByTags(context.Background(), tags)
+func (s *dbLoreService) SearchByTags(ctx context.Context, tags []string) ([]canon.Lore, error) {
+	items, err := s.q.SearchLoreByTags(ctx, tags)
 	if err != nil {
 		return nil, err
 	}
@@ -159,9 +159,9 @@ func (s *dbLoreService) SearchByTags(tags []string) ([]canon.Lore, error) {
 	return result, nil
 }
 
-func (s *dbLoreService) SearchSimilar(embedding []float32, limit int) ([]canon.Lore, error) {
+func (s *dbLoreService) SearchSimilar(ctx context.Context, embedding []float32, limit int) ([]canon.Lore, error) {
 	vec := pgvector.NewVector(embedding)
-	items, err := s.q.SearchLoreSimilar(context.Background(), db.SearchLoreSimilarParams{
+	items, err := s.q.SearchLoreSimilar(ctx, db.SearchLoreSimilarParams{
 		Column1: vec,
 		Limit:   int32(limit),
 	})

@@ -1,6 +1,8 @@
 package compiler
 
 import (
+	"context"
+
 	"github.com/google/uuid"
 )
 
@@ -23,12 +25,12 @@ type StorySummary struct {
 }
 
 type SummaryService interface {
-	UpsertSceneSummary(storyID, nodeID uuid.UUID, content string) error
-	UpsertActSummary(storyID uuid.UUID, content string) error
-	UpsertStorySummary(storyID uuid.UUID, content string) error
-	GetSceneSummary(storyID, nodeID uuid.UUID) (*StorySummary, error)
-	GetSummaryByLevel(storyID uuid.UUID, level SummaryLevel) (*StorySummary, error)
-	ListSummariesByLevel(storyID uuid.UUID, level SummaryLevel) ([]StorySummary, error)
-	CountSummariesByLevel(storyID uuid.UUID, level SummaryLevel) (int, error)
-	ShouldElevate(storyID uuid.UUID, level SummaryLevel, threshold int) (bool, error)
+	UpsertSceneSummary(ctx context.Context, storyID, nodeID uuid.UUID, content string) error
+	UpsertActSummary(ctx context.Context, storyID uuid.UUID, content string) error
+	UpsertStorySummary(ctx context.Context, storyID uuid.UUID, content string) error
+	GetSceneSummary(ctx context.Context, storyID, nodeID uuid.UUID) (*StorySummary, error)
+	GetSummaryByLevel(ctx context.Context, storyID uuid.UUID, level SummaryLevel) (*StorySummary, error)
+	ListSummariesByLevel(ctx context.Context, storyID uuid.UUID, level SummaryLevel) ([]StorySummary, error)
+	CountSummariesByLevel(ctx context.Context, storyID uuid.UUID, level SummaryLevel) (int, error)
+	ShouldElevate(ctx context.Context, storyID uuid.UUID, level SummaryLevel, threshold int) (bool, error)
 }

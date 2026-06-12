@@ -237,8 +237,8 @@ type storyGenWrapper struct {
 	svc api.StoryGeneratorService
 }
 
-func (w storyGenWrapper) GenerateStory(synopsis string) (string, string, error) {
-	r, err := w.svc.GenerateStory(synopsis)
+func (w storyGenWrapper) GenerateStory(ctx context.Context, synopsis string) (string, string, error) {
+	r, err := w.svc.GenerateStory(ctx, synopsis)
 	if err != nil {
 		return "", "", err
 	}

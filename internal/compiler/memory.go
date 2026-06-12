@@ -75,11 +75,11 @@ func (s *MemoryStore) IsStale(nodeID, currentHash string) (bool, error) {
 	return !hasAccepted, nil
 }
 
-func ComputeHash(v interface{}) string {
+func ComputeHash(v interface{}) (string, error) {
 	b, err := json.Marshal(v)
 	if err != nil {
-		panic(fmt.Sprintf("compiler: hash marshal: %v", err))
+		return "", fmt.Errorf("compiler: hash marshal: %w", err)
 	}
 	sum := sha256.Sum256(b)
-	return hex.EncodeToString(sum[:])
+	return hex.EncodeToString(sum[:]), nil
 }

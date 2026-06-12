@@ -1,6 +1,7 @@
 package scene
 
 import (
+	"context"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,12 +21,12 @@ type SceneTurn struct {
 }
 
 type SceneService interface {
-	StartScene(nodeID uuid.UUID) (*SceneTurn, error)
-	NextTurn(nodeID uuid.UUID) (*SceneTurn, error)
-	FinishScene(nodeID uuid.UUID) (string, error)
-	GetTurns(nodeID uuid.UUID) ([]SceneTurn, error)
-	SetSceneStructure(nodeID uuid.UUID, ss graph.SceneStructure) error
-	GetSceneStructure(nodeID uuid.UUID) (*graph.SceneStructure, error)
+	StartScene(ctx context.Context, nodeID uuid.UUID) (*SceneTurn, error)
+	NextTurn(ctx context.Context, nodeID uuid.UUID) (*SceneTurn, error)
+	FinishScene(ctx context.Context, nodeID uuid.UUID) (string, error)
+	GetTurns(ctx context.Context, nodeID uuid.UUID) ([]SceneTurn, error)
+	SetSceneStructure(ctx context.Context, nodeID uuid.UUID, ss graph.SceneStructure) error
+	GetSceneStructure(ctx context.Context, nodeID uuid.UUID) (*graph.SceneStructure, error)
 }
 
 type AgentPromptInput struct {

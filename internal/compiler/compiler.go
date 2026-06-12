@@ -22,13 +22,13 @@ type CompiledContext struct {
 	TargetWords    int                              `json:"target_words"`
 }
 
-func (c CompiledContext) Hash() string {
+func (c CompiledContext) Hash() (string, error) {
 	b, err := json.Marshal(c)
 	if err != nil {
-		panic(fmt.Sprintf("compiler: failed to marshal context: %v", err))
+		return "", fmt.Errorf("compiler: marshal context: %w", err)
 	}
 	sum := sha256.Sum256(b)
-	return hex.EncodeToString(sum[:])
+	return hex.EncodeToString(sum[:]), nil
 }
 
 func (c CompiledContext) BuildScenePromptSnapshot() string {

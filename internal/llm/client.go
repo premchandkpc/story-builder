@@ -2,6 +2,7 @@ package llm
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,7 +19,7 @@ type AnthropicClient struct {
 	http   *http.Client
 }
 
-func (c *AnthropicClient) Complete(req CompletionRequest) (*CompletionResponse, error) {
+func (c *AnthropicClient) Complete(ctx context.Context, req CompletionRequest) (*CompletionResponse, error) {
 	model := string(req.Model)
 	if model == "" || model == "claude-sonnet" {
 		model = "claude-sonnet-4-20250514"
@@ -40,7 +41,7 @@ func (c *AnthropicClient) Complete(req CompletionRequest) (*CompletionResponse, 
 	if err != nil {
 		return nil, fmt.Errorf("anthropic marshal: %w", err)
 	}
-	httpReq, err := http.NewRequest("POST", "https://api.anthropic.com/v1/messages", bytes.NewReader(b))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", "https://api.anthropic.com/v1/messages", bytes.NewReader(b))
 	if err != nil {
 		return nil, fmt.Errorf("anthropic new request: %w", err)
 	}
@@ -95,7 +96,7 @@ type OllamaClient struct {
 	http    *http.Client
 }
 
-func (c *OllamaClient) Complete(req CompletionRequest) (*CompletionResponse, error) {
+func (c *OllamaClient) Complete(ctx context.Context, req CompletionRequest) (*CompletionResponse, error) {
 	model := string(req.Model)
 	if model == "" || model == "local-7b" {
 		model = "llama3.2:3b"
@@ -120,7 +121,12 @@ func (c *OllamaClient) Complete(req CompletionRequest) (*CompletionResponse, err
 	if err != nil {
 		return nil, fmt.Errorf("ollama marshal: %w", err)
 	}
-	res, err := c.http.Post(c.baseURL+"/v1/chat/completions", "application/json", bytes.NewReader(b))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/v1/chat/completions", bytes.NewReader(b))
+	if err != nil {
+		return nil, fmt.Errorf("ollama new request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	res, err := c.http.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("ollama: %w", err)
 	}

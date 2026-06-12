@@ -17,20 +17,20 @@ func NewDBSceneService(q *db.Queries) *dbSceneService {
 	return &dbSceneService{q: q}
 }
 
-func (s *dbSceneService) StartScene(nodeID uuid.UUID) (*scene.SceneTurn, error) {
+func (s *dbSceneService) StartScene(ctx context.Context, nodeID uuid.UUID) (*scene.SceneTurn, error) {
 	return nil, fmt.Errorf("multi-agent scene requires LLM integration -- not implemented")
 }
 
-func (s *dbSceneService) NextTurn(nodeID uuid.UUID) (*scene.SceneTurn, error) {
+func (s *dbSceneService) NextTurn(ctx context.Context, nodeID uuid.UUID) (*scene.SceneTurn, error) {
 	return nil, fmt.Errorf("multi-agent scene requires LLM integration -- not implemented")
 }
 
-func (s *dbSceneService) FinishScene(nodeID uuid.UUID) (string, error) {
+func (s *dbSceneService) FinishScene(ctx context.Context, nodeID uuid.UUID) (string, error) {
 	return "", fmt.Errorf("multi-agent scene requires LLM integration -- not implemented")
 }
 
-func (s *dbSceneService) GetTurns(nodeID uuid.UUID) ([]scene.SceneTurn, error) {
-	turns, err := s.q.ListSceneTurns(context.Background(), toUUID(nodeID))
+func (s *dbSceneService) GetTurns(ctx context.Context, nodeID uuid.UUID) ([]scene.SceneTurn, error) {
+	turns, err := s.q.ListSceneTurns(ctx, toUUID(nodeID))
 	if err != nil {
 		return nil, err
 	}
@@ -55,15 +55,15 @@ func (s *dbSceneService) GetTurns(nodeID uuid.UUID) ([]scene.SceneTurn, error) {
 	return result, nil
 }
 
-func (s *dbSceneService) SetSceneStructure(nodeID uuid.UUID, ss graph.SceneStructure) error {
-	return s.q.UpdateNodeSceneStructure(context.Background(), db.UpdateNodeSceneStructureParams{
+func (s *dbSceneService) SetSceneStructure(ctx context.Context, nodeID uuid.UUID, ss graph.SceneStructure) error {
+	return s.q.UpdateNodeSceneStructure(ctx, db.UpdateNodeSceneStructureParams{
 		ID:             toUUID(nodeID),
 		SceneStructure: jsonBytes(ss),
 	})
 }
 
-func (s *dbSceneService) GetSceneStructure(nodeID uuid.UUID) (*graph.SceneStructure, error) {
-	n, err := s.q.GetNode(context.Background(), toUUID(nodeID))
+func (s *dbSceneService) GetSceneStructure(ctx context.Context, nodeID uuid.UUID) (*graph.SceneStructure, error) {
+	n, err := s.q.GetNode(ctx, toUUID(nodeID))
 	if err != nil {
 		return nil, err
 	}

@@ -20,7 +20,7 @@ func (h *StoryHandler) UpsertTimelineEvent(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if h.Service != nil {
-		if _, err := h.Service.Get(storyID); err != nil {
+		if _, err := h.Service.Get(r.Context(), storyID); err != nil {
 			writeError(w, http.StatusNotFound, "story not found")
 			return
 		}
@@ -30,7 +30,7 @@ func (h *StoryHandler) UpsertTimelineEvent(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if err := h.TimelineService.Save(storyID, &event); err != nil {
+	if err := h.TimelineService.Save(r.Context(), storyID, &event); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -47,7 +47,7 @@ func (h *StoryHandler) ListTimelineEvents(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusServiceUnavailable, "timeline service unavailable")
 		return
 	}
-	events, err := h.TimelineService.List(storyID)
+	events, err := h.TimelineService.List(r.Context(), storyID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

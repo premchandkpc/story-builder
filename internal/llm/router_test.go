@@ -1,6 +1,9 @@
 package llm
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 type stubClient struct {
 	name string
@@ -8,7 +11,7 @@ type stubClient struct {
 	err  error
 }
 
-func (s *stubClient) Complete(req CompletionRequest) (*CompletionResponse, error) {
+func (s *stubClient) Complete(ctx context.Context, req CompletionRequest) (*CompletionResponse, error) {
 	return s.resp, s.err
 }
 
@@ -17,7 +20,7 @@ func TestRouterRoutesByModelTier(t *testing.T) {
 	ollama := &stubClient{name: "ollama", resp: &CompletionResponse{Content: "llama", Model: "llama3.2:3b"}}
 	router := NewRouter(anthropic, ollama)
 
-	resp, err := router.Complete(CompletionRequest{Model: ModelSonnet, UserMessage: "hello"})
+	resp, err := router.Complete(context.Background(), CompletionRequest{Model: ModelSonnet, UserMessage: "hello"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -25,7 +28,7 @@ func TestRouterRoutesByModelTier(t *testing.T) {
 		t.Fatalf("expected anthropic response, got %q", resp.Content)
 	}
 
-	resp, err = router.Complete(CompletionRequest{Model: ModelLocal, UserMessage: "hello"})
+	resp, err = router.Complete(context.Background(), CompletionRequest{Model: ModelLocal, UserMessage: "hello"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

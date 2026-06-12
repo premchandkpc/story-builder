@@ -23,8 +23,8 @@ func NewDBGraphStoryService(q *db.Queries) *dbGraphStoryService {
 	return &dbGraphStoryService{q: q}
 }
 
-func (s *dbGraphStoryService) Create(title string) (*graph.Story, error) {
-	st, err := s.q.CreateStory(context.Background(), title)
+func (s *dbGraphStoryService) Create(ctx context.Context, title string) (*graph.Story, error) {
+	st, err := s.q.CreateStory(ctx, title)
 	if err != nil {
 		return nil, err
 	}
@@ -36,8 +36,8 @@ func (s *dbGraphStoryService) Create(title string) (*graph.Story, error) {
 	}, nil
 }
 
-func (s *dbGraphStoryService) Get(id uuid.UUID) (*graph.Story, error) {
-	st, err := s.q.GetStory(context.Background(), toUUID(id))
+func (s *dbGraphStoryService) Get(ctx context.Context, id uuid.UUID) (*graph.Story, error) {
+	st, err := s.q.GetStory(ctx, toUUID(id))
 	if err != nil {
 		return nil, err
 	}
@@ -54,8 +54,8 @@ func (s *dbGraphStoryService) Get(id uuid.UUID) (*graph.Story, error) {
 	}, nil
 }
 
-func (s *dbGraphStoryService) List() ([]graph.Story, error) {
-	stories, err := s.q.ListStories(context.Background())
+func (s *dbGraphStoryService) List(ctx context.Context) ([]graph.Story, error) {
+	stories, err := s.q.ListStories(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -71,8 +71,8 @@ func (s *dbGraphStoryService) List() ([]graph.Story, error) {
 	return result, nil
 }
 
-func (s *dbGraphStoryService) CreateEdge(storyID, fromNode, toNode uuid.UUID, edgeType string) error {
-	return s.q.CreateEdge(context.Background(), db.CreateEdgeParams{
+func (s *dbGraphStoryService) CreateEdge(ctx context.Context, storyID, fromNode, toNode uuid.UUID, edgeType string) error {
+	return s.q.CreateEdge(ctx, db.CreateEdgeParams{
 		StoryID:  toUUID(storyID),
 		FromNode: toUUID(fromNode),
 		ToNode:   toUUID(toNode),
@@ -80,8 +80,8 @@ func (s *dbGraphStoryService) CreateEdge(storyID, fromNode, toNode uuid.UUID, ed
 	})
 }
 
-func (s *dbGraphStoryService) ListEdges(storyID uuid.UUID) ([]graph.Edge, error) {
-	edges, err := s.q.ListEdges(context.Background(), toUUID(storyID))
+func (s *dbGraphStoryService) ListEdges(ctx context.Context, storyID uuid.UUID) ([]graph.Edge, error) {
+	edges, err := s.q.ListEdges(ctx, toUUID(storyID))
 	if err != nil {
 		return nil, err
 	}
@@ -97,20 +97,20 @@ func (s *dbGraphStoryService) ListEdges(storyID uuid.UUID) ([]graph.Edge, error)
 	return result, nil
 }
 
-func (s *dbGraphStoryService) GetNode(id uuid.UUID) (*graph.Node, error) {
-	return getNode(s.q, id)
+func (s *dbGraphStoryService) GetNode(ctx context.Context, id uuid.UUID) (*graph.Node, error) {
+	return getNode(ctx, s.q, id)
 }
 
-func (s *dbGraphStoryService) ListNodes(storyID uuid.UUID) ([]graph.Node, error) {
-	return listNodes(s.q, storyID)
+func (s *dbGraphStoryService) ListNodes(ctx context.Context, storyID uuid.UUID) ([]graph.Node, error) {
+	return listNodes(ctx, s.q, storyID)
 }
 
-func (s *dbGraphStoryService) TopologicalSort(storyID uuid.UUID) ([]graph.Node, error) {
-	nodes, err := listNodes(s.q, storyID)
+func (s *dbGraphStoryService) TopologicalSort(ctx context.Context, storyID uuid.UUID) ([]graph.Node, error) {
+	nodes, err := listNodes(ctx, s.q, storyID)
 	if err != nil {
 		return nil, err
 	}
-	edges, err := s.ListEdges(storyID)
+	edges, err := s.ListEdges(ctx, storyID)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func NewDBGraphNodeService(q *db.Queries) *dbGraphNodeService {
 	return &dbGraphNodeService{q: q}
 }
 
-func (s *dbGraphNodeService) Create(storyID uuid.UUID, beatIntent string, characterRefs []uuid.UUID, locationRef *uuid.UUID, pov, tone string, targetWords int) (*graph.Node, error) {
+func (s *dbGraphNodeService) Create(ctx context.Context, storyID uuid.UUID, beatIntent string, characterRefs []uuid.UUID, locationRef *uuid.UUID, pov, tone string, targetWords int) (*graph.Node, error) {
 	refs := make([]pgtype.UUID, len(characterRefs))
 	for i, r := range characterRefs {
 		refs[i] = toUUID(r)
@@ -132,7 +132,7 @@ func (s *dbGraphNodeService) Create(storyID uuid.UUID, beatIntent string, charac
 	if locationRef != nil {
 		locRef = toUUID(*locationRef)
 	}
-	n, err := s.q.CreateNode(context.Background(), db.CreateNodeParams{
+	n, err := s.q.CreateNode(ctx, db.CreateNodeParams{
 		StoryID:       toUUID(storyID),
 		BeatIntent:    beatIntent,
 		CharacterRefs: refs,
@@ -147,11 +147,11 @@ func (s *dbGraphNodeService) Create(storyID uuid.UUID, beatIntent string, charac
 	return toDomainNode(n), nil
 }
 
-func (s *dbGraphNodeService) Get(id uuid.UUID) (*graph.Node, error) {
-	return getNode(s.q, id)
+func (s *dbGraphNodeService) Get(ctx context.Context, id uuid.UUID) (*graph.Node, error) {
+	return getNode(ctx, s.q, id)
 }
 
-func (s *dbGraphNodeService) Update(id uuid.UUID, beatIntent string, characterRefs []uuid.UUID, locationRef *uuid.UUID, pov, tone string, targetWords int, sceneStructure *graph.SceneStructure) (*graph.Node, error) {
+func (s *dbGraphNodeService) Update(ctx context.Context, id uuid.UUID, beatIntent string, characterRefs []uuid.UUID, locationRef *uuid.UUID, pov, tone string, targetWords int, sceneStructure *graph.SceneStructure) (*graph.Node, error) {
 	refs := make([]pgtype.UUID, len(characterRefs))
 	for i, r := range characterRefs {
 		refs[i] = toUUID(r)
@@ -164,7 +164,7 @@ func (s *dbGraphNodeService) Update(id uuid.UUID, beatIntent string, characterRe
 	if sceneStructure != nil {
 		ssBytes = jsonBytes(sceneStructure)
 	}
-	n, err := s.q.UpdateNode(context.Background(), db.UpdateNodeParams{
+	n, err := s.q.UpdateNode(ctx, db.UpdateNodeParams{
 		ID:             toUUID(id),
 		BeatIntent:     beatIntent,
 		CharacterRefs:  refs,
@@ -180,15 +180,15 @@ func (s *dbGraphNodeService) Update(id uuid.UUID, beatIntent string, characterRe
 	return toDomainNode(n), nil
 }
 
-func (s *dbGraphNodeService) SetSceneStructure(id uuid.UUID, ss graph.SceneStructure) error {
-	return s.q.UpdateNodeSceneStructure(context.Background(), db.UpdateNodeSceneStructureParams{
+func (s *dbGraphNodeService) SetSceneStructure(ctx context.Context, id uuid.UUID, ss graph.SceneStructure) error {
+	return s.q.UpdateNodeSceneStructure(ctx, db.UpdateNodeSceneStructureParams{
 		ID:             toUUID(id),
 		SceneStructure: jsonBytes(ss),
 	})
 }
 
-func (s *dbGraphNodeService) List(storyID uuid.UUID) ([]graph.Node, error) {
-	return listNodes(s.q, storyID)
+func (s *dbGraphNodeService) List(ctx context.Context, storyID uuid.UUID) ([]graph.Node, error) {
+	return listNodes(ctx, s.q, storyID)
 }
 
 func toDomainNode(n db.Node) *graph.Node {
@@ -224,8 +224,8 @@ func toDomainNode(n db.Node) *graph.Node {
 	}
 }
 
-func getNode(q *db.Queries, id uuid.UUID) (*graph.Node, error) {
-	n, err := q.GetNode(context.Background(), toUUID(id))
+func getNode(ctx context.Context, q *db.Queries, id uuid.UUID) (*graph.Node, error) {
+	n, err := q.GetNode(ctx, toUUID(id))
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("node %s not found", id)
@@ -235,8 +235,8 @@ func getNode(q *db.Queries, id uuid.UUID) (*graph.Node, error) {
 	return toDomainNode(n), nil
 }
 
-func listNodes(q *db.Queries, storyID uuid.UUID) ([]graph.Node, error) {
-	nodes, err := q.ListNodes(context.Background(), toUUID(storyID))
+func listNodes(ctx context.Context, q *db.Queries, storyID uuid.UUID) ([]graph.Node, error) {
+	nodes, err := q.ListNodes(ctx, toUUID(storyID))
 	if err != nil {
 		return nil, err
 	}
@@ -256,22 +256,25 @@ func NewDBGenerationService(q *db.Queries, rivClient *riv.Client[pgx.Tx]) *dbGen
 	return &dbGenerationService{q: q, rivClient: rivClient}
 }
 
-func (s *dbGenerationService) Generate(nodeID uuid.UUID) (*compiler.Generation, error) {
-	node, err := s.q.GetNode(context.Background(), toUUID(nodeID))
+func (s *dbGenerationService) Generate(ctx context.Context, nodeID uuid.UUID) (*compiler.Generation, error) {
+	node, err := s.q.GetNode(ctx, toUUID(nodeID))
 	if err != nil {
 		return nil, fmt.Errorf("get node: %w", err)
 	}
 
 	storyID := fromUUID(node.StoryID)
-	compiled, err := s.compileContext(storyID, node)
+	compiled, err := s.compileContext(ctx, storyID, node)
 	if err != nil {
 		return nil, fmt.Errorf("compile context: %w", err)
 	}
 
-	hash := compiled.Hash()
+	hash, err := compiled.Hash()
+	if err != nil {
+		return nil, fmt.Errorf("hash context: %w", err)
+	}
 	promptSnapshot := compiled.BuildScenePromptSnapshot()
 
-	dbGen, err := s.q.CreateGeneration(context.Background(), db.CreateGenerationParams{
+	dbGen, err := s.q.CreateGeneration(ctx, db.CreateGenerationParams{
 		NodeID:         toUUID(nodeID),
 		ContextHash:    hash,
 		PromptSnapshot: promptSnapshot,
@@ -294,7 +297,7 @@ func (s *dbGenerationService) Generate(nodeID uuid.UUID) (*compiler.Generation, 
 		locRef = &lr
 	}
 
-	_, err = s.rivClient.Insert(context.Background(), &river.GenerateSceneArgs{
+	_, err = s.rivClient.Insert(ctx, &river.GenerateSceneArgs{
 		StoryID:       storyID,
 		NodeID:        nodeID,
 		GenID:         genID,
@@ -322,8 +325,8 @@ func (s *dbGenerationService) Generate(nodeID uuid.UUID) (*compiler.Generation, 
 	}, nil
 }
 
-func (s *dbGenerationService) compileContext(storyID uuid.UUID, node db.Node) (*compiler.CompiledContext, error) {
-	ctx := &compiler.CompiledContext{
+func (s *dbGenerationService) compileContext(ctx context.Context, storyID uuid.UUID, node db.Node) (*compiler.CompiledContext, error) {
+	ctx2 := &compiler.CompiledContext{
 		BeatIntent:  node.BeatIntent,
 		POV:         node.Pov,
 		Tone:        node.Tone,
@@ -332,7 +335,7 @@ func (s *dbGenerationService) compileContext(storyID uuid.UUID, node db.Node) (*
 
 	var charCards []canon.Card
 	for _, ref := range node.CharacterRefs {
-		c, err := s.q.GetCharacterLatest(context.Background(), ref)
+		c, err := s.q.GetCharacterLatest(ctx, ref)
 		if err != nil {
 			continue
 		}
@@ -342,12 +345,12 @@ func (s *dbGenerationService) compileContext(storyID uuid.UUID, node db.Node) (*
 			Type:        "character",
 		})
 	}
-	ctx.CharacterCards = charCards
+	ctx2.CharacterCards = charCards
 
 	if node.LocationRef.Valid {
-		loc, err := s.q.GetLocationLatest(context.Background(), node.LocationRef)
+		loc, err := s.q.GetLocationLatest(ctx, node.LocationRef)
 		if err == nil {
-			ctx.LocationCard = &canon.Card{
+			ctx2.LocationCard = &canon.Card{
 				Name:        loc.Name,
 				Description: loc.Description,
 				Type:        "location",
@@ -359,18 +362,17 @@ func (s *dbGenerationService) compileContext(storyID uuid.UUID, node db.Node) (*
 	for _, cc := range charCards {
 		loreTags = append(loreTags, cc.Name)
 	}
-	lore, err := s.q.SearchLoreByTags(context.Background(), loreTags)
+	lore, err := s.q.SearchLoreByTags(ctx, loreTags)
 	if err == nil {
 		for _, l := range lore {
-			ctx.Lore = append(ctx.Lore, l.Content)
+			ctx2.Lore = append(ctx2.Lore, l.Content)
 		}
 	}
 
-	return ctx, nil
+	return ctx2, nil
 }
 
-func (s *dbGenerationService) AcceptGeneration(nodeID, genID uuid.UUID) error {
-	ctx := context.Background()
+func (s *dbGenerationService) AcceptGeneration(ctx context.Context, nodeID, genID uuid.UUID) error {
 	if err := s.q.AcceptGeneration(ctx, toUUID(genID)); err != nil {
 		return err
 	}
@@ -449,8 +451,8 @@ func (s *dbGenerationService) AcceptGeneration(nodeID, genID uuid.UUID) error {
 	return nil
 }
 
-func (s *dbGenerationService) ListGenerations(nodeID uuid.UUID) ([]compiler.Generation, error) {
-	gens, err := s.q.ListGenerationsForNode(context.Background(), toUUID(nodeID))
+func (s *dbGenerationService) ListGenerations(ctx context.Context, nodeID uuid.UUID) ([]compiler.Generation, error) {
+	gens, err := s.q.ListGenerationsForNode(ctx, toUUID(nodeID))
 	if err != nil {
 		return nil, err
 	}
@@ -478,13 +480,13 @@ func NewDBStoryGeneratorService(q *db.Queries, rivClient *riv.Client[pgx.Tx]) *d
 	return &dbStoryGeneratorService{q: q, rivClient: rivClient}
 }
 
-func (s *dbStoryGeneratorService) GenerateStory(synopsis string) (*StoryGenerateResult, error) {
-	story, err := s.q.CreateStory(context.Background(), "Untitled Story")
+func (s *dbStoryGeneratorService) GenerateStory(ctx context.Context, synopsis string) (*StoryGenerateResult, error) {
+	story, err := s.q.CreateStory(ctx, "Untitled Story")
 	if err != nil {
 		return nil, fmt.Errorf("create pending story: %w", err)
 	}
 	storyID := fromUUID(story.ID)
-	_, err = s.rivClient.Insert(context.Background(), &river.GenerateStoryArgs{
+	_, err = s.rivClient.Insert(ctx, &river.GenerateStoryArgs{
 		StoryID:  storyID,
 		Synopsis: synopsis,
 	}, &riv.InsertOpts{

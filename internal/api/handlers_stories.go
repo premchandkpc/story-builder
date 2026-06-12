@@ -30,7 +30,7 @@ func (h *StoryHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	story, err := h.Service.Create(title)
+	story, err := h.Service.Create(r.Context(), title)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -44,7 +44,7 @@ func (h *StoryHandler) Get(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	story, err := h.Service.Get(id)
+	story, err := h.Service.Get(r.Context(), id)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -53,7 +53,7 @@ func (h *StoryHandler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *StoryHandler) List(w http.ResponseWriter, r *http.Request) {
-	stories, err := h.Service.List()
+	stories, err := h.Service.List(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -88,7 +88,7 @@ func (h *StoryHandler) CreateEdge(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid to_node")
 		return
 	}
-	if err := h.Service.CreateEdge(storyID, from, to, req.EdgeType); err != nil {
+	if err := h.Service.CreateEdge(r.Context(), storyID, from, to, req.EdgeType); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -101,7 +101,7 @@ func (h *StoryHandler) ListEdges(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid story id")
 		return
 	}
-	edges, err := h.Service.ListEdges(storyID)
+	edges, err := h.Service.ListEdges(r.Context(), storyID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -115,12 +115,12 @@ func (h *StoryHandler) Topology(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid story id")
 		return
 	}
-	nodes, err := h.Service.ListNodes(storyID)
+	nodes, err := h.Service.ListNodes(r.Context(), storyID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	edges, err := h.Service.ListEdges(storyID)
+	edges, err := h.Service.ListEdges(r.Context(), storyID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -167,13 +167,13 @@ func (h *NodeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	node, err := h.Service.Create(storyID, req.BeatIntent, charRefs, locRef, req.POV, req.Tone, req.TargetWords)
+	node, err := h.Service.Create(r.Context(), storyID, req.BeatIntent, charRefs, locRef, req.POV, req.Tone, req.TargetWords)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if req.SceneStructure != nil {
-		if err := h.Service.SetSceneStructure(node.ID, *req.SceneStructure); err != nil {
+		if err := h.Service.SetSceneStructure(r.Context(), node.ID, *req.SceneStructure); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -188,7 +188,7 @@ func (h *NodeHandler) Get(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	node, err := h.Service.Get(id)
+	node, err := h.Service.Get(r.Context(), id)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -217,7 +217,7 @@ func (h *NodeHandler) Update(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	node, err := h.Service.Update(id, req.BeatIntent, charRefs, locRef, req.POV, req.Tone, req.TargetWords, req.SceneStructure)
+	node, err := h.Service.Update(r.Context(), id, req.BeatIntent, charRefs, locRef, req.POV, req.Tone, req.TargetWords, req.SceneStructure)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -231,7 +231,7 @@ func (h *NodeHandler) List(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid story id")
 		return
 	}
-	nodes, err := h.Service.List(storyID)
+	nodes, err := h.Service.List(r.Context(), storyID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -262,7 +262,7 @@ func (h *StoryGeneratorHandler) Generate(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "synopsis is required")
 		return
 	}
-	result, err := h.Service.GenerateStory(req.Synopsis)
+	result, err := h.Service.GenerateStory(r.Context(), req.Synopsis)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

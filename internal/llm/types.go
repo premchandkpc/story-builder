@@ -1,6 +1,8 @@
 package llm
 
 import (
+	"context"
+
 	"github.com/premchand/story-builder/internal/canon"
 	"github.com/premchand/story-builder/internal/ledger"
 )
@@ -49,31 +51,31 @@ type CompletionResponse struct {
 }
 
 type ProseService interface {
-	GenerateScene(params PromptParams) (*CompletionResponse, error)
+	GenerateScene(ctx context.Context, params PromptParams) (*CompletionResponse, error)
 }
 
 type ExtractionService interface {
-	ExtractState(sceneText string, roster map[string]string) (*ledger.StateDeltas, error)
+	ExtractState(ctx context.Context, sceneText string, roster map[string]string) (*ledger.StateDeltas, error)
 }
 
 type SummaryService interface {
-	UpdateSummary(previousSummary, newScene string) (string, error)
+	UpdateSummary(ctx context.Context, previousSummary, newScene string) (string, error)
 }
 
 type MergeService interface {
-	MergeBranches(summaryA, summaryB, timelineNote string) (map[string]interface{}, error)
+	MergeBranches(ctx context.Context, summaryA, summaryB, timelineNote string) (map[string]interface{}, error)
 }
 
 type ValidationService interface {
-	ValidateAgainstCanon(canonXML, charState, draft string) (map[string]interface{}, error)
+	ValidateAgainstCanon(ctx context.Context, canonXML, charState, draft string) (map[string]interface{}, error)
 }
 
 type OutlineService interface {
-	GenerateOutline(synopsis string) (*StoryOutline, error)
+	GenerateOutline(ctx context.Context, synopsis string) (*StoryOutline, error)
 }
 
 type LLMClient interface {
-	Complete(req CompletionRequest) (*CompletionResponse, error)
+	Complete(ctx context.Context, req CompletionRequest) (*CompletionResponse, error)
 }
 
 type PromptTemplate string
