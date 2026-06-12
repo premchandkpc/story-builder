@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,6 +18,7 @@ import (
 	"github.com/premchand/story-builder/internal/graph"
 	grpcserver "github.com/premchand/story-builder/internal/grpc/server"
 	"github.com/premchand/story-builder/internal/llm"
+	applog "github.com/premchand/story-builder/internal/log"
 	"github.com/premchand/story-builder/internal/migrate"
 	"github.com/premchand/story-builder/internal/river"
 	cachesvc "github.com/premchand/story-builder/internal/service/cache"
@@ -36,6 +37,11 @@ import (
 )
 
 func main() {
+	applog.Init(applog.Config{
+		Level: os.Getenv("LOG_LEVEL"),
+		JSON:  os.Getenv("LOG_FORMAT") == "json",
+	})
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -47,9 +53,9 @@ func main() {
 	var redisCache *cachesvc.Cache
 	if rc, err := cachesvc.New(cfg.RedisAddr, cfg.RedisPass, cfg.RedisDB); err == nil {
 		redisCache = rc
-		log.Printf("connected to redis at %s", cfg.RedisAddr)
+		slog.Info("connected to redis", "addr", cfg.RedisAddr)
 	} else {
-		log.Printf("redis not available (running without cache): %v", err)
+		slog.Warn("redis not available (running without cache)", "error", err)
 	}
 	if p, err := pgxpool.New(ctx, cfg.DatabaseURL); err == nil {
 		if err := p.Ping(ctx); err == nil {
@@ -57,20 +63,20 @@ func main() {
 			dbOk = true
 		} else {
 			p.Close()
-			log.Printf("db ping failed: %v", err)
+			slog.Warn("db ping failed", "error", err)
 		}
 	} else {
-		log.Printf("db connect failed: %v", err)
+		slog.Warn("db connect failed", "error", err)
 	}
 
 	if dbOk {
-		log.Println("connected to postgres")
+		slog.Info("connected to postgres")
 		runner := migrate.New(pool, "migrations")
 		if err := runner.Run(ctx); err != nil {
-			log.Printf("migrate: %v", err)
+			slog.Error("migration failed", "error", err)
 		}
 	} else {
-		log.Println("no database, running with in-memory stores")
+		slog.Info("no database, running with in-memory stores")
 	}
 
 	var charHandler *api.CharacterHandler
@@ -118,9 +124,9 @@ func main() {
 
 		migrator, err := rivermigrate.New(riverpgxv5.New(pool), nil)
 		if err != nil {
-			log.Printf("river migrator: %v", err)
+			slog.Error("river migrator init", "error", err)
 		} else if _, err := migrator.Migrate(ctx, rivermigrate.DirectionUp, nil); err != nil {
-			log.Printf("river migrate: %v", err)
+			slog.Error("river migrator run", "error", err)
 		}
 
 		rcfg := &riv.Config{
@@ -135,14 +141,14 @@ func main() {
 		}
 		rivClient, err := riv.NewClient(riverpgxv5.New(pool), rcfg)
 		if err != nil {
-			log.Printf("river init: %v", err)
+			slog.Error("river client init", "error", err)
 		} else {
 			if err := rivClient.Start(ctx); err != nil {
-				log.Printf("river start: %v", err)
+				slog.Error("river start", "error", err)
 			} else {
 				defer func() {
 					if stopErr := rivClient.Stop(ctx); stopErr != nil {
-						log.Printf("river stop: %v", stopErr)
+						slog.Error("river stop", "error", stopErr)
 					}
 				}()
 			}
@@ -218,9 +224,10 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("http server on :%s", cfg.Port)
+		slog.Info("http server starting", "port", cfg.Port)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("http: %v", err)
+			slog.Error("http server error", "error", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -243,9 +250,10 @@ func main() {
 	)
 
 	go func() {
-		log.Printf("gRPC server on :%s", cfg.GrpcPort)
+		slog.Info("gRPC server starting", "port", cfg.GrpcPort)
 		if err := grpcSrv.Start(ctx); err != nil {
-			log.Fatalf("gRPC: %v", err)
+			slog.Error("gRPC server error", "error", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -253,13 +261,13 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("shutting down...")
+	slog.Info("shutting down")
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
-		shutdownCancel()
-		log.Fatalf("shutdown: %v", err)
+		slog.Error("shutdown error", "error", err)
+		os.Exit(1)
 	}
-	shutdownCancel()
 }
 
 type storyGenWrapper struct {
@@ -278,9 +286,9 @@ func createLLMClient(cfg config.Config) llm.LLMClient {
 	var anthropic llm.LLMClient
 	if cfg.AnthropicKey != "" {
 		anthropic = llm.NewAnthropicClient(cfg.AnthropicKey)
-		log.Println("using anthropic client")
+		slog.Info("using anthropic client")
 	} else {
-		log.Println("anthropic key not set, falling back to ollama")
+		slog.Info("anthropic key not set, falling back to ollama")
 	}
 
 	ollamaURL := cfg.OllamaURL
@@ -288,6 +296,6 @@ func createLLMClient(cfg config.Config) llm.LLMClient {
 		ollamaURL = "http://localhost:11434"
 	}
 	ollama := llm.NewOllamaClient(ollamaURL)
-	log.Printf("using ollama client (%s)", ollamaURL)
+	slog.Info("using ollama client", "url", ollamaURL)
 	return llm.NewRouter(anthropic, ollama)
 }

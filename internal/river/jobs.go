@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -79,11 +79,11 @@ func (w *GenerateSceneWorker) compilePromptParams(ctx context.Context, args Gene
 		}
 		var traits []string
 		if err := json.Unmarshal(c.Traits, &traits); err != nil {
-			log.Printf("unmarshal traits for character %s: %v", ref, err)
+			slog.Warn("unmarshal traits for character", "id", ref, "error", err)
 		}
 		var rels map[string]string
 		if err := json.Unmarshal(c.Relationships, &rels); err != nil {
-			log.Printf("unmarshal relationships for character %s: %v", ref, err)
+			slog.Warn("unmarshal relationships for character", "id", ref, "error", err)
 		}
 		charCards = append(charCards, canon.Card{
 			Name:          c.Name,
@@ -101,7 +101,7 @@ func (w *GenerateSceneWorker) compilePromptParams(ctx context.Context, args Gene
 		if err == nil {
 			var props []string
 			if err := json.Unmarshal(loc.Props, &props); err != nil {
-				log.Printf("unmarshal props for location %s: %v", *args.LocationRef, err)
+				slog.Warn("unmarshal props for location", "id", *args.LocationRef, "error", err)
 			}
 			params.LocationCard = &canon.Card{
 				Name:        loc.Name,
@@ -328,7 +328,7 @@ func (w *ValidateSceneWorker) Work(ctx context.Context, job *river.Job[ValidateS
 			return fmt.Errorf("persist validation: %w", err)
 		}
 	}
-	log.Printf("validation result for generation %s: %s", args.GenerationID, string(data))
+	slog.Info("validation result", "generation_id", args.GenerationID, "result", string(data))
 	return nil
 }
 

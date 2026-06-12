@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/md5"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -64,11 +64,11 @@ func (r *Runner) Run(ctx context.Context) error {
 			continue
 		}
 
-		log.Printf("migrate: applying %s", m.filename)
+		slog.Info("applying migration", "file", m.filename)
 		if err := r.apply(ctx, m.filename); err != nil {
 			return fmt.Errorf("migrate: apply %s: %w", m.filename, err)
 		}
-		log.Printf("migrate: applied %s", m.filename)
+		slog.Info("applied migration", "file", m.filename)
 	}
 
 	return nil

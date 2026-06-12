@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -208,23 +208,23 @@ func (s *DBCharacterService) List(ctx context.Context) ([]canon.Character, error
 func toDomainChar(c db.Character) *canon.Character {
 	var traits []string
 	if err := json.Unmarshal(c.Traits, &traits); err != nil {
-		log.Printf("unmarshal traits for character %s: %v", db.FromUUID(c.ID), err)
+		slog.Warn("unmarshal traits for character", "id", db.FromUUID(c.ID), "error", err)
 	}
 	var personality []string
 	if err := json.Unmarshal(c.Personality, &personality); err != nil {
-		log.Printf("unmarshal personality for character %s: %v", db.FromUUID(c.ID), err)
+		slog.Warn("unmarshal personality for character", "id", db.FromUUID(c.ID), "error", err)
 	}
 	var flaws []string
 	if err := json.Unmarshal(c.Flaws, &flaws); err != nil {
-		log.Printf("unmarshal flaws for character %s: %v", db.FromUUID(c.ID), err)
+		slog.Warn("unmarshal flaws for character", "id", db.FromUUID(c.ID), "error", err)
 	}
 	var goals []string
 	if err := json.Unmarshal(c.Goals, &goals); err != nil {
-		log.Printf("unmarshal goals for character %s: %v", db.FromUUID(c.ID), err)
+		slog.Warn("unmarshal goals for character", "id", db.FromUUID(c.ID), "error", err)
 	}
 	var rel map[string]string
 	if err := json.Unmarshal(c.Relationships, &rel); err != nil {
-		log.Printf("unmarshal relationships for character %s: %v", db.FromUUID(c.ID), err)
+		slog.Warn("unmarshal relationships for character", "id", db.FromUUID(c.ID), "error", err)
 	}
 	var parentID *uuid.UUID
 	if c.ParentID.Valid {
@@ -252,23 +252,23 @@ func toDomainChar(c db.Character) *canon.Character {
 func toDomainCharFromLatest(c db.LatestCharacter) *canon.Character {
 	var traits []string
 	if err := json.Unmarshal(c.Traits, &traits); err != nil {
-		log.Printf("unmarshal traits for character %s: %v", db.FromUUID(c.ID), err)
+		slog.Warn("unmarshal traits for character", "id", db.FromUUID(c.ID), "error", err)
 	}
 	var personality []string
 	if err := json.Unmarshal(c.Personality, &personality); err != nil {
-		log.Printf("unmarshal personality for character %s: %v", db.FromUUID(c.ID), err)
+		slog.Warn("unmarshal personality for character", "id", db.FromUUID(c.ID), "error", err)
 	}
 	var flaws []string
 	if err := json.Unmarshal(c.Flaws, &flaws); err != nil {
-		log.Printf("unmarshal flaws for character %s: %v", db.FromUUID(c.ID), err)
+		slog.Warn("unmarshal flaws for character", "id", db.FromUUID(c.ID), "error", err)
 	}
 	var goals []string
 	if err := json.Unmarshal(c.Goals, &goals); err != nil {
-		log.Printf("unmarshal goals for character %s: %v", db.FromUUID(c.ID), err)
+		slog.Warn("unmarshal goals for character", "id", db.FromUUID(c.ID), "error", err)
 	}
 	var rel map[string]string
 	if err := json.Unmarshal(c.Relationships, &rel); err != nil {
-		log.Printf("unmarshal relationships for character %s: %v", db.FromUUID(c.ID), err)
+		slog.Warn("unmarshal relationships for character", "id", db.FromUUID(c.ID), "error", err)
 	}
 	var parentID *uuid.UUID
 	if c.ParentID.Valid {

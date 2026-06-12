@@ -3,7 +3,7 @@ package cache
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/premchand/story-builder/internal/llm"
 )
@@ -20,7 +20,7 @@ func NewCachedLLMClient(inner llm.LLMClient, cache *PromptCache) *CachedLLMClien
 func (c *CachedLLMClient) Complete(ctx context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	resp, err := c.cache.Get(ctx, req)
 	if err == nil {
-		log.Printf("[cache] prompt hit: %s", req.Model)
+		slog.Debug("prompt cache hit", "model", req.Model)
 		return resp, nil
 	}
 
@@ -30,7 +30,7 @@ func (c *CachedLLMClient) Complete(ctx context.Context, req llm.CompletionReques
 	}
 
 	if err := c.cache.Set(ctx, req, resp); err != nil {
-		log.Printf("[cache] prompt set: %v", err)
+		slog.Warn("prompt cache set failed", "error", err)
 	}
 
 	return resp, nil

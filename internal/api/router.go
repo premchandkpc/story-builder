@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -70,7 +71,7 @@ func NewServer(
 func (s *Server) routes() {
 	r := s.router
 
-	r.Use(middleware.Logger)
+	r.Use(StructuredLogger(slog.Default()))
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 	r.Use(cors.Handler(cors.Options{
