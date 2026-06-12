@@ -15,6 +15,15 @@ const (
 - `claude-haiku` → `claude-haiku-3-5-20250224` (Anthropic)
 - `local-7b` → `llama3.2:3b` (Ollama)
 
+## LLM Router
+
+`internal/llm/router.go` — Dispatches requests to the correct provider based on model tier:
+
+- `claude-sonnet` / `claude-haiku` → AnthropicClient
+- `local-7b` → OllamaClient
+
+Both clients are always created at startup. Router retries on failure (2 retries, exponential backoff 250ms/500ms).
+
 ## Prompt Registry
 
 | Template Key | Model | Temp | System Text |
@@ -24,72 +33,81 @@ const (
 | `summary_update` | local-7b | 0.2 | "You maintain a running plot summary for one storyline branch." |
 | `join_merge` | Haiku | 0.2 | "Two parallel storylines are converging. Merge their summaries." |
 | `canon_validate` | Haiku | 0 | "You are a strict continuity editor. Check this draft against canon." |
-| `outline_story` | Sonnet | 0.7 | "You are a master story architect. Given a synopsis, generate a structured story outline..." |
+| `outline_story` | local-7b | 0.7 | "You are a master story architect. Given a synopsis, generate a structured story outline..." |
+| `generate_title` | local-7b | 0.5 | "You are a creative title generator. Given a synopsis, generate a short, engaging story title..." |
 
 ## Service Interfaces
 
-### ProseService (`llm/services.go:11`)
-- `GenerateScene(params PromptParams) (*CompletionResponse, error)`
+All services in `internal/llm/types.go` and implementations in `internal/llm/services.go`.
+
+### ProseService (`services.go:13`)
+- `GenerateScene(ctx, params PromptParams) (*CompletionResponse, error)`
 - Builds `CompiledContext` → `BuildSceneProseSystemPrompt()` → system prompt with canon XML + state
 - `BuildSceneProseUserMessage()` → user message with beat intent, POV, tone
-- System prompt includes: character cards (name, traits, relationships, voice samples), location card, world rules (lore), current state (mood, knows/does-not-know), branch summary
+- System prompt includes: character cards (name, traits, relationships, voice samples), location card, world rules (lore), current state, branch summary
 - Hard rules: canon is law, no new characters, voice match, word count ±20%, prose only
 - Temperature: 0.8, MaxTokens: 4096
 
-### ExtractionService (`llm/services.go:57`)
-- `ExtractState(sceneText string) (map[string]interface{}, error)`
+### ExtractionService (`services.go:59`)
+- `ExtractState(ctx, sceneText string, roster map[string]string) (*ledger.StateDeltas, error)`
 - Extracts state deltas from generated scene text
+- Uses `BuildStateExtractSystemPrompt(roster)` for system prompt
 - Expects JSON response from LLM
-- System prompt: "extract ONLY what is explicit in the text"
 - Temperature: 0, MaxTokens: 1024
 
-### SummaryService (`llm/services.go:85`)
-- `UpdateSummary(previousSummary, newScene string) (string, error)`
+### SummaryService (`services.go:90`)
+- `UpdateSummary(ctx, previousSummary, newScene string) (string, error)`
 - Updates running plot summary for a branch
+- Uses `BuildSummaryUpdateSystemPrompt(previousSummary, newScene)`
 - Rules: max 200 words, preserve facts, chronological, present tense
 - Temperature: 0.2, MaxTokens: 1024
 
-### MergeService (`llm/services.go:109`)
-- `MergeBranches(summaryA, summaryB, timelineNote string) (map[string]interface{}, error)`
+### MergeService (`services.go:114`)
+- `MergeBranches(ctx, summaryA, summaryB, timelineNote string) (map[string]interface{}, error)`
 - Merges parallel branch summaries at join nodes
+- Uses `BuildJoinMergeSystemPrompt(summaryA, summaryB, timelineNote)`
 - Outputs JSON: `{"merged_summary": "...", "conflicts": [...]}`
 - Temperature: 0.2, MaxTokens: 1024
 
-### ValidationService (`llm/services.go:137`)
-- `ValidateAgainstCanon(canonXML, charState, draft string) (map[string]interface{}, error)`
+### ValidationService (`services.go:142`)
+- `ValidateAgainstCanon(ctx, canonXML, charState, draft string) (map[string]interface{}, error)`
 - Validates draft against canon for continuity violations
+- Uses `BuildCanonValidateSystemPrompt(canonXML, charState, draft)`
 - Outputs JSON: `{"violations": [{"type": "...", "character": "...", "evidence": "...", "explanation": "...", "severity": "high|low"}]}`
 - Checks: knowledge, voice, traits, location, world rules
 - Temperature: 0, MaxTokens: 2048
 
-### OutlineService (`llm/services.go:165`)
-- `GenerateOutline(synopsis string) (*StoryOutline, error)`
+### OutlineService (`services.go:170`)
+- `GenerateOutline(ctx, synopsis string) (*StoryOutline, error)`
 - Generates structured story outline from synopsis
+- Uses `BuildOutlineStorySystemPrompt(synopsis)`
 - Output: `StoryOutline` with title, characters, beats, edges
 - Schema: 5-12 beats, characters with goals/flaws, seq/fork/join edges, acts 1-3
 - Temperature: 0.7, MaxTokens: 4096
 
+### TitleService (`services.go:199`)
+- `GenerateTitle(ctx, synopsis string) (string, error)`
+- Generates a short story title (3-8 words) from synopsis
+- Temperature: 0.5, MaxTokens: 64
+- Strips quotes and whitespace from output
+
 ## Pipeline Flow (per node generation)
 
 ```
-GenerateScene (Sonnet, 0.8)
+GenerateScene (Sonnet, 0.8 via Anthropic)
     │
     ▼
-ExtractState (local-7b, 0)
+ExtractState (local-7b, 0 via Ollama)
     │  Extracts state deltas from generated text
-    │  → Upserts character_state rows
     ▼
-UpdateSummary (local-7b, 0.2)
-    │  Updates scene-level summary
-    │  → Upserts story_summaries (level='scene')
+UpdateSummary (local-7b, 0.2 via Ollama)
+    │  Updates scene-level summary → upserts story_summaries (level='scene')
     ▼
-MergeBranches (Haiku, 0.2)
-    │  At join nodes: merges branch summaries
-    │  → Upserts story_summaries (level='story')
+MergeBranches (Haiku, 0.2 via Anthropic)
+    │  At join nodes: merges branch summaries → upserts story_summaries (level='story')
     ▼
-ValidateScene (Haiku, 0)
-    │  Checks draft against canon
-    │  → Reports violations (non-blocking)
+ValidateScene (Haiku, 0 via Anthropic)
+    │  Checks draft against canon → reports violations (non-blocking)
 ```
 
 ## CompiledContext
@@ -108,18 +126,34 @@ type CompiledContext struct {
 }
 ```
 
-`CompiledContext.Hash()` — serializes to JSON → SHA256 → hex string. Used for generation staleness detection.
+`CompiledContext.Hash()` — serializes to JSON → SHA256 → hex string. Used for generation staleness detection (optionally cached in Redis ContextCache).
 
 ## LLM Clients
 
-### AnthropicClient (`llm/client.go:12`)
+### AnthropicClient (`client.go:13`)
 - Endpoint: `POST https://api.anthropic.com/v1/messages`
 - Headers: `x-api-key`, `anthropic-version: 2023-06-01`
 - Timeout: 120s
 - Reads `content[].text` from response
 
-### OllamaClient (`llm/client.go:84`)
+### OllamaClient (`client.go:87`)
 - Endpoint: `POST {baseURL}/v1/chat/completions` (OpenAI-compatible)
 - Default baseURL: `http://localhost:11434`
 - Timeout: 120s
 - Reads `choices[0].message.content` from response
+
+### Router (`router.go:10`)
+- Wraps both clients
+- Dispatches by model tier
+- Retry: 2 attempts, exponential backoff
+- Fallback: if Anthropic unavailable for Sonnet/Haiku, returns error
+
+### CachedLLMClient (`internal/cache/cached_llm.go`)
+- Optional Redis-backed cache
+- Wraps any LLMClient
+- Checks cache before LLM call (keyed by prompt hash)
+
+### RateLimitedLLMClient (`internal/cache/rate_limiter.go`)
+- Optional Redis-backed rate limiter
+- Wraps any LLMClient
+- Enforces sliding window rate limits per provider

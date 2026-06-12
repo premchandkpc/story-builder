@@ -16,21 +16,29 @@
 │                                                                  │
 │  ┌──────────────┐  ┌──────────────────┐  ┌───────────────────┐  │
 │  │  Middleware   │  │  API Handlers    │  │  River Workers    │  │
-│  │  - Logger     │  │  (12 handlers)   │  │  (6 job types)   │  │
+│  │  - Logger     │  │  (14 handlers)   │  │  (6 job types)   │  │
 │  │  - Recoverer  │  │  ─────────────── │  │  ───────────────  │  │
 │  │  - RequestID  │  │  Character/Actor │  │  GenerateScene    │  │
 │  │  - CORS       │  │  Location/Trait  │  │  ExtractState     │  │
-│  └──────────────┘  │  Lore/Casting    │  │  UpdateSummary    │  │
-│                    │  Story/Node      │  │  MergeBranches    │  │
+│  │  - RateLimit  │  │  Lore/Casting    │  │  UpdateSummary    │  │
+│  └──────────────┘  │  Story/Node/Edge │  │  MergeBranches    │  │
 │                    │  Generation      │  │  ValidateScene    │  │
 │                    │  Scene/Summary   │  │  GenerateStory    │  │
-│                    │  StoryGenerator  │  └───────────────────┘  │
+│                    │  Blueprint       │  └───────────────────┘  │
+│                    │  Timeline/Title  │                         │
 │                    └────────┬─────────┘                         │
 │                             │                                    │
 │                    ┌────────▼─────────┐                         │
-│                    │  DB Service Layer │                         │
-│                    │  (db.Queries)    │                         │
+│                    │  Service Layer   │                         │
+│                    │  (internal/svc)  │                         │
 │                    └────────┬─────────┘                         │
+│                             │ DB or Memory                      │
+│                    ┌────────▼─────────┐                         │
+│                    │ Redis Cache      │                         │
+│                    │ (prompt cache,   │                         │
+│                    │  rate limiter,   │                         │
+│                    │  dist lock)      │                         │
+│                    └──────────────────┘                         │
 └─────────────────────────────┼───────────────────────────────────┘
                               │ pgxpool
                               ▼
@@ -51,50 +59,94 @@
 ```
 cmd/server/main.go
     │
-    ├── internal/api       ─── HTTP handlers + service interfaces
-    │   ├── dbservices_*.go ─── Postgres-backed service implementations
-    │   └── router.go      ─── chi route definitions
+    ├── internal/api           ─── HTTP handlers + middleware
+    │   ├── handlers_*.go      ─── 14 handler groups
+    │   ├── router.go          ─── chi route definitions
+    │   ├── middleware.go      ─── RateLimit middleware
+    │   └── mwlogger.go        ─── Structured request logging
     │
-    ├── internal/graph     ─── DAG data model + traversal algorithms
-    │   ├── models.go      ─── Story, Node, Edge, SceneStructure
-    │   ├── traversal.go   ─── TopologicalSort, IdentifyBranches
-    │   └── memory.go      ─── In-memory GraphService implementation
+    ├── internal/service       ─── Service implementations
+    │   ├── canon/             ─── Character, Actor, Trait, Casting, Location, Lore
+    │   ├── story/             ─── Story CRUD
+    │   ├── node/              ─── Node CRUD
+    │   ├── edge/              ─── Edge CRUD
+    │   ├── generation/        ─── Generation + StoryGenerator
+    │   ├── scene/             ─── Scene CRUD (multi-agent)
+    │   ├── summary/           ─── Summary CRUD
+    │   ├── blueprint/         ─── Story blueprint (memory-only)
+    │   ├── timeline/          ─── Timeline events (memory-only)
+    │   └── cache/             ─── Redis cache wrapper + rate limiter
     │
-    ├── internal/canon     ─── Versioned canon (Characters, Locations, Lore)
-    │   ├── models.go      ─── Domain types + service interfaces
-    │   └── memory.go      ─── In-memory implementations
+    ├── internal/graph         ─── DAG data model + traversal
+    │   ├── models.go          ─── Story, Node, Edge, SceneStructure
+    │   ├── traversal.go       ─── TopologicalSort, IdentifyBranches
+    │   └── memory.go          ─── In-memory GraphService
     │
-    ├── internal/ledger    ─── CharacterState per (story, char, node)
-    │   ├── models.go      ─── CharacterState, StateDelta, LedgerService
-    │   └── memory.go      ─── In-memory LedgerService implementation
+    ├── internal/canon         ─── Versioned domain types
+    │   ├── models.go          ─── Character, Location, Lore, Card
+    │   └── memory.go          ─── In-memory stores
     │
-    ├── internal/compiler  ─── CompiledContext + SHA256 hash for prompts
-    │   ├── compiler.go    ─── CompiledContext, Hash(), Generation types
-    │   ├── prompts.go     ─── System prompt builders for all 6 prompts
-    │   ├── summary.go     ─── SummaryLevel, StorySummary, SummaryService
-    │   └── memory.go      ─── In-memory GenerationService implementation
+    ├── internal/narrative     ─── Narrative domain models
+    │   ├── models.go          ─── Blueprint, MemoryStore, StoryAggregate
+    │   └── types.go           ─── CharacterArc, PlotThread, Act, Relationship
     │
-    ├── internal/llm       ─── LLM client + service interfaces
-    │   ├── types.go       ─── ModelTier, PromptRegistry, 6 service ifaces
-    │   ├── services.go    ─── Service implementations (Prose, Extract, etc.)
-    │   └── client.go      ─── Anthropic + Ollama HTTP clients
+    ├── internal/timeline      ─── Timeline models
+    │   └── models.go          ─── Event, MemoryStore
     │
-    ├── internal/scene     ─── Multi-agent scene system
-    │   ├── types.go       ─── SceneTurn, SceneService, AgentPromptInput
-    │   ├── turn.go        ─── WhoActsNext — turn scheduling logic
-    │   └── agent.go       ─── BuildAgentPrompt — character prompt builder
+    ├── internal/ledger        ─── CharacterState per (story, char, node)
+    │   ├── models.go          ─── CharacterState, StateDelta, StateDeltas
+    │   └── memory.go          ─── In-memory LedgerService
     │
-    ├── internal/river     ─── River async job types + workers
-    │   ├── jobs.go        ─── 6 job types + worker implementations
+    ├── internal/compiler      ─── CompiledContext + prompts
+    │   ├── compiler.go        ─── CompiledContext, Hash(), Generation types
+    │   └── prompts.go         ─── System prompt builders for all 7 prompts
     │
-    ├── internal/db        ─── sqlc-generated DB layer
-    │   ├── db.go          ─── DBTX interface + Queries struct
-    │   ├── models.go      ─── Generated Go structs per table/view
-    │   ├── queries.sql.go ─── 38 generated query methods
-    │   └── extras.go      ─── UpdateGenerationOutput helper
+    ├── internal/llm           ─── LLM clients + router + services
+    │   ├── types.go           ─── ModelTier, 7 service interfaces, PromptRegistry
+    │   ├── router.go          ─── Router: dispatches by model tier
+    │   ├── client.go          ─── AnthropicClient + OllamaClient
+    │   ├── services.go        ─── 7 service implementations (Prose, Extract, etc.)
+    │   └── router_test.go     ─── Router tests
     │
-    └── internal/migrate   ─── SQL migration runner
-        └── runner.go      ─── _migrations table, apply/pending
+    ├── internal/scene         ─── Multi-agent scene system
+    │   ├── types.go           ─── SceneTurn, SceneService, AgentPromptInput
+    │   ├── turn.go            ─── WhoActsNext — turn scheduling
+    │   └── agent.go           ─── BuildAgentPrompt
+    │
+    ├── internal/cache         ─── Redis cache primitives
+    │   ├── cache.go           ─── RedisClient interface + key prefixes
+    │   ├── cached_llm.go      ─── CachedLLMClient wrapper
+    │   ├── context_cache.go   ─── ContextCache for generation staleness
+    │   ├── prompt_cache.go    ─── PromptCache
+    │   ├── rate_limiter.go    ─── SlidingWindowRateLimiter
+    │   ├── dist_lock.go       ─── Distributed lock
+    │   ├── redis_client.go    ─── GoRedis client adapter
+    │   └── workflow.go        ─── Workflow cache
+    │
+    ├── internal/river         ─── River job types + workers
+    │   └── jobs.go            ─── 6 job types + workers
+    │
+    ├── internal/db            ─── sqlc-generated query layer
+    │   ├── db.go              ─── DBTX + Queries
+    │   ├── models.go          ─── Generated Go structs
+    │   ├── queries.sql.go     ─── 38 query methods
+    │   └── helpers.go         ─── UUID conversion helpers
+    │
+    ├── internal/config        ─── Environment-based config
+    │   └── config.go          ─── Config struct, FromEnv()
+    │
+    ├── internal/log           ─── Structured logging
+    │   └── log.go             ─── Config, Init, Err, Duration, WithContext
+    │
+    ├── internal/migrate       ─── SQL migration runner
+    │   └── runner.go          ─── _migrations table, apply/pending
+    │
+    ├── internal/grpc          ─── gRPC server
+    │   └── server/services.go ─── Wraps service interfaces with pb
+    │
+    └── internal/adapter       ─── Adapters
+        ├── cache/             ─── Cache adapters
+        └── repository/        ─── Repository adapters
 ```
 
 ## Data Flow: Scene Generation
@@ -108,56 +160,59 @@ api.GenerationHandler.Generate()
     │ 1. Load node from DB
     │ 2. Compile context (characters, location, lore, state)
     │ 3. Compute CompiledContext.Hash() = SHA256
-    │ 4. Create generation row (accepted=false)
-    │ 5. Enqueue GenerateSceneWorker
+    │ 4. Check ContextCache (Redis) for cached result
+    │ 5. Create generation row (accepted=false)
+    │ 6. Enqueue GenerateSceneWorker
     │
     ▼
 river.GenerateSceneWorker.Work()
     │
-    │ 1. Re-compile prompt params (char cards, location, lore, state, summary)
+    │ 1. Re-compile prompt params
     │ 2. Call ProseService.GenerateScene(params)
-    │    → ProseServiceImpl builds CompiledContext → system prompt + user message
-    │    → LLMClient.Complete() → API call to Anthropic/Ollama
-    │ 3. Update generation output (UPDATE generations SET output = ...)
+    │    → Router routes to Anthropic (claude-sonnet) or Ollama (local-7b)
+    │ 3. Update generation output
     │
     ▼
 api.GenerationHandler.AcceptGeneration()
     │
-    │ 1. Mark generation as accepted
+    │ 1. Mark generation accepted
     │ 2. Reject other generations for this node
     │ 3. Enqueue: ExtractStateWorker → UpdateSummaryWorker → MergeBranchesWorker
     │
     ▼
-river.ExtractStateWorker  →  LLM extracts state deltas from scene text
+river.ExtractStateWorker  →  LLM extracts state deltas (local-7b via Ollama)
     │
     ▼
-river.UpdateSummaryWorker →  LLM updates scene-level summary
+river.UpdateSummaryWorker →  LLM updates scene summary (local-7b via Ollama)
     │
     ▼
-river.MergeBranchesWorker →  LLM merges parallel branch summaries at join nodes
+river.MergeBranchesWorker →  LLM merges branch summaries (claude-haiku via Anthropic)
 ```
 
-## Data Flow: Story Generation
+## LLM Router
 
-```
-User POST /api/v1/stories/generate { synopsis }
-    │
-    ▼
-api.StoryGeneratorHandler.Generate()
-    │
-    │ 1. Enqueue GenerateStoryWorker
-    │
-    ▼
-river.GenerateStoryWorker.Work()
-    │
-    │ 1. LLM generates StoryOutline (title, characters, beats, edges)
-    │ 2. Create characters from outline
-    │ 3. Create nodes (beats) from outline
-    │ 4. Create edges connecting beats
-    │
-    ▼
-Story is fully outlined in DB
-```
+`internal/llm/router.go` — Dispatches completion requests by model tier:
+
+| Model Tier | Provider | Default Model |
+|---|---|---|
+| `claude-sonnet` | Anthropic | `claude-sonnet-4-20250514` |
+| `claude-haiku` | Anthropic | `claude-haiku-3-5-20250224` |
+| `local-7b` | Ollama | `llama3.2:3b` |
+
+Both clients are always created. Router selects based on model tier. Retries: 2 attempts with exponential backoff (250ms, 500ms).
+
+## Redis Cache Layer
+
+Optional Redis (enabled via `REDIS_ADDR` env var). Provides:
+
+| Component | Purpose |
+|---|---|
+| `PromptCache` | Caches LLM responses for identical prompts (TTL: 1h) |
+| `ContextCache` | Caches CompiledContext hash/result for generation staleness |
+| `SlidingWindowRateLimiter` | Rate limits LLM API calls per provider |
+| `DistLock` | Distributed lock for River job coordination |
+
+When Redis is unavailable, all features degrade gracefully (no caching, no rate limiting).
 
 ## Canon Versioning
 
@@ -191,12 +246,6 @@ Story is fully outlined in DB
 | `parallel` | All characters act simultaneously |
 | `custom` | Round-robin starting after last speaker |
 
-## LLM Client Selection
-
-`cmd/server/main.go:198` — `createLLMClient`:
-- If `ANTHROPIC_API_KEY` is set → `AnthropicClient`
-- Otherwise → `OllamaClient` (default `http://localhost:11434`)
-
 ## River Queue Configuration
 
 | Queue | Max Workers | Job Types |
@@ -205,40 +254,41 @@ Story is fully outlined in DB
 | `extract` | 4 | ExtractStateWorker |
 | `merge` | 2 | MergeBranchesWorker |
 | `validate` | 1 | ValidateSceneWorker |
-| `default` | 0 (unlimited) | GenerateStoryWorker |
+| `default` | 1 | GenerateStoryWorker, UpdateSummaryWorker |
+
+River's own migration system runs on startup via `rivermigrate`.
 
 ## Dual Mode: DB vs In-Memory
 
-When Postgres is unavailable (e.g., during development without Docker):
-- All services fall back to in-memory stores (thread-safe with `sync.RWMutex`)
+When Postgres is unavailable:
+- All services fall back to in-memory stores (`graph.NewMemoryStore()`)
 - River workers are not started
-- LLM calls still work (Anthropic/Ollama clients are independent of DB)
-- Full CRUD functionality is preserved, but limited to process lifetime
+- LLM calls still work (Router always creates Anthropic + Ollama clients)
+- Blueprint + Timeline always use memory stores (no DB backing yet)
+- Redis cache is optional; when available wraps LLM client with caching + rate limiting
 
 ## Known Gaps
 
 | Area | Issue | File |
 |---|---|---|
-| pgvector embeddings | `CreateLore` inserts empty vector (`pgvector.Vector{}`). Embeddings are never computed. Semantic search (`SearchSimilar`) returns empty results in DB mode. | `internal/api/dbservices_lore.go` |
-| Multi-agent scene | `StartScene`/`NextTurn`/`FinishScene` return `fmt.Errorf("not implemented")` in DB mode. The turn-scheduling logic (`scene/turn.go`) and agent prompt builder (`scene/agent.go`) exist but are not wired to LLM calls. | `internal/api/dbservices_scene.go` |
-| ExtractState persistence | `ExtractStateWorker` stores result in a `StateDelta` but does not persist it to the `character_state` table. | `internal/river/jobs.go` |
-| ValidateScene persistence | `ValidateSceneWorker` runs validation but the result is not stored. | `internal/river/jobs.go` |
-| MergeBranches summary persistence | `MergeBranchesWorker` generates a merged summary but stores it via the schema-only summary service. | `internal/river/jobs.go` |
-| Story generation story_id | `GenerateStoryWorker` returns a `StoryGenerateResult` with empty `StoryID`. The caller receives `story_id: ""`. | `internal/river/jobs.go` |
+| pgvector embeddings | `CreateLore` inserts empty vector. Embeddings are never computed. | `internal/service/canon/` |
+| Multi-agent scene | `StartScene`/`NextTurn`/`FinishScene` return `fmt.Errorf("not implemented")` in DB mode. | `internal/service/scene/` |
+| ExtractState persistence | `ExtractStateWorker` stores result in `StateDelta` but does not persist to `character_state`. | `internal/river/jobs.go` |
+| ValidateScene persistence | `ValidateSceneWorker` runs validation but result is not stored. | `internal/river/jobs.go` |
+| Blueprint + Timeline | Only memory-backed. No DB tables or sqlc queries exist. | `internal/service/blueprint/`, `internal/service/timeline/` |
+| Story generation story_id | `GenerateStoryWorker` returns empty `StoryID`. | `internal/river/jobs.go` |
 
-## Protobuf / gRPC
+## gRPC
 
 Protobuf service definitions live in `proto/storybuilder/v1/`:
 - `common.proto` — Shared types (UUID, Timestamp, Empty)
-- `canon.proto` — Character, Actor, Location, Lore, Trait, Casting services
-- `graph.proto` — Story, Node, Edge services (+ enums for NodeStatus, EdgeType, FlowType)
-- `generation.proto` — Generation service (Generate, AcceptGeneration, ListGenerations)
-- `scene.proto` — Scene service (SetStructure, Start, Next, Finish, GetTurns)
-- `summary.proto` — Summary service (GetByLevel, GetSceneSummary, Count, ShouldElevate)
-- `storygen.proto` — StoryGenerator service (GenerateStory)
+- `canon.proto` — Character, Actor, Location, Lore, Trait, Casting
+- `graph.proto` — Story, Node, Edge (+ enums for NodeStatus, EdgeType, FlowType)
+- `generation.proto` — Generation service
+- `scene.proto` — Scene service
+- `summary.proto` — Summary service
+- `storygen.proto` — StoryGenerator service
 
-Generated Go code: `internal/grpc/gen/` (via `buf generate`).
+gRPC server implementation: `internal/grpc/server/services.go`. Listens on `GRPC_PORT` (default `9090`).
 
-gRPC server implementation: `internal/grpc/server/services.go` — wraps domain service interfaces with autogenerated pb interface. Listens on `GRPC_PORT` (default `9090`) alongside HTTP on `PORT`.
-
-YAML configs: `config/config.yaml` (base) and `config/config.development.yaml` (local overrides).
+Config: `internal/config/config.go` — `FromEnv()` reads environment variables.

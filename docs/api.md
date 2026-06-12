@@ -34,6 +34,98 @@ Enqueues an LLM story generation job from a synopsis.
 
 ---
 
+## Title Generation
+
+### `POST /api/v1/stories/generate-title`
+
+Generate a story title from a synopsis using LLM.
+
+**Request:**
+```json
+{"synopsis": "A young hero discovers their destiny..."}
+```
+
+**Response 200:**
+```json
+{"title": "The Hero's Awakening"}
+```
+
+---
+
+## Blueprint
+
+### `POST /api/v1/stories/{storyID}/blueprint`
+
+Upsert a story blueprint (narrative plan).
+
+**Request:**
+```json
+{
+  "premise": "A young hero discovers their destiny...",
+  "theme": "redemption",
+  "main_conflict": "good vs evil",
+  "stakes": "the fate of the galaxy",
+  "end_state": "peace restored",
+  "acts": [
+    {"number": 1, "title": "The Call", "goal": "Introduce the hero", "tone": "hopeful"},
+    {"number": 2, "title": "The Ordeal", "goal": "Hero faces trials", "tone": "dark"},
+    {"number": 3, "title": "The Resolution", "goal": "Final confrontation", "tone": "epic"}
+  ],
+  "plot_threads": [
+    {"name": "Rebellion", "description": "The fight against tyranny", "status": "active"}
+  ],
+  "character_arcs": [
+    {
+      "character_id": "...",
+      "arc_type": "hero_journey",
+      "starting_state": "naive farm boy",
+      "want": "adventure",
+      "need": "discipline",
+      "growth_stage": "stasis"
+    }
+  ]
+}
+```
+
+**Response 201:** Full blueprint object with `id`, `created_at`, `updated_at`.
+
+### `GET /api/v1/stories/{storyID}/blueprint`
+
+Get the story blueprint.
+
+**Response 200:** Full blueprint object or 404 if not set.
+
+---
+
+## Timeline
+
+### `POST /api/v1/stories/{storyID}/timeline`
+
+Create a timeline event for a story.
+
+**Request:**
+```json
+{
+  "title": "Luke meets Obi-Wan",
+  "description": "Luke Skywalker encounters Obi-Wan Kenobi for the first time",
+  "order": 1,
+  "timestamp": "0 BBY",
+  "location": "Tatooine"
+}
+```
+
+**Response 201:** Full event object with `id`.
+
+### `GET /api/v1/stories/{storyID}/timeline`
+
+List all timeline events for a story, sorted by order then creation date.
+
+**Response 200:** Array of event objects.
+
+---
+
+## Actors
+
 ## Actors
 
 ### `POST /api/v1/actors`
@@ -285,6 +377,29 @@ Get full graph topology (nodes + edges) for a story.
 
 ---
 
+## Edges
+
+### `POST /api/v1/stories/{storyID}/edges`
+
+Create a directed edge between two nodes.
+
+**Request:**
+```json
+{
+  "from_node": "...",
+  "to_node": "...",
+  "edge_type": "seq"
+}
+```
+
+Valid `edge_type` values: `seq`, `fork`, `join`, `choice`.
+
+### `GET /api/v1/stories/{storyID}/edges`
+
+List all edges for a story.
+
+---
+
 ## Nodes (Scenes)
 
 ### `POST /api/v1/stories/{storyID}/nodes`
@@ -320,29 +435,6 @@ Get node by ID.
 ### `PUT /api/v1/stories/{storyID}/nodes/{id}`
 
 Update node. Same body as create.
-
----
-
-## Edges
-
-### `POST /api/v1/stories/{storyID}/edges`
-
-Create a directed edge between two nodes.
-
-**Request:**
-```json
-{
-  "from_node": "...",
-  "to_node": "...",
-  "edge_type": "seq"
-}
-```
-
-Valid `edge_type` values: `seq`, `fork`, `join`, `choice`.
-
-### `GET /api/v1/stories/{storyID}/edges`
-
-List all edges for a story.
 
 ---
 
