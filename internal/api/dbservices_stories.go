@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/premchand/story-builder/internal/cache"
 	"github.com/premchand/story-builder/internal/canon"
 	"github.com/premchand/story-builder/internal/compiler"
 	"github.com/premchand/story-builder/internal/db"
@@ -248,12 +249,17 @@ func listNodes(ctx context.Context, q *db.Queries, storyID uuid.UUID) ([]graph.N
 }
 
 type dbGenerationService struct {
-	q         *db.Queries
-	rivClient *riv.Client[pgx.Tx]
+	q            *db.Queries
+	rivClient    *riv.Client[pgx.Tx]
+	contextCache *cache.ContextCache
 }
 
 func NewDBGenerationService(q *db.Queries, rivClient *riv.Client[pgx.Tx]) *dbGenerationService {
 	return &dbGenerationService{q: q, rivClient: rivClient}
+}
+
+func NewDBGenerationServiceWithCache(q *db.Queries, rivClient *riv.Client[pgx.Tx], contextCache *cache.ContextCache) *dbGenerationService {
+	return &dbGenerationService{q: q, rivClient: rivClient, contextCache: contextCache}
 }
 
 func (s *dbGenerationService) Generate(ctx context.Context, nodeID uuid.UUID) (*compiler.Generation, error) {
@@ -263,15 +269,40 @@ func (s *dbGenerationService) Generate(ctx context.Context, nodeID uuid.UUID) (*
 	}
 
 	storyID := fromUUID(node.StoryID)
+
+	// Check context cache first
+	if s.contextCache != nil {
+		if cached, err := s.contextCache.Get(ctx, storyID.String()); err == nil {
+			hash, err := cached.Hash()
+			if err == nil {
+				_ = s.contextCache.SetHash(ctx, storyID.String(), hash)
+				return s.createGenerationRecord(ctx, nodeID, storyID, node, cached, hash)
+			}
+		}
+	}
+
 	compiled, err := s.compileContext(ctx, storyID, node)
 	if err != nil {
 		return nil, fmt.Errorf("compile context: %w", err)
+	}
+
+	if s.contextCache != nil {
+		_ = s.contextCache.Set(ctx, storyID.String(), compiled)
 	}
 
 	hash, err := compiled.Hash()
 	if err != nil {
 		return nil, fmt.Errorf("hash context: %w", err)
 	}
+
+	if s.contextCache != nil {
+		_ = s.contextCache.SetHash(ctx, storyID.String(), hash)
+	}
+
+	return s.createGenerationRecord(ctx, nodeID, storyID, node, compiled, hash)
+}
+
+func (s *dbGenerationService) createGenerationRecord(ctx context.Context, nodeID uuid.UUID, storyID uuid.UUID, node db.Node, compiled *compiler.CompiledContext, hash string) (*compiler.Generation, error) {
 	promptSnapshot := compiled.BuildScenePromptSnapshot()
 
 	dbGen, err := s.q.CreateGeneration(ctx, db.CreateGenerationParams{
@@ -375,6 +406,14 @@ func (s *dbGenerationService) compileContext(ctx context.Context, storyID uuid.U
 func (s *dbGenerationService) AcceptGeneration(ctx context.Context, nodeID, genID uuid.UUID) error {
 	if err := s.q.AcceptGeneration(ctx, toUUID(genID)); err != nil {
 		return err
+	}
+
+	if s.contextCache != nil {
+		node, err := s.q.GetNode(ctx, toUUID(nodeID))
+		if err == nil {
+			storyID := fromUUID(node.StoryID)
+			_ = s.contextCache.Invalidate(ctx, storyID.String())
+		}
 	}
 	if err := s.q.RejectOtherGenerations(ctx, db.RejectOtherGenerationsParams{
 		NodeID: toUUID(nodeID),

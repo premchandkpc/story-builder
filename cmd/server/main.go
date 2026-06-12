@@ -12,6 +12,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/premchand/story-builder/internal/api"
+	"github.com/premchand/story-builder/internal/cache"
+	"github.com/premchand/story-builder/internal/config"
 	"github.com/premchand/story-builder/internal/db"
 	"github.com/premchand/story-builder/internal/graph"
 	grpcserver "github.com/premchand/story-builder/internal/grpc/server"
@@ -27,10 +29,23 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	cfg := configFromEnv()
+	cfg := config.FromEnv()
 
 	var pool *pgxpool.Pool
 	dbOk := false
+
+	var contextCache *cache.ContextCache
+	var promptCache *cache.PromptCache
+	var rateLimiter *cache.SlidingWindowRateLimiter
+
+	if rc, err := cache.NewGoRedisClient(cfg.RedisAddr, cfg.RedisPass, cfg.RedisDB); err == nil {
+		contextCache = cache.NewContextCache(rc)
+		promptCache = cache.NewPromptCache(rc)
+		rateLimiter = cache.NewSlidingWindowRateLimiter(rc, cache.DefaultRateLimits)
+		log.Printf("connected to redis at %s", cfg.RedisAddr)
+	} else {
+		log.Printf("redis not available (running without cache): %v", err)
+	}
 	if p, err := pgxpool.New(ctx, cfg.DatabaseURL); err == nil {
 		if err := p.Ping(ctx); err == nil {
 			pool = p
@@ -72,6 +87,14 @@ func main() {
 		q := db.New(pool)
 
 		llmClient := createLLMClient(cfg)
+
+		if promptCache != nil {
+			llmClient = cache.NewCachedLLMClient(llmClient, promptCache)
+		}
+		if rateLimiter != nil {
+			llmClient = cache.NewRateLimitedLLMClient(llmClient, rateLimiter, "llm:anthropic")
+		}
+
 		proseSvc := llm.NewProseService(llmClient)
 		extractSvc := llm.NewExtractionService(llmClient)
 		summarySvc := llm.NewSummaryService(llmClient)
@@ -129,7 +152,7 @@ func main() {
 		loreHandler = &api.LoreHandler{Service: api.NewDBLoreService(q)}
 		storyHandler = &api.StoryHandler{Service: api.NewDBGraphStoryService(q), BlueprintService: blueprintService, TimelineService: timelineService}
 		nodeHandler = &api.NodeHandler{Service: api.NewDBGraphNodeService(q)}
-		genHandler = &api.GenerationHandler{Service: api.NewDBGenerationService(q, rivClient)}
+		genHandler = &api.GenerationHandler{Service: api.NewDBGenerationServiceWithCache(q, rivClient, contextCache)}
 		sceneHandler = &api.SceneHandler{SceneService: api.NewDBSceneService(q)}
 		summaryHandler = &api.SummaryHandler{Service: api.NewDBSummaryService(q)}
 		storyGenHandler = &api.StoryGeneratorHandler{Service: api.NewDBStoryGeneratorService(q, rivClient)}
@@ -149,7 +172,7 @@ func main() {
 		storyGenHandler = &api.StoryGeneratorHandler{Service: api.NewMemoryStoryGeneratorService()}
 	}
 
-	srv := api.NewServer(charHandler, actorHandler, traitHandler, castingHandler, locHandler, loreHandler, storyHandler, nodeHandler, genHandler, sceneHandler, summaryHandler, storyGenHandler)
+	srv := api.NewServer(charHandler, actorHandler, traitHandler, castingHandler, locHandler, loreHandler, storyHandler, nodeHandler, genHandler, sceneHandler, summaryHandler, storyGenHandler, rateLimiter)
 
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%s", cfg.Port),
@@ -203,36 +226,6 @@ func main() {
 	shutdownCancel()
 }
 
-type config struct {
-	Port         string
-	GrpcPort     string
-	DatabaseURL  string
-	AnthropicKey string
-	OllamaURL    string
-}
-
-func configFromEnv() config {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-	grpcPort := os.Getenv("GRPC_PORT")
-	if grpcPort == "" {
-		grpcPort = "9090"
-	}
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		dbURL = "postgres://storybuilder:storybuilder@localhost:5432/storybuilder?sslmode=disable"
-	}
-	return config{
-		Port:         port,
-		GrpcPort:     grpcPort,
-		DatabaseURL:  dbURL,
-		AnthropicKey: os.Getenv("ANTHROPIC_API_KEY"),
-		OllamaURL:    os.Getenv("OLLAMA_URL"),
-	}
-}
-
 type storyGenWrapper struct {
 	svc api.StoryGeneratorService
 }
@@ -245,7 +238,7 @@ func (w storyGenWrapper) GenerateStory(ctx context.Context, synopsis string) (st
 	return r.StoryID, r.Status, nil
 }
 
-func createLLMClient(cfg config) llm.LLMClient {
+func createLLMClient(cfg config.Config) llm.LLMClient {
 	var anthropic llm.LLMClient
 	if cfg.AnthropicKey != "" {
 		anthropic = llm.NewAnthropicClient(cfg.AnthropicKey)

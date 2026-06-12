@@ -104,47 +104,4 @@ type Card struct {
 	Props        []string          `json:"props,omitempty"`
 }
 
-type ActorService interface {
-	Create(name, gender, ethnicity, race, skinTone, eyeColor, hairColor, hairStyle, build, nationality string, heightCm, weightKg, age int, traits map[string]interface{}) (*Actor, error)
-	Get(id uuid.UUID) (*Actor, error)
-	Update(id uuid.UUID, name, gender, ethnicity, race, skinTone, eyeColor, hairColor, hairStyle, build, nationality string, heightCm, weightKg, age int, traits map[string]interface{}) (*Actor, error)
-	List() ([]Actor, error)
-}
 
-type CharacterService interface {
-	Create(name, persona, backstory, moralAlignment string, personality, flaws, goals, traits, voiceSamples []string, parentID *uuid.UUID, relationships map[string]string) (*Character, error)
-	Get(id uuid.UUID, version int) (*Character, error)
-	GetLatest(id uuid.UUID) (*Character, error)
-	Update(id uuid.UUID, name, persona, backstory, moralAlignment string, personality, flaws, goals, traits, voiceSamples []string, parentID *uuid.UUID, relationships map[string]string) (*Character, error)
-	List() ([]Character, error)
-}
-
-type CharacterTraitService interface {
-	Create(name, category, description string) (*CharacterTrait, error)
-	Get(id uuid.UUID) (*CharacterTrait, error)
-	List() ([]CharacterTrait, error)
-	Assign(characterID, traitID uuid.UUID, intensity int, note string) error
-	Unassign(characterID, traitID uuid.UUID) error
-	GetAssignments(characterID uuid.UUID) ([]TraitAssignment, error)
-}
-
-type CastingService interface {
-	Create(storyID, actorID, characterID uuid.UUID, roleType string) (*Casting, error)
-	GetForStory(storyID uuid.UUID) ([]Casting, error)
-	GetForCharacter(characterID uuid.UUID) ([]Casting, error)
-	GetForActor(actorID uuid.UUID) ([]Casting, error)
-}
-
-type LocationService interface {
-	Create(name, description string, props []string) (*Location, error)
-	Get(id uuid.UUID, version int) (*Location, error)
-	GetLatest(id uuid.UUID) (*Location, error)
-	Update(id uuid.UUID, description string, props []string) (*Location, error)
-	List() ([]Location, error)
-}
-
-type LoreService interface {
-	Create(tags []string, content string) (*Lore, error)
-	SearchByTags(tags []string) ([]Lore, error)
-	SearchSimilar(embedding []float32, limit int) ([]Lore, error)
-}

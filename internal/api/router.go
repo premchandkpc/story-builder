@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/premchand/story-builder/internal/cache"
 )
 
 type Server struct {
@@ -23,6 +24,7 @@ type Server struct {
 	sceneHandler     *SceneHandler
 	summaryHandler   *SummaryHandler
 	storyGenHandler  *StoryGeneratorHandler
+	rateLimiter      *cache.SlidingWindowRateLimiter
 }
 
 func NewServer(
@@ -38,6 +40,7 @@ func NewServer(
 	sceneH *SceneHandler,
 	summaryH *SummaryHandler,
 	storyGenH *StoryGeneratorHandler,
+	rlOpt ...*cache.SlidingWindowRateLimiter,
 ) *Server {
 	s := &Server{
 		router:           chi.NewRouter(),
@@ -53,6 +56,9 @@ func NewServer(
 		sceneHandler:     sceneH,
 		summaryHandler:   summaryH,
 		storyGenHandler:  storyGenH,
+	}
+	if len(rlOpt) > 0 {
+		s.rateLimiter = rlOpt[0]
 	}
 	s.routes()
 	return s
@@ -71,6 +77,10 @@ func (s *Server) routes() {
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
+
+	if s.rateLimiter != nil {
+		r.Use(RateLimitMiddleware(s.rateLimiter))
+	}
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -166,6 +176,12 @@ func (s *Server) routes() {
 			r.Get("/nodes/{nodeID}", s.summaryHandler.GetSceneSummary)
 		})
 	})
+}
+
+func (s *Server) Use(mws ...func(http.Handler) http.Handler) {
+	for _, mw := range mws {
+		s.router.Use(mw)
+	}
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
