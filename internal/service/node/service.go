@@ -59,14 +59,14 @@ func NewDBService(q *db.Queries) *dbService {
 func (s *dbService) Create(ctx context.Context, storyID uuid.UUID, beatIntent string, characterRefs []uuid.UUID, locationRef *uuid.UUID, pov, tone string, targetWords int) (*graph.Node, error) {
 	refs := make([]pgtype.UUID, len(characterRefs))
 	for i, r := range characterRefs {
-		refs[i] = toUUID(r)
+		refs[i] = db.ToUUID(r)
 	}
 	var locRef pgtype.UUID
 	if locationRef != nil {
-		locRef = toUUID(*locationRef)
+		locRef = db.ToUUID(*locationRef)
 	}
 	n, err := s.q.CreateNode(ctx, db.CreateNodeParams{
-		StoryID:       toUUID(storyID),
+		StoryID:       db.ToUUID(storyID),
 		BeatIntent:    beatIntent,
 		CharacterRefs: refs,
 		LocationRef:   locRef,
@@ -87,18 +87,18 @@ func (s *dbService) Get(ctx context.Context, id uuid.UUID) (*graph.Node, error) 
 func (s *dbService) Update(ctx context.Context, id uuid.UUID, beatIntent string, characterRefs []uuid.UUID, locationRef *uuid.UUID, pov, tone string, targetWords int, sceneStructure *graph.SceneStructure) (*graph.Node, error) {
 	refs := make([]pgtype.UUID, len(characterRefs))
 	for i, r := range characterRefs {
-		refs[i] = toUUID(r)
+		refs[i] = db.ToUUID(r)
 	}
 	var locRef pgtype.UUID
 	if locationRef != nil {
-		locRef = toUUID(*locationRef)
+		locRef = db.ToUUID(*locationRef)
 	}
-	ssBytes := jsonBytes(graph.SceneStructure{FlowType: graph.FlowMonologue, SituationFlow: ""})
+	ssBytes := db.JSONBytes(graph.SceneStructure{FlowType: graph.FlowMonologue, SituationFlow: ""})
 	if sceneStructure != nil {
-		ssBytes = jsonBytes(sceneStructure)
+		ssBytes = db.JSONBytes(sceneStructure)
 	}
 	n, err := s.q.UpdateNode(ctx, db.UpdateNodeParams{
-		ID:             toUUID(id),
+		ID:             db.ToUUID(id),
 		BeatIntent:     beatIntent,
 		CharacterRefs:  refs,
 		LocationRef:    locRef,
@@ -115,8 +115,8 @@ func (s *dbService) Update(ctx context.Context, id uuid.UUID, beatIntent string,
 
 func (s *dbService) SetSceneStructure(ctx context.Context, id uuid.UUID, ss graph.SceneStructure) error {
 	return s.q.UpdateNodeSceneStructure(ctx, db.UpdateNodeSceneStructureParams{
-		ID:             toUUID(id),
-		SceneStructure: jsonBytes(ss),
+		ID:             db.ToUUID(id),
+		SceneStructure: db.JSONBytes(ss),
 	})
 }
 
@@ -127,11 +127,11 @@ func (s *dbService) List(ctx context.Context, storyID uuid.UUID) ([]graph.Node, 
 func toDomainNode(n db.Node) *graph.Node {
 	refs := make([]uuid.UUID, len(n.CharacterRefs))
 	for i, r := range n.CharacterRefs {
-		refs[i] = fromUUID(r)
+		refs[i] = db.FromUUID(r)
 	}
 	var locRef *uuid.UUID
 	if n.LocationRef.Valid {
-		l := fromUUID(n.LocationRef)
+		l := db.FromUUID(n.LocationRef)
 		locRef = &l
 	}
 	var ss *graph.SceneStructure
@@ -142,8 +142,8 @@ func toDomainNode(n db.Node) *graph.Node {
 		}
 	}
 	return &graph.Node{
-		ID:             fromUUID(n.ID),
-		StoryID:        fromUUID(n.StoryID),
+		ID:             db.FromUUID(n.ID),
+		StoryID:        db.FromUUID(n.StoryID),
 		BeatIntent:     n.BeatIntent,
 		CharacterRefs:  refs,
 		LocationRef:    locRef,
@@ -158,7 +158,7 @@ func toDomainNode(n db.Node) *graph.Node {
 }
 
 func getNode(ctx context.Context, q *db.Queries, id uuid.UUID) (*graph.Node, error) {
-	n, err := q.GetNode(ctx, toUUID(id))
+	n, err := q.GetNode(ctx, db.ToUUID(id))
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("node %s not found", id)
@@ -169,7 +169,7 @@ func getNode(ctx context.Context, q *db.Queries, id uuid.UUID) (*graph.Node, err
 }
 
 func listNodes(ctx context.Context, q *db.Queries, storyID uuid.UUID) ([]graph.Node, error) {
-	nodes, err := q.ListNodes(ctx, toUUID(storyID))
+	nodes, err := q.ListNodes(ctx, db.ToUUID(storyID))
 	if err != nil {
 		return nil, err
 	}
@@ -180,15 +180,3 @@ func listNodes(ctx context.Context, q *db.Queries, storyID uuid.UUID) ([]graph.N
 	return result, nil
 }
 
-func toUUID(id uuid.UUID) pgtype.UUID {
-	return pgtype.UUID{Bytes: id, Valid: true}
-}
-
-func fromUUID(id pgtype.UUID) uuid.UUID {
-	return id.Bytes
-}
-
-func jsonBytes(v any) []byte {
-	b, _ := json.Marshal(v)
-	return b
-}

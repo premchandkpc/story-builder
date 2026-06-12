@@ -21,11 +21,15 @@ import (
 	"github.com/premchand/story-builder/internal/migrate"
 	"github.com/premchand/story-builder/internal/river"
 	cachesvc "github.com/premchand/story-builder/internal/service/cache"
+	blueprintsvc "github.com/premchand/story-builder/internal/service/blueprint"
 	canonsvc "github.com/premchand/story-builder/internal/service/canon"
 	edgesvc "github.com/premchand/story-builder/internal/service/edge"
 	gensvc "github.com/premchand/story-builder/internal/service/generation"
 	nodesvc "github.com/premchand/story-builder/internal/service/node"
+	scenesvc "github.com/premchand/story-builder/internal/service/scene"
 	storysvc "github.com/premchand/story-builder/internal/service/story"
+	summarysvc "github.com/premchand/story-builder/internal/service/summary"
+	timelinesvc "github.com/premchand/story-builder/internal/service/timeline"
 	riv "github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 	"github.com/riverqueue/river/rivermigrate"
@@ -82,10 +86,8 @@ func main() {
 	var summaryHandler *api.SummaryHandler
 	var storyGenHandler *api.StoryGeneratorHandler
 	var titleHandler *api.TitleHandler
-	var grpcStorySvc api.StoryService
-	var grpcNodeSvc api.NodeService
-	blueprintService := api.NewInMemoryBlueprintService()
-	timelineService := api.NewInMemoryTimelineService()
+	blueprintService := blueprintsvc.NewMemoryService()
+	timelineService := timelinesvc.NewMemoryService()
 
 	llmClient := createLLMClient(cfg)
 
@@ -149,8 +151,6 @@ func main() {
 		storySvc := storysvc.NewDBService(q)
 		edgeSvc := edgesvc.NewDBService(q)
 		nodeSvc := nodesvc.NewDBService(q)
-		grpcStorySvc = storySvc
-		grpcNodeSvc = nodeSvc
 
 		charHandler = &api.CharacterHandler{Service: canonsvc.NewDBCharacterService(q)}
 		actorHandler = &api.ActorHandler{Service: canonsvc.NewDBActorService(q)}
@@ -172,8 +172,8 @@ func main() {
 			contextCache = redisCache.ContextCache
 		}
 		genHandler = &api.GenerationHandler{Service: gensvc.NewDBGenerationServiceWithCache(q, rivClient, contextCache)}
-		sceneHandler = &api.SceneHandler{SceneService: api.NewDBSceneService(q)}
-		summaryHandler = &api.SummaryHandler{Service: api.NewDBSummaryService(q)}
+		sceneHandler = &api.SceneHandler{SceneService: scenesvc.NewDBService(q)}
+		summaryHandler = &api.SummaryHandler{Service: summarysvc.NewDBService(q)}
 		storyGenHandler = &api.StoryGeneratorHandler{Service: gensvc.NewDBStoryGeneratorService(q, rivClient)}
 		titleHandler = &api.TitleHandler{Service: llm.NewTitleService(llmClient)}
 	} else {
@@ -181,8 +181,6 @@ func main() {
 		storySvc := storysvc.NewMemoryService(gs)
 		nodeSvc := nodesvc.NewMemoryService(gs)
 		edgeSvc := edgesvc.NewMemoryService(gs)
-		grpcStorySvc = storySvc
-		grpcNodeSvc = nodeSvc
 
 		charHandler = &api.CharacterHandler{Service: canonsvc.NewMemoryCharacterService()}
 		actorHandler = &api.ActorHandler{Service: canonsvc.NewMemoryActorService()}
@@ -199,8 +197,8 @@ func main() {
 		}
 		nodeHandler = &api.NodeHandler{Service: nodeSvc}
 		genHandler = &api.GenerationHandler{Service: gensvc.NewMemoryGenerationService()}
-		sceneHandler = &api.SceneHandler{SceneService: api.NewMemorySceneService()}
-		summaryHandler = &api.SummaryHandler{Service: api.NewMemorySummaryService()}
+		sceneHandler = &api.SceneHandler{SceneService: scenesvc.NewMemoryService()}
+		summaryHandler = &api.SummaryHandler{Service: summarysvc.NewMemoryService()}
 		storyGenHandler = &api.StoryGeneratorHandler{Service: gensvc.NewMemoryStoryGeneratorService()}
 		titleHandler = &api.TitleHandler{Service: llm.NewTitleService(llmClient)}
 	}
@@ -215,7 +213,7 @@ func main() {
 		Addr:         fmt.Sprintf(":%s", cfg.Port),
 		Handler:      srv,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		WriteTimeout: 120 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
@@ -234,8 +232,9 @@ func main() {
 		castingHandler.Service,
 		locHandler.Service,
 		loreHandler.Service,
-		grpcStorySvc,
-		grpcNodeSvc,
+		storyHandler.StorySvc,
+		nodeHandler.Service,
+		storyHandler.EdgeSvc,
 		genHandler.Service,
 		sceneHandler.SceneService,
 		summaryHandler.Service,

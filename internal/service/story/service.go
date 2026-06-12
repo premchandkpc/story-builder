@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/premchand/story-builder/internal/db"
 	"github.com/premchand/story-builder/internal/graph"
 )
@@ -81,7 +80,7 @@ func (s *dbService) Create(ctx context.Context, title string) (*graph.Story, err
 		return nil, err
 	}
 	return &graph.Story{
-		ID:        fromUUID(st.ID),
+		ID:        db.FromUUID(st.ID),
 		Title:     st.Title,
 		CanonPins: make(map[string]interface{}),
 		CreatedAt: st.CreatedAt.Time,
@@ -89,7 +88,7 @@ func (s *dbService) Create(ctx context.Context, title string) (*graph.Story, err
 }
 
 func (s *dbService) Get(ctx context.Context, id uuid.UUID) (*graph.Story, error) {
-	st, err := s.q.GetStory(ctx, toUUID(id))
+	st, err := s.q.GetStory(ctx, db.ToUUID(id))
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +98,7 @@ func (s *dbService) Get(ctx context.Context, id uuid.UUID) (*graph.Story, error)
 		pins = make(map[string]interface{})
 	}
 	return &graph.Story{
-		ID:        fromUUID(st.ID),
+		ID:        db.FromUUID(st.ID),
 		Title:     st.Title,
 		CanonPins: pins,
 		CreatedAt: st.CreatedAt.Time,
@@ -114,7 +113,7 @@ func (s *dbService) List(ctx context.Context) ([]graph.Story, error) {
 	result := make([]graph.Story, len(stories))
 	for i, st := range stories {
 		result[i] = graph.Story{
-			ID:        fromUUID(st.ID),
+			ID:        db.FromUUID(st.ID),
 			Title:     st.Title,
 			CanonPins: make(map[string]interface{}),
 			CreatedAt: st.CreatedAt.Time,
@@ -125,24 +124,24 @@ func (s *dbService) List(ctx context.Context) ([]graph.Story, error) {
 
 func (s *dbService) CreateEdge(ctx context.Context, storyID, fromNode, toNode uuid.UUID, edgeType string) error {
 	return s.q.CreateEdge(ctx, db.CreateEdgeParams{
-		StoryID:  toUUID(storyID),
-		FromNode: toUUID(fromNode),
-		ToNode:   toUUID(toNode),
+		StoryID:  db.ToUUID(storyID),
+		FromNode: db.ToUUID(fromNode),
+		ToNode:   db.ToUUID(toNode),
 		EdgeType: edgeType,
 	})
 }
 
 func (s *dbService) ListEdges(ctx context.Context, storyID uuid.UUID) ([]graph.Edge, error) {
-	edges, err := s.q.ListEdges(ctx, toUUID(storyID))
+	edges, err := s.q.ListEdges(ctx, db.ToUUID(storyID))
 	if err != nil {
 		return nil, err
 	}
 	result := make([]graph.Edge, len(edges))
 	for i, e := range edges {
 		result[i] = graph.Edge{
-			StoryID:  fromUUID(e.StoryID),
-			FromNode: fromUUID(e.FromNode),
-			ToNode:   fromUUID(e.ToNode),
+			StoryID:  db.FromUUID(e.StoryID),
+			FromNode: db.FromUUID(e.FromNode),
+			ToNode:   db.FromUUID(e.ToNode),
 			EdgeType: graph.EdgeType(e.EdgeType),
 		}
 	}
@@ -172,11 +171,11 @@ func (s *dbService) TopologicalSort(ctx context.Context, storyID uuid.UUID) ([]g
 func toDomainNode(n db.Node) *graph.Node {
 	refs := make([]uuid.UUID, len(n.CharacterRefs))
 	for i, r := range n.CharacterRefs {
-		refs[i] = fromUUID(r)
+		refs[i] = db.FromUUID(r)
 	}
 	var locRef *uuid.UUID
 	if n.LocationRef.Valid {
-		l := fromUUID(n.LocationRef)
+		l := db.FromUUID(n.LocationRef)
 		locRef = &l
 	}
 	var ss *graph.SceneStructure
@@ -187,8 +186,8 @@ func toDomainNode(n db.Node) *graph.Node {
 		}
 	}
 	return &graph.Node{
-		ID:             fromUUID(n.ID),
-		StoryID:        fromUUID(n.StoryID),
+		ID:             db.FromUUID(n.ID),
+		StoryID:        db.FromUUID(n.StoryID),
 		BeatIntent:     n.BeatIntent,
 		CharacterRefs:  refs,
 		LocationRef:    locRef,
@@ -203,7 +202,7 @@ func toDomainNode(n db.Node) *graph.Node {
 }
 
 func getNode(ctx context.Context, q *db.Queries, id uuid.UUID) (*graph.Node, error) {
-	n, err := q.GetNode(ctx, toUUID(id))
+	n, err := q.GetNode(ctx, db.ToUUID(id))
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("node %s not found", id)
@@ -214,7 +213,7 @@ func getNode(ctx context.Context, q *db.Queries, id uuid.UUID) (*graph.Node, err
 }
 
 func listNodes(ctx context.Context, q *db.Queries, storyID uuid.UUID) ([]graph.Node, error) {
-	nodes, err := q.ListNodes(ctx, toUUID(storyID))
+	nodes, err := q.ListNodes(ctx, db.ToUUID(storyID))
 	if err != nil {
 		return nil, err
 	}
@@ -225,15 +224,3 @@ func listNodes(ctx context.Context, q *db.Queries, storyID uuid.UUID) ([]graph.N
 	return result, nil
 }
 
-func toUUID(id uuid.UUID) pgtype.UUID {
-	return pgtype.UUID{Bytes: id, Valid: true}
-}
-
-func fromUUID(id pgtype.UUID) uuid.UUID {
-	return id.Bytes
-}
-
-func jsonBytes(v any) []byte {
-	b, _ := json.Marshal(v)
-	return b
-}

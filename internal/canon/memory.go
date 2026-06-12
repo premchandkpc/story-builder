@@ -172,10 +172,16 @@ func (s *MemoryStore) UpdateLocation(id uuid.UUID, description string, props []s
 	if latest == 0 {
 		return nil, fmt.Errorf("location %s not found", id)
 	}
+	var currentName string
+	for _, loc := range s.locations {
+		if loc.ID == id {
+			currentName = loc.Name
+		}
+	}
 	l := Location{
 		ID:          id,
 		Version:     latest + 1,
-		Name:        s.locations[0].Name,
+		Name:        currentName,
 		Description: description,
 		Props:       props,
 		CreatedAt:   time.Now(),

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"net/http"
 	"strings"
@@ -68,8 +69,6 @@ func tenantFromRequest(r *http.Request) string {
 }
 
 func hashString(s string) string {
-	if len(s) > 16 {
-		return s[:16]
-	}
-	return s
+	h := sha256.Sum256([]byte(s))
+	return fmt.Sprintf("%x", h[:8])
 }

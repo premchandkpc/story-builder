@@ -9,9 +9,8 @@ func esc(s string) string {
 	return strings.NewReplacer("<", "＜", ">", "＞").Replace(s)
 }
 
-func (c *CompiledContext) BuildSceneProseSystemPrompt() string {
+func (c *CompiledContext) BuildCanonXML() string {
 	canon := ""
-
 	for _, card := range c.CharacterCards {
 		canon += fmt.Sprintf("<character name=\"%s\">\n", esc(card.Name))
 		canon += fmt.Sprintf("Traits: %v\n", card.Traits)
@@ -22,18 +21,19 @@ func (c *CompiledContext) BuildSceneProseSystemPrompt() string {
 		}
 		canon += "</character>\n"
 	}
-
 	if c.LocationCard != nil {
 		canon += fmt.Sprintf("<location name=\"%s\">%s\n", esc(c.LocationCard.Name), esc(c.LocationCard.Description))
 		canon += fmt.Sprintf("Props available: %v</location>\n", c.LocationCard.Props)
 	}
-
 	canon += "<world_rules>\n"
 	for _, l := range c.Lore {
 		canon += fmt.Sprintf("- %s\n", esc(l))
 	}
 	canon += "</world_rules>"
+	return canon
+}
 
+func (c *CompiledContext) BuildCharStateXML() string {
 	stateBlock := ""
 	for char, st := range c.CharState {
 		stateBlock += fmt.Sprintf("%s: at %s, mood %s,\n", esc(char), esc(st.Location), esc(st.Mood))
@@ -44,7 +44,10 @@ func (c *CompiledContext) BuildSceneProseSystemPrompt() string {
 			stateBlock += "does NOT know: []\n"
 		}
 	}
+	return stateBlock
+}
 
+func (c *CompiledContext) BuildSceneProseSystemPrompt() string {
 	return fmt.Sprintf(`You are a fiction co-writer. Write ONE scene and nothing else.
 
 <canon>
@@ -65,7 +68,7 @@ HARD RULES:
 5. End the scene when the beat resolves. Do not set up the next scene.
 6. Length: %d words, ±20%%.
 7. Output prose only — no titles, no notes, no "Scene:" headers.`,
-		canon, stateBlock, esc(c.BranchSummary), c.TargetWords)
+		c.BuildCanonXML(), c.BuildCharStateXML(), esc(c.BranchSummary), c.TargetWords)
 }
 
 func (c *CompiledContext) BuildSceneProseUserMessage() string {

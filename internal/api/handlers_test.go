@@ -13,6 +13,7 @@ import (
 	"github.com/premchand/story-builder/internal/graph"
 	"github.com/premchand/story-builder/internal/service/edge"
 	"github.com/premchand/story-builder/internal/service/node"
+	scenesvc "github.com/premchand/story-builder/internal/service/scene"
 	storysvc "github.com/premchand/story-builder/internal/service/story"
 )
 
@@ -162,7 +163,7 @@ func TestStoryCreateEdge_InvalidNodeRefs(t *testing.T) {
 }
 
 func TestSceneHandler_SetStructure_InvalidNodeID(t *testing.T) {
-	sh := &SceneHandler{SceneService: NewMemorySceneService()}
+	sh := &SceneHandler{SceneService: scenesvc.NewMemoryService()}
 
 	body := bytes.NewBufferString(`{"scene_structure":{"flow_type":"monologue","situation_flow":""}}`)
 	req := chiRequest(http.MethodPut, "/api/v1/stories/{storyID}/nodes/{id}/scene/structure", body, map[string]string{"id": "not-a-uuid"})

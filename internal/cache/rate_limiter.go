@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strings"
 	"time"
 )
 
@@ -44,7 +45,7 @@ func NewSlidingWindowRateLimiter(client RedisClient, configs []RateLimitConfig) 
 
 func (rl *SlidingWindowRateLimiter) Allow(ctx context.Context, key string) (bool, error) {
 	for _, cfg := range rl.configs {
-		if cfg.Key != key {
+		if !strings.HasPrefix(key, cfg.Key) {
 			continue
 		}
 		return rl.check(ctx, key, cfg)

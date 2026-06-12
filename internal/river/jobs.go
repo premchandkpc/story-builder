@@ -60,7 +60,7 @@ func (w *GenerateSceneWorker) Work(ctx context.Context, job *river.Job[GenerateS
 	if resp != nil && resp.Model != "" {
 		model = resp.Model
 	}
-	return w.Queries.UpdateGenerationOutput(ctx, toUUID(args.GenID), resp.Content, model)
+	return w.Queries.UpdateGenerationOutput(ctx, db.ToUUID(args.GenID), resp.Content, model)
 }
 
 func (w *GenerateSceneWorker) compilePromptParams(ctx context.Context, args GenerateSceneArgs) (*llm.PromptParams, error) {
@@ -73,7 +73,7 @@ func (w *GenerateSceneWorker) compilePromptParams(ctx context.Context, args Gene
 
 	var charCards []canon.Card
 	for _, ref := range args.CharacterRefs {
-		c, err := w.Queries.GetCharacterLatest(ctx, toUUID(ref))
+		c, err := w.Queries.GetCharacterLatest(ctx, db.ToUUID(ref))
 		if err != nil {
 			continue
 		}
@@ -97,7 +97,7 @@ func (w *GenerateSceneWorker) compilePromptParams(ctx context.Context, args Gene
 	params.CharacterCards = charCards
 
 	if args.LocationRef != nil {
-		loc, err := w.Queries.GetLocationLatest(ctx, toUUID(*args.LocationRef))
+		loc, err := w.Queries.GetLocationLatest(ctx, db.ToUUID(*args.LocationRef))
 		if err == nil {
 			var props []string
 			if err := json.Unmarshal(loc.Props, &props); err != nil {
@@ -124,22 +124,22 @@ func (w *GenerateSceneWorker) compilePromptParams(ctx context.Context, args Gene
 	}
 
 	states, err := w.Queries.GetStatesForNode(ctx, db.GetStatesForNodeParams{
-		StoryID:  toUUID(args.StoryID),
-		AsOfNode: toUUID(args.NodeID),
+		StoryID:  db.ToUUID(args.StoryID),
+		AsOfNode: db.ToUUID(args.NodeID),
 	})
 	if err == nil {
 		params.CharState = make(map[string]interface{})
 		for _, s := range states {
 			var cs ledger.CharacterState
 			if json.Unmarshal(s.State, &cs) == nil {
-				charID := fromUUID(s.CharacterID)
+				charID := db.FromUUID(s.CharacterID)
 				params.CharState[charID.String()] = cs
 			}
 		}
 	}
 
 	summary, err := w.Queries.GetSummaryByLevel(ctx, db.GetSummaryByLevelParams{
-		StoryID: toUUID(args.StoryID),
+		StoryID: db.ToUUID(args.StoryID),
 		Level:   "scene",
 	})
 	if err == nil {
@@ -178,7 +178,7 @@ func (w *ExtractStateWorker) Work(ctx context.Context, job *river.Job[ExtractSta
 		if w.Queries == nil {
 			break
 		}
-		c, err := w.Queries.GetCharacterLatest(ctx, toUUID(ref))
+		c, err := w.Queries.GetCharacterLatest(ctx, db.ToUUID(ref))
 		if err == nil {
 			roster[ref.String()] = c.Name
 		}
@@ -209,9 +209,9 @@ func (w *ExtractStateWorker) Work(ctx context.Context, job *river.Job[ExtractSta
 		}
 
 		if err := w.Queries.UpsertCharacterState(ctx, db.UpsertCharacterStateParams{
-			StoryID:     toUUID(args.StoryID),
-			CharacterID: toUUID(d.Character),
-			AsOfNode:    toUUID(args.NodeID),
+			StoryID:     db.ToUUID(args.StoryID),
+			CharacterID: db.ToUUID(d.Character),
+			AsOfNode:    db.ToUUID(args.NodeID),
 			State:       stateJSON,
 		}); err != nil {
 			return fmt.Errorf("upsert character state: %w", err)
@@ -249,8 +249,8 @@ func (w *UpdateSummaryWorker) Work(ctx context.Context, job *river.Job[UpdateSum
 		return fmt.Errorf("update summary: %w", err)
 	}
 	return w.Queries.UpsertSceneSummary(ctx, db.UpsertSceneSummaryParams{
-		StoryID: toUUID(args.StoryID),
-		NodeID:  toUUID(args.NodeID),
+		StoryID: db.ToUUID(args.StoryID),
+		NodeID:  db.ToUUID(args.NodeID),
 		Content: updated,
 	})
 }
@@ -288,7 +288,7 @@ func (w *MergeBranchesWorker) Work(ctx context.Context, job *river.Job[MergeBran
 		return nil
 	}
 	return w.Queries.UpsertStorySummary(ctx, db.UpsertStorySummaryParams{
-		StoryID: toUUID(args.StoryID),
+		StoryID: db.ToUUID(args.StoryID),
 		Content: summary,
 	})
 }
@@ -324,7 +324,7 @@ func (w *ValidateSceneWorker) Work(ctx context.Context, job *river.Job[ValidateS
 	}
 	data, _ := json.Marshal(result)
 	if w.Queries != nil {
-		if err := w.Queries.UpdateGenerationValidation(ctx, toUUID(args.GenerationID), data); err != nil {
+		if err := w.Queries.UpdateGenerationValidation(ctx, db.ToUUID(args.GenerationID), data); err != nil {
 			return fmt.Errorf("persist validation: %w", err)
 		}
 	}
@@ -366,9 +366,9 @@ func (w *GenerateStoryWorker) Work(ctx context.Context, job *river.Job[GenerateS
 		if err != nil {
 			return fmt.Errorf("create story: %w", err)
 		}
-		storyID = fromUUID(story.ID)
+		storyID = db.FromUUID(story.ID)
 	}
-	if err := w.Queries.UpdateStoryTitle(ctx, toUUID(storyID), outline.Title); err != nil {
+	if err := w.Queries.UpdateStoryTitle(ctx, db.ToUUID(storyID), outline.Title); err != nil {
 		return fmt.Errorf("update story title: %w", err)
 	}
 
@@ -379,12 +379,12 @@ func (w *GenerateStoryWorker) Work(ctx context.Context, job *river.Job[GenerateS
 			Persona:        oc.Persona,
 			Backstory:      oc.Backstory,
 			MoralAlignment: oc.MoralAlignment,
-			Personality:    jsonBytes(oc.Personality),
-			Flaws:          jsonBytes(oc.Flaws),
-			Goals:          jsonBytes(oc.Goals),
-			Traits:         jsonBytes([]string{}),
+			Personality:    db.JSONBytes(oc.Personality),
+			Flaws:          db.JSONBytes(oc.Flaws),
+			Goals:          db.JSONBytes(oc.Goals),
+			Traits:         db.JSONBytes([]string{}),
 			VoiceSamples:   oc.VoiceSamples,
-			Relationships:  jsonBytes(map[string]string{}),
+			Relationships:  db.JSONBytes(map[string]string{}),
 			ParentID:       pgtype.UUID{Valid: false},
 		})
 		if err != nil {
@@ -403,7 +403,7 @@ func (w *GenerateStoryWorker) Work(ctx context.Context, job *river.Job[GenerateS
 		}
 
 		node, err := w.Queries.CreateNode(ctx, db.CreateNodeParams{
-			StoryID:       toUUID(storyID),
+			StoryID:       db.ToUUID(storyID),
 			BeatIntent:    beat.BeatIntent,
 			CharacterRefs: charRefs,
 			Pov:           beat.POV,
@@ -426,7 +426,7 @@ func (w *GenerateStoryWorker) Work(ctx context.Context, job *river.Job[GenerateS
 			continue
 		}
 		err := w.Queries.CreateEdge(ctx, db.CreateEdgeParams{
-			StoryID:  toUUID(storyID),
+			StoryID:  db.ToUUID(storyID),
 			FromNode: fromID,
 			ToNode:   toID,
 			EdgeType: edge.Type,
@@ -484,18 +484,3 @@ type InsertGenerateSceneParams struct {
 	SchedFor    *time.Time
 }
 
-// ── helpers ───────────────────────────────────────────────────
-
-func toUUID(id uuid.UUID) pgtype.UUID {
-	return pgtype.UUID{Bytes: id, Valid: true}
-}
-
-func fromUUID(u pgtype.UUID) uuid.UUID {
-	id, _ := uuid.FromBytes(u.Bytes[:])
-	return id
-}
-
-func jsonBytes(v interface{}) []byte {
-	b, _ := json.Marshal(v)
-	return b
-}

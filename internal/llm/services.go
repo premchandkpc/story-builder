@@ -226,7 +226,12 @@ func parseJSONPayload[T any](content string, out *T) error {
 		return fmt.Errorf("empty response")
 	}
 	if strings.HasPrefix(payload, "```") {
-		payload = strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(payload, "```json"), "```"))
+		payload = strings.TrimPrefix(payload, "```json")
+		payload = strings.TrimPrefix(payload, "```")
+		payload = strings.TrimSpace(payload)
+		if idx := strings.LastIndex(payload, "```"); idx >= 0 {
+			payload = strings.TrimSpace(payload[:idx])
+		}
 	}
 	if !json.Valid([]byte(payload)) {
 		start := strings.Index(payload, "{")

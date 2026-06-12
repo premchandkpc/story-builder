@@ -7,11 +7,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/premchand/story-builder/internal/cache"
 	"github.com/premchand/story-builder/internal/canon"
 	"github.com/premchand/story-builder/internal/compiler"
 	"github.com/premchand/story-builder/internal/db"
+	"github.com/premchand/story-builder/internal/ledger"
 	"github.com/premchand/story-builder/internal/llm"
 	"github.com/premchand/story-builder/internal/river"
 	riv "github.com/riverqueue/river"
@@ -93,12 +93,12 @@ func NewDBGenerationServiceWithCache(q *db.Queries, rivClient *riv.Client[pgx.Tx
 }
 
 func (s *dbGenerationService) Generate(ctx context.Context, nodeID uuid.UUID) (*compiler.Generation, error) {
-	node, err := s.q.GetNode(ctx, toUUID(nodeID))
+	node, err := s.q.GetNode(ctx, db.ToUUID(nodeID))
 	if err != nil {
 		return nil, fmt.Errorf("get node: %w", err)
 	}
 
-	storyID := fromUUID(node.StoryID)
+	storyID := db.FromUUID(node.StoryID)
 
 	if s.contextCache != nil {
 		if cached, err := s.contextCache.Get(ctx, storyID.String()); err == nil {
@@ -135,7 +135,7 @@ func (s *dbGenerationService) createGenerationRecord(ctx context.Context, nodeID
 	promptSnapshot := compiled.BuildScenePromptSnapshot()
 
 	dbGen, err := s.q.CreateGeneration(ctx, db.CreateGenerationParams{
-		NodeID:         toUUID(nodeID),
+		NodeID:         db.ToUUID(nodeID),
 		ContextHash:    hash,
 		PromptSnapshot: promptSnapshot,
 		Output:         "",
@@ -145,15 +145,15 @@ func (s *dbGenerationService) createGenerationRecord(ctx context.Context, nodeID
 		return nil, fmt.Errorf("create generation: %w", err)
 	}
 
-	genID := fromUUID(dbGen.ID)
+	genID := db.FromUUID(dbGen.ID)
 
 	charRefs := make([]uuid.UUID, len(node.CharacterRefs))
 	for i, ref := range node.CharacterRefs {
-		charRefs[i] = fromUUID(ref)
+		charRefs[i] = db.FromUUID(ref)
 	}
 	var locRef *uuid.UUID
 	if node.LocationRef.Valid {
-		lr := fromUUID(node.LocationRef)
+		lr := db.FromUUID(node.LocationRef)
 		locRef = &lr
 	}
 
@@ -229,24 +229,39 @@ func (s *dbGenerationService) compileContext(ctx context.Context, storyID uuid.U
 		}
 	}
 
+	states, err := s.q.GetStatesForNode(ctx, db.GetStatesForNodeParams{
+		StoryID:  db.ToUUID(storyID),
+		AsOfNode: node.ID,
+	})
+	if err == nil {
+		ctx2.CharState = make(map[string]ledger.CharacterState, len(states))
+		for _, st := range states {
+			var cs ledger.CharacterState
+			if json.Unmarshal(st.State, &cs) == nil {
+				charID := db.FromUUID(st.CharacterID)
+				ctx2.CharState[charID.String()] = cs
+			}
+		}
+	}
+
 	return ctx2, nil
 }
 
 func (s *dbGenerationService) AcceptGeneration(ctx context.Context, nodeID, genID uuid.UUID) error {
-	if err := s.q.AcceptGeneration(ctx, toUUID(genID)); err != nil {
+	if err := s.q.AcceptGeneration(ctx, db.ToUUID(genID)); err != nil {
 		return err
 	}
 
 	if s.contextCache != nil {
-		node, err := s.q.GetNode(ctx, toUUID(nodeID))
+		node, err := s.q.GetNode(ctx, db.ToUUID(nodeID))
 		if err == nil {
-			storyID := fromUUID(node.StoryID)
+			storyID := db.FromUUID(node.StoryID)
 			_ = s.contextCache.Invalidate(ctx, storyID.String())
 		}
 	}
 	if err := s.q.RejectOtherGenerations(ctx, db.RejectOtherGenerationsParams{
-		NodeID: toUUID(nodeID),
-		ID:     toUUID(genID),
+		NodeID: db.ToUUID(nodeID),
+		ID:     db.ToUUID(genID),
 	}); err != nil {
 		return err
 	}
@@ -255,24 +270,24 @@ func (s *dbGenerationService) AcceptGeneration(ctx context.Context, nodeID, genI
 		return nil
 	}
 
-	node, err := s.q.GetNode(ctx, toUUID(nodeID))
+	node, err := s.q.GetNode(ctx, db.ToUUID(nodeID))
 	if err != nil {
 		return err
 	}
-	storyID := fromUUID(node.StoryID)
+	storyID := db.FromUUID(node.StoryID)
 
 	var charRefs []uuid.UUID
 	for _, ref := range node.CharacterRefs {
-		charRefs = append(charRefs, fromUUID(ref))
+		charRefs = append(charRefs, db.FromUUID(ref))
 	}
 
-	gens, err := s.q.ListGenerationsForNode(ctx, toUUID(nodeID))
+	gens, err := s.q.ListGenerationsForNode(ctx, db.ToUUID(nodeID))
 	if err != nil {
 		return err
 	}
 	var acceptedGeneration db.Generation
 	for _, g := range gens {
-		if fromUUID(g.ID) == genID {
+		if db.FromUUID(g.ID) == genID {
 			acceptedGeneration = g
 			break
 		}
@@ -290,7 +305,7 @@ func (s *dbGenerationService) AcceptGeneration(ctx context.Context, nodeID, genI
 		}
 
 		prevSummary := ""
-		if summary, err := s.q.GetSummaryByLevel(ctx, db.GetSummaryByLevelParams{StoryID: toUUID(storyID), Level: "story"}); err == nil {
+		if summary, err := s.q.GetSummaryByLevel(ctx, db.GetSummaryByLevelParams{StoryID: db.ToUUID(storyID), Level: "story"}); err == nil {
 			prevSummary = summary.Content
 		}
 		_, err = s.rivClient.Insert(ctx, &river.UpdateSummaryArgs{
@@ -303,12 +318,17 @@ func (s *dbGenerationService) AcceptGeneration(ctx context.Context, nodeID, genI
 			return fmt.Errorf("enqueue summary: %w", err)
 		}
 
+		compiled, err := s.compileContext(ctx, storyID, node)
+		if err != nil {
+			return fmt.Errorf("compile context for validation: %w", err)
+		}
+
 		_, err = s.rivClient.Insert(ctx, &river.ValidateSceneArgs{
 			StoryID:       storyID,
 			NodeID:        nodeID,
 			GenerationID:  genID,
-			CompiledCanon: acceptedGeneration.PromptSnapshot,
-			CharState:     "{}",
+			CompiledCanon: compiled.BuildCanonXML(),
+			CharState:     compiled.BuildCharStateXML(),
 			SceneText:     acceptedGeneration.Output,
 		}, &riv.InsertOpts{Queue: river.QueueValidate})
 		if err != nil {
@@ -320,15 +340,15 @@ func (s *dbGenerationService) AcceptGeneration(ctx context.Context, nodeID, genI
 }
 
 func (s *dbGenerationService) ListGenerations(ctx context.Context, nodeID uuid.UUID) ([]compiler.Generation, error) {
-	gens, err := s.q.ListGenerationsForNode(ctx, toUUID(nodeID))
+	gens, err := s.q.ListGenerationsForNode(ctx, db.ToUUID(nodeID))
 	if err != nil {
 		return nil, err
 	}
 	result := make([]compiler.Generation, len(gens))
 	for i, g := range gens {
 		result[i] = compiler.Generation{
-			ID:             fromUUID(g.ID).String(),
-			NodeID:         fromUUID(g.NodeID).String(),
+			ID:             db.FromUUID(g.ID).String(),
+			NodeID:         db.FromUUID(g.NodeID).String(),
 			ContextHash:    g.ContextHash,
 			PromptSnapshot: g.PromptSnapshot,
 			Output:         g.Output,
@@ -355,7 +375,7 @@ func (s *dbStoryGeneratorService) GenerateStory(ctx context.Context, synopsis st
 	if err != nil {
 		return nil, fmt.Errorf("create pending story: %w", err)
 	}
-	storyID := fromUUID(story.ID)
+	storyID := db.FromUUID(story.ID)
 	_, err = s.rivClient.Insert(ctx, &river.GenerateStoryArgs{
 		StoryID:  storyID,
 		Synopsis: synopsis,
@@ -371,18 +391,3 @@ func (s *dbStoryGeneratorService) GenerateStory(ctx context.Context, synopsis st
 	}, nil
 }
 
-// ── helpers ──────────────────────────────────────────────────────
-
-func toUUID(id uuid.UUID) pgtype.UUID {
-	return pgtype.UUID{Bytes: id, Valid: true}
-}
-
-func fromUUID(u pgtype.UUID) uuid.UUID {
-	id, _ := uuid.FromBytes(u.Bytes[:])
-	return id
-}
-
-func jsonBytes(v interface{}) []byte {
-	b, _ := json.Marshal(v)
-	return b
-}

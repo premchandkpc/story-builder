@@ -22,6 +22,24 @@ frontend:
 
 db:
 	docker compose up -d
+	@echo "Waiting for PostgreSQL..."
+	@for i in $$(seq 1 30); do \
+		if docker compose exec -T db pg_isready -U storybuilder >/dev/null 2>&1; then \
+			echo "PostgreSQL ready"; \
+			break; \
+		fi; \
+		echo "Waiting... $$i"; \
+		sleep 1; \
+	done
+	@echo "Waiting for Redis..."
+	@for i in $$(seq 1 15); do \
+		if docker compose exec -T redis redis-cli -a storybuilder ping >/dev/null 2>&1; then \
+			echo "Redis ready"; \
+			break; \
+		fi; \
+		echo "Waiting... $$i"; \
+		sleep 1; \
+	done
 
 db/stop:
 	docker compose down

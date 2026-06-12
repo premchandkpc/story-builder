@@ -33,14 +33,11 @@ export default function App() {
   const [activeStoryId, setActiveStoryId] = useState<string | null>(null)
   const [newTitle, setNewTitle] = useState("")
   const [synopsis, setSynopsis] = useState("")
+  const [error, setError] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
   const [generatingTitle, setGeneratingTitle] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [stats, setStats] = useState<StoryStats>({})
-
-  useEffect(() => {
-    api.stories.list().then(loadStats).catch(console.error)
-  }, [])
 
   const loadStats = async (storyList: Story[]) => {
     setStories(storyList)
@@ -60,6 +57,10 @@ export default function App() {
     )
     setStats(Object.fromEntries(entries))
   }
+
+  useEffect(() => {
+    api.stories.list().then(loadStats).catch(console.error)
+  }, [])
 
   const filteredStories = useMemo(
     () => stories.filter((s) => s.title.toLowerCase().includes(searchQuery.toLowerCase())),
@@ -97,7 +98,7 @@ export default function App() {
     try {
       await api.stories.generate({ synopsis })
       setSynopsis("")
-      alert("Story generation started (async). Refresh the list in a moment.")
+      setError("Story generation started (async). Refresh the list in a moment.")
       setTimeout(async () => {
         const list = await api.stories.list()
         await loadStats(list)
@@ -149,6 +150,12 @@ export default function App() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#0f172a", color: "#e2e8f0", fontFamily: "system-ui, sans-serif" }}>
+      {error && (
+        <div style={{ background: '#fdd', color: '#c00', padding: '8px 16px', margin: '8px', borderRadius: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>{error}</span>
+          <button onClick={() => setError(null)} style={{ background: 'none', border: 'none', color: '#c00', cursor: 'pointer', fontSize: 18 }}>×</button>
+        </div>
+      )}
       {/* ── Top Bar ── */}
       <div style={{ display: "flex", alignItems: "center", padding: "8px 16px", background: "#1e293b", borderBottom: "1px solid #334155", gap: 12, flexShrink: 0 }}>
         <span style={{ fontSize: 18, fontWeight: 700, color: "#f8fafc", marginRight: 8 }}>Story Builder</span>
@@ -179,7 +186,7 @@ export default function App() {
               style={{ ...inputStyle, fontSize: 13, flex: 1 }}
               onKeyDown={(e) => e.key === "Enter" && createStory()}
             />
-            <button onClick={createStory} style={btnStyle("#3b82f6", !newTitle.trim())} disabled={!newTitle.trim()}>+</button>
+            <button onClick={() => createStory()} style={btnStyle("#3b82f6", !newTitle.trim())} disabled={!newTitle.trim()}>+</button>
           </div>
           <div style={{ flex: 1, overflowY: "auto" }}>
             {filteredStories.length === 0 ? (

@@ -7,12 +7,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/premchand/story-builder/internal/api"
 	"github.com/premchand/story-builder/internal/canon"
 	"github.com/premchand/story-builder/internal/compiler"
 	"github.com/premchand/story-builder/internal/graph"
-	"github.com/premchand/story-builder/internal/scene"
 	pb "github.com/premchand/story-builder/internal/grpc/gen/storybuilder/v1"
+	"github.com/premchand/story-builder/internal/scene"
+	canonsvc "github.com/premchand/story-builder/internal/service/canon"
+	"github.com/premchand/story-builder/internal/service/edge"
+	"github.com/premchand/story-builder/internal/service/generation"
+	"github.com/premchand/story-builder/internal/service/node"
+	storysvc "github.com/premchand/story-builder/internal/service/story"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"
@@ -28,7 +32,7 @@ type StoryGenService interface {
 
 type characterSrv struct {
 	pb.UnimplementedCharacterServiceServer
-	svc api.CharacterService
+	svc canonsvc.CharacterService
 }
 
 func (s *characterSrv) CreateCharacter(ctx context.Context, req *pb.CreateCharacterRequest) (*pb.Character, error) {
@@ -115,7 +119,7 @@ func domainCharToProto(c *canon.Character) *pb.Character {
 
 type actorSrv struct {
 	pb.UnimplementedActorServiceServer
-	svc api.ActorService
+	svc canonsvc.ActorService
 }
 
 func (s *actorSrv) CreateActor(ctx context.Context, req *pb.CreateActorRequest) (*pb.Actor, error) {
@@ -197,7 +201,7 @@ func domainActorToProto(a *canon.Actor) *pb.Actor {
 
 type traitSrv struct {
 	pb.UnimplementedCharacterTraitServiceServer
-	svc api.TraitService
+	svc canonsvc.TraitService
 }
 
 func (s *traitSrv) CreateTrait(ctx context.Context, req *pb.CreateCharacterTraitRequest) (*pb.CharacterTrait, error) {
@@ -303,7 +307,7 @@ func (s *traitSrv) GetTraitAssignments(ctx context.Context, req *pb.GetTraitAssi
 
 type castingSrv struct {
 	pb.UnimplementedCastingServiceServer
-	svc api.CastingService
+	svc canonsvc.CastingService
 }
 
 func (s *castingSrv) CreateCasting(ctx context.Context, req *pb.CreateCastingRequest) (*pb.Casting, error) {
@@ -377,7 +381,7 @@ func listCasting(list []canon.Casting, err error) (*pb.ListCastingResponse, erro
 
 type locationSrv struct {
 	pb.UnimplementedLocationServiceServer
-	svc api.LocationService
+	svc canonsvc.LocationService
 }
 
 func (s *locationSrv) CreateLocation(ctx context.Context, req *pb.CreateLocationRequest) (*pb.Location, error) {
@@ -437,7 +441,7 @@ func domainLocToProto(l *canon.Location) *pb.Location {
 
 type loreSrv struct {
 	pb.UnimplementedLoreServiceServer
-	svc api.LoreService
+	svc canonsvc.LoreService
 }
 
 func (s *loreSrv) CreateLore(ctx context.Context, req *pb.CreateLoreRequest) (*pb.Lore, error) {
@@ -506,11 +510,13 @@ func (s *loreSrv) SearchSimilar(ctx context.Context, req *pb.SearchLoreSimilarRe
 
 type storySrv struct {
 	pb.UnimplementedStoryServiceServer
-	svc api.StoryService
+	storySvc storysvc.StoryService
+	edgeSvc  edge.Service
+	nodeSvc  node.Service
 }
 
 func (s *storySrv) CreateStory(ctx context.Context, req *pb.CreateStoryRequest) (*pb.Story, error) {
-	r, err := s.svc.Create(ctx, req.Title)
+	r, err := s.storySvc.Create(ctx, req.Title)
 	if err != nil {
 		return nil, err
 	}
@@ -526,7 +532,7 @@ func (s *storySrv) GetStory(ctx context.Context, req *pb.GetStoryRequest) (*pb.S
 	if err != nil {
 		return nil, err
 	}
-	r, err := s.svc.Get(ctx, id)
+	r, err := s.storySvc.Get(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -538,7 +544,7 @@ func (s *storySrv) GetStory(ctx context.Context, req *pb.GetStoryRequest) (*pb.S
 }
 
 func (s *storySrv) ListStories(ctx context.Context, _ *pb.Empty) (*pb.ListStoriesResponse, error) {
-	list, err := s.svc.List(ctx)
+	list, err := s.storySvc.List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -567,7 +573,7 @@ func (s *storySrv) CreateEdge(ctx context.Context, req *pb.CreateEdgeRequest) (*
 		return nil, err
 	}
 	et := protoEdgeTypeToDomain(req.EdgeType)
-	if err := s.svc.CreateEdge(ctx, storyID, fromID, toID, string(et)); err != nil {
+	if err := s.edgeSvc.Create(ctx, storyID, fromID, toID, string(et)); err != nil {
 		return nil, err
 	}
 	return &pb.Empty{}, nil
@@ -578,7 +584,7 @@ func (s *storySrv) ListEdges(ctx context.Context, req *pb.ListEdgesRequest) (*pb
 	if err != nil {
 		return nil, err
 	}
-	list, err := s.svc.ListEdges(ctx, id)
+	list, err := s.edgeSvc.List(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -594,11 +600,11 @@ func (s *storySrv) GetTopology(ctx context.Context, req *pb.GetTopologyRequest) 
 	if err != nil {
 		return nil, err
 	}
-	nodes, err := s.svc.ListNodes(ctx, id)
+	nodes, err := s.nodeSvc.List(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	edges, err := s.svc.ListEdges(ctx, id)
+	edges, err := s.edgeSvc.List(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -653,7 +659,7 @@ func protoEdgeTypeToDomain(t pb.EdgeType) graph.EdgeType {
 
 type nodeSrv struct {
 	pb.UnimplementedNodeServiceServer
-	svc api.NodeService
+	svc node.Service
 }
 
 func (s *nodeSrv) CreateNode(ctx context.Context, req *pb.CreateNodeRequest) (*pb.Node, error) {
@@ -859,7 +865,7 @@ func protoSceneStructureToDomain(ss *pb.SceneStructure) graph.SceneStructure {
 
 type generationSrv struct {
 	pb.UnimplementedGenerationServiceServer
-	svc api.GenerationService
+	svc generation.GenerationService
 }
 
 func (s *generationSrv) Generate(ctx context.Context, req *pb.GenerateRequest) (*pb.Generation, error) {
@@ -1136,15 +1142,16 @@ type Server struct {
 }
 
 func New(
-	charSvc api.CharacterService,
-	actorSvc api.ActorService,
-	traitSvc api.TraitService,
-	castingSvc api.CastingService,
-	locSvc api.LocationService,
-	loreSvc api.LoreService,
-	storySvc api.StoryService,
-	nodeSvc api.NodeService,
-	genSvc api.GenerationService,
+	charSvc canonsvc.CharacterService,
+	actorSvc canonsvc.ActorService,
+	traitSvc canonsvc.TraitService,
+	castingSvc canonsvc.CastingService,
+	locSvc canonsvc.LocationService,
+	loreSvc canonsvc.LoreService,
+	storySvc storysvc.StoryService,
+	nodeSvc node.Service,
+	edgeSvc edge.Service,
+	genSvc generation.GenerationService,
 	sceneSvc scene.SceneService,
 	summarySvc compiler.SummaryService,
 	storyGenSvc StoryGenService,
@@ -1158,7 +1165,7 @@ func New(
 	pb.RegisterCastingServiceServer(gs, &castingSrv{svc: castingSvc})
 	pb.RegisterLocationServiceServer(gs, &locationSrv{svc: locSvc})
 	pb.RegisterLoreServiceServer(gs, &loreSrv{svc: loreSvc})
-	pb.RegisterStoryServiceServer(gs, &storySrv{svc: storySvc})
+	pb.RegisterStoryServiceServer(gs, &storySrv{storySvc: storySvc, edgeSvc: edgeSvc, nodeSvc: nodeSvc})
 	pb.RegisterNodeServiceServer(gs, &nodeSrv{svc: nodeSvc})
 	pb.RegisterGenerationServiceServer(gs, &generationSrv{svc: genSvc})
 	pb.RegisterSceneServiceServer(gs, &sceneSrv{svc: sceneSvc})

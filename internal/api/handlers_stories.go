@@ -8,18 +8,20 @@ import (
 	"github.com/google/uuid"
 	"github.com/premchand/story-builder/internal/graph"
 	"github.com/premchand/story-builder/internal/llm"
+	blueprintsvc "github.com/premchand/story-builder/internal/service/blueprint"
 	"github.com/premchand/story-builder/internal/service/edge"
 	"github.com/premchand/story-builder/internal/service/generation"
 	"github.com/premchand/story-builder/internal/service/node"
 	"github.com/premchand/story-builder/internal/service/story"
+	timelinesvc "github.com/premchand/story-builder/internal/service/timeline"
 )
 
 type StoryHandler struct {
 	StorySvc         story.StoryService
 	EdgeSvc          edge.Service
 	NodeSvc          node.Service
-	BlueprintService BlueprintService
-	TimelineService  TimelineService
+	BlueprintService blueprintsvc.BlueprintService
+	TimelineService  timelinesvc.TimelineService
 }
 
 type createStoryRequest struct {

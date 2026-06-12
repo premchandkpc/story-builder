@@ -9,11 +9,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/premchand/story-builder/internal/graph"
+	blueprintsvc "github.com/premchand/story-builder/internal/service/blueprint"
 	canonsvc "github.com/premchand/story-builder/internal/service/canon"
 	"github.com/premchand/story-builder/internal/service/edge"
 	gentsvc "github.com/premchand/story-builder/internal/service/generation"
 	nodesvc "github.com/premchand/story-builder/internal/service/node"
+	scenesvc "github.com/premchand/story-builder/internal/service/scene"
 	storysvc "github.com/premchand/story-builder/internal/service/story"
+	summarysvc "github.com/premchand/story-builder/internal/service/summary"
+	timelinesvc "github.com/premchand/story-builder/internal/service/timeline"
 )
 
 func TestSmoke_CriticalFlows(t *testing.T) {
@@ -26,12 +30,12 @@ func TestSmoke_CriticalFlows(t *testing.T) {
 	loreSvc := canonsvc.NewMemoryLoreService()
 	storySvc := storysvc.NewMemoryService(mem)
 	nodeSvc := nodesvc.NewMemoryService(mem)
-	sceneSvc := NewMemorySceneService()
+	sceneSvc := scenesvc.NewMemoryService()
 	genSvc := gentsvc.NewMemoryGenerationService()
-	summarySvc := NewMemorySummaryService()
+	summarySvc := summarysvc.NewMemoryService()
 	storyGenSvc := gentsvc.NewMemoryStoryGeneratorService()
 	castingSvc := canonsvc.NewMemoryCastingService()
-	blueprintSvc := NewInMemoryBlueprintService()
+	blueprintSvc := blueprintsvc.NewMemoryService()
 
 	srv := NewServer(
 		&CharacterHandler{Service: charSvc},
@@ -40,7 +44,7 @@ func TestSmoke_CriticalFlows(t *testing.T) {
 		&CastingHandler{Service: castingSvc},
 		&LocationHandler{Service: locSvc},
 		&LoreHandler{Service: loreSvc},
-		&StoryHandler{StorySvc: storySvc, EdgeSvc: edge.NewMemoryService(mem), NodeSvc: nodeSvc, BlueprintService: blueprintSvc, TimelineService: NewInMemoryTimelineService()},
+		&StoryHandler{StorySvc: storySvc, EdgeSvc: edge.NewMemoryService(mem), NodeSvc: nodeSvc, BlueprintService: blueprintSvc, TimelineService: timelinesvc.NewMemoryService()},
 		&NodeHandler{Service: nodeSvc},
 		&GenerationHandler{Service: genSvc},
 		&SceneHandler{SceneService: sceneSvc},

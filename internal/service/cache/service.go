@@ -32,7 +32,12 @@ func (c *Cache) WrapLLMClient(client llm.LLMClient) llm.LLMClient {
 		client = cacheredis.NewCachedLLMClient(client, c.PromptCache)
 	}
 	if c.RateLimiter != nil {
-		client = cacheredis.NewRateLimitedLLMClient(client, c.RateLimiter, "llm:anthropic")
+		prefix := "llm:ollama"
+		switch client.(type) {
+		case *llm.AnthropicClient:
+			prefix = "llm:anthropic"
+		}
+		client = cacheredis.NewRateLimitedLLMClient(client, c.RateLimiter, prefix)
 	}
 	return client
 }

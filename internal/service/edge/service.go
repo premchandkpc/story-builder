@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/premchand/story-builder/internal/db"
 	"github.com/premchand/story-builder/internal/graph"
 )
@@ -44,29 +43,27 @@ func NewDBService(q *db.Queries) *dbService {
 
 func (s *dbService) Create(ctx context.Context, storyID, fromNode, toNode uuid.UUID, edgeType string) error {
 	return s.q.CreateEdge(ctx, db.CreateEdgeParams{
-		StoryID:  toUUID(storyID),
-		FromNode: toUUID(fromNode),
-		ToNode:   toUUID(toNode),
+		StoryID:  db.ToUUID(storyID),
+		FromNode: db.ToUUID(fromNode),
+		ToNode:   db.ToUUID(toNode),
 		EdgeType: edgeType,
 	})
 }
 
 func (s *dbService) List(ctx context.Context, storyID uuid.UUID) ([]graph.Edge, error) {
-	edges, err := s.q.ListEdges(ctx, toUUID(storyID))
+	edges, err := s.q.ListEdges(ctx, db.ToUUID(storyID))
 	if err != nil {
 		return nil, err
 	}
 	result := make([]graph.Edge, len(edges))
 	for i, e := range edges {
 		result[i] = graph.Edge{
-			StoryID:  fromUUID(e.StoryID),
-			FromNode: fromUUID(e.FromNode),
-			ToNode:   fromUUID(e.ToNode),
+			StoryID:  db.FromUUID(e.StoryID),
+			FromNode: db.FromUUID(e.FromNode),
+			ToNode:   db.FromUUID(e.ToNode),
 			EdgeType: graph.EdgeType(e.EdgeType),
 		}
 	}
 	return result, nil
 }
 
-func toUUID(id uuid.UUID) pgtype.UUID { return pgtype.UUID{Bytes: id, Valid: true} }
-func fromUUID(id pgtype.UUID) uuid.UUID { return id.Bytes }

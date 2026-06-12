@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"time"
 )
 
@@ -15,6 +16,7 @@ const (
 type DistLock struct {
 	client RedisClient
 	ttl    time.Duration
+	token  string
 }
 
 func NewDistLock(client RedisClient) *DistLock {
@@ -26,7 +28,8 @@ func NewDistLock(client RedisClient) *DistLock {
 
 func (l *DistLock) Acquire(ctx context.Context, resource string) (bool, error) {
 	key := fmt.Sprintf(string(PrefixLock), resource)
-	return l.client.SetNX(ctx, key, "locked", l.ttl)
+	l.token = fmt.Sprintf("%016x", rand.Int63())
+	return l.client.SetNX(ctx, key, l.token, l.ttl)
 }
 
 func (l *DistLock) AcquireWithRetry(ctx context.Context, resource string) error {
@@ -50,5 +53,13 @@ func (l *DistLock) AcquireWithRetry(ctx context.Context, resource string) error 
 
 func (l *DistLock) Release(ctx context.Context, resource string) error {
 	key := fmt.Sprintf(string(PrefixLock), resource)
-	return l.client.Del(ctx, key)
+	script := `
+		if redis.call("GET", KEYS[1]) == ARGV[1] then
+			return redis.call("DEL", KEYS[1])
+		else
+			return 0
+		end
+	`
+	_, err := l.client.Eval(ctx, script, []string{key}, l.token)
+	return err
 }
