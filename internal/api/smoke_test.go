@@ -9,23 +9,28 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/premchand/story-builder/internal/graph"
+	canonsvc "github.com/premchand/story-builder/internal/service/canon"
+	"github.com/premchand/story-builder/internal/service/edge"
+	gentsvc "github.com/premchand/story-builder/internal/service/generation"
+	nodesvc "github.com/premchand/story-builder/internal/service/node"
+	storysvc "github.com/premchand/story-builder/internal/service/story"
 )
 
 func TestSmoke_CriticalFlows(t *testing.T) {
 	mem := graph.NewMemoryStore()
 
-	charSvc := NewCharService()
-	actorSvc := NewActorService()
-	traitSvc := NewCharacterTraitService()
-	locSvc := NewLocService()
-	loreSvc := NewLoreService()
-	storySvc := NewGraphStoryService(mem)
-	nodeSvc := NewGraphNodeService(mem)
+	charSvc := canonsvc.NewMemoryCharacterService()
+	actorSvc := canonsvc.NewMemoryActorService()
+	traitSvc := canonsvc.NewMemoryTraitService()
+	locSvc := canonsvc.NewMemoryLocationService()
+	loreSvc := canonsvc.NewMemoryLoreService()
+	storySvc := storysvc.NewMemoryService(mem)
+	nodeSvc := nodesvc.NewMemoryService(mem)
 	sceneSvc := NewMemorySceneService()
-	genSvc := NewGenerationService()
+	genSvc := gentsvc.NewMemoryGenerationService()
 	summarySvc := NewMemorySummaryService()
-	storyGenSvc := NewMemoryStoryGeneratorService()
-	castingSvc := NewCastingService()
+	storyGenSvc := gentsvc.NewMemoryStoryGeneratorService()
+	castingSvc := canonsvc.NewMemoryCastingService()
 	blueprintSvc := NewInMemoryBlueprintService()
 
 	srv := NewServer(
@@ -35,12 +40,13 @@ func TestSmoke_CriticalFlows(t *testing.T) {
 		&CastingHandler{Service: castingSvc},
 		&LocationHandler{Service: locSvc},
 		&LoreHandler{Service: loreSvc},
-		&StoryHandler{Service: storySvc, BlueprintService: blueprintSvc, TimelineService: NewInMemoryTimelineService()},
+		&StoryHandler{StorySvc: storySvc, EdgeSvc: edge.NewMemoryService(mem), NodeSvc: nodeSvc, BlueprintService: blueprintSvc, TimelineService: NewInMemoryTimelineService()},
 		&NodeHandler{Service: nodeSvc},
 		&GenerationHandler{Service: genSvc},
 		&SceneHandler{SceneService: sceneSvc},
 		&SummaryHandler{Service: summarySvc},
 		&StoryGeneratorHandler{Service: storyGenSvc},
+		nil,
 	)
 
 	ts := httptest.NewServer(srv)

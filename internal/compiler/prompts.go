@@ -172,7 +172,7 @@ Output VALID JSON only — no markdown, no code fences, no commentary. Schema:
       "location_name": "where (optional)",
       "pov": "POV character name",
       "tone": "mood",
-      "target_words": 500,
+      "target_words": 750,
       "act": 1
     }
   ],
@@ -187,7 +187,7 @@ RULES:
 3. Character names must exactly match across beats, edges, and characters array.
 4. Edge types: seq (scene follows previous), fork (branch point), join (convergence).
 5. Assign acts (1-3) so each act has 2-5 beats.
-6. target_words per beat: 300-800.
+6. target_words per beat: 400-1000.
 7. Provide voice_samples (2 per character) that reveal personality.`,
 		esc(synopsis))
 }

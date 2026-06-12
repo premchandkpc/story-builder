@@ -20,6 +20,12 @@ import (
 	"github.com/premchand/story-builder/internal/llm"
 	"github.com/premchand/story-builder/internal/migrate"
 	"github.com/premchand/story-builder/internal/river"
+	cachesvc "github.com/premchand/story-builder/internal/service/cache"
+	canonsvc "github.com/premchand/story-builder/internal/service/canon"
+	edgesvc "github.com/premchand/story-builder/internal/service/edge"
+	gensvc "github.com/premchand/story-builder/internal/service/generation"
+	nodesvc "github.com/premchand/story-builder/internal/service/node"
+	storysvc "github.com/premchand/story-builder/internal/service/story"
 	riv "github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 	"github.com/riverqueue/river/rivermigrate"
@@ -34,14 +40,9 @@ func main() {
 	var pool *pgxpool.Pool
 	dbOk := false
 
-	var contextCache *cache.ContextCache
-	var promptCache *cache.PromptCache
-	var rateLimiter *cache.SlidingWindowRateLimiter
-
-	if rc, err := cache.NewGoRedisClient(cfg.RedisAddr, cfg.RedisPass, cfg.RedisDB); err == nil {
-		contextCache = cache.NewContextCache(rc)
-		promptCache = cache.NewPromptCache(rc)
-		rateLimiter = cache.NewSlidingWindowRateLimiter(rc, cache.DefaultRateLimits)
+	var redisCache *cachesvc.Cache
+	if rc, err := cachesvc.New(cfg.RedisAddr, cfg.RedisPass, cfg.RedisDB); err == nil {
+		redisCache = rc
 		log.Printf("connected to redis at %s", cfg.RedisAddr)
 	} else {
 		log.Printf("redis not available (running without cache): %v", err)
@@ -81,6 +82,8 @@ func main() {
 	var summaryHandler *api.SummaryHandler
 	var storyGenHandler *api.StoryGeneratorHandler
 	var titleHandler *api.TitleHandler
+	var grpcStorySvc api.StoryService
+	var grpcNodeSvc api.NodeService
 	blueprintService := api.NewInMemoryBlueprintService()
 	timelineService := api.NewInMemoryTimelineService()
 
@@ -89,11 +92,8 @@ func main() {
 	if dbOk {
 		q := db.New(pool)
 
-		if promptCache != nil {
-			llmClient = cache.NewCachedLLMClient(llmClient, promptCache)
-		}
-		if rateLimiter != nil {
-			llmClient = cache.NewRateLimitedLLMClient(llmClient, rateLimiter, "llm:anthropic")
+		if redisCache != nil {
+			llmClient = redisCache.WrapLLMClient(llmClient)
 		}
 
 		proseSvc := llm.NewProseService(llmClient)
@@ -146,36 +146,69 @@ func main() {
 			}
 		}
 
-		charHandler = &api.CharacterHandler{Service: api.NewDBCharService(q)}
-		actorHandler = &api.ActorHandler{Service: api.NewDBActorService(q)}
-		traitHandler = &api.CharacterTraitHandler{Service: api.NewDBCharacterTraitService(q)}
-		castingHandler = &api.CastingHandler{Service: api.NewDBCastingService(q)}
-		locHandler = &api.LocationHandler{Service: api.NewDBLocService(q)}
-		loreHandler = &api.LoreHandler{Service: api.NewDBLoreService(q)}
-		storyHandler = &api.StoryHandler{Service: api.NewDBGraphStoryService(q), BlueprintService: blueprintService, TimelineService: timelineService}
-		nodeHandler = &api.NodeHandler{Service: api.NewDBGraphNodeService(q)}
-		genHandler = &api.GenerationHandler{Service: api.NewDBGenerationServiceWithCache(q, rivClient, contextCache)}
+		storySvc := storysvc.NewDBService(q)
+		edgeSvc := edgesvc.NewDBService(q)
+		nodeSvc := nodesvc.NewDBService(q)
+		grpcStorySvc = storySvc
+		grpcNodeSvc = nodeSvc
+
+		charHandler = &api.CharacterHandler{Service: canonsvc.NewDBCharacterService(q)}
+		actorHandler = &api.ActorHandler{Service: canonsvc.NewDBActorService(q)}
+		traitHandler = &api.CharacterTraitHandler{Service: canonsvc.NewDBTraitService(q)}
+		castingHandler = &api.CastingHandler{Service: canonsvc.NewDBCastingService(q)}
+		locHandler = &api.LocationHandler{Service: canonsvc.NewDBLocationService(q)}
+		loreHandler = &api.LoreHandler{Service: canonsvc.NewDBLoreService(q)}
+		storyHandler = &api.StoryHandler{
+			StorySvc:         storySvc,
+			EdgeSvc:          edgeSvc,
+			NodeSvc:          nodeSvc,
+			BlueprintService: blueprintService,
+			TimelineService:  timelineService,
+		}
+		nodeHandler = &api.NodeHandler{Service: nodeSvc}
+
+		var contextCache *cache.ContextCache
+		if redisCache != nil {
+			contextCache = redisCache.ContextCache
+		}
+		genHandler = &api.GenerationHandler{Service: gensvc.NewDBGenerationServiceWithCache(q, rivClient, contextCache)}
 		sceneHandler = &api.SceneHandler{SceneService: api.NewDBSceneService(q)}
 		summaryHandler = &api.SummaryHandler{Service: api.NewDBSummaryService(q)}
-		storyGenHandler = &api.StoryGeneratorHandler{Service: api.NewDBStoryGeneratorService(q, rivClient)}
+		storyGenHandler = &api.StoryGeneratorHandler{Service: gensvc.NewDBStoryGeneratorService(q, rivClient)}
 		titleHandler = &api.TitleHandler{Service: llm.NewTitleService(llmClient)}
 	} else {
 		gs := graph.NewMemoryStore()
-		charHandler = &api.CharacterHandler{Service: api.NewCharService()}
-		actorHandler = &api.ActorHandler{Service: api.NewActorService()}
-		traitHandler = &api.CharacterTraitHandler{Service: api.NewCharacterTraitService()}
-		castingHandler = &api.CastingHandler{Service: api.NewCastingService()}
-		locHandler = &api.LocationHandler{Service: api.NewLocService()}
-		loreHandler = &api.LoreHandler{Service: api.NewLoreService()}
-		storyHandler = &api.StoryHandler{Service: api.NewGraphStoryService(gs), BlueprintService: blueprintService, TimelineService: timelineService}
-		nodeHandler = &api.NodeHandler{Service: api.NewGraphNodeService(gs)}
-		genHandler = &api.GenerationHandler{Service: api.NewGenerationService()}
+		storySvc := storysvc.NewMemoryService(gs)
+		nodeSvc := nodesvc.NewMemoryService(gs)
+		edgeSvc := edgesvc.NewMemoryService(gs)
+		grpcStorySvc = storySvc
+		grpcNodeSvc = nodeSvc
+
+		charHandler = &api.CharacterHandler{Service: canonsvc.NewMemoryCharacterService()}
+		actorHandler = &api.ActorHandler{Service: canonsvc.NewMemoryActorService()}
+		traitHandler = &api.CharacterTraitHandler{Service: canonsvc.NewMemoryTraitService()}
+		castingHandler = &api.CastingHandler{Service: canonsvc.NewMemoryCastingService()}
+		locHandler = &api.LocationHandler{Service: canonsvc.NewMemoryLocationService()}
+		loreHandler = &api.LoreHandler{Service: canonsvc.NewMemoryLoreService()}
+		storyHandler = &api.StoryHandler{
+			StorySvc:         storySvc,
+			EdgeSvc:          edgeSvc,
+			NodeSvc:          nodeSvc,
+			BlueprintService: blueprintService,
+			TimelineService:  timelineService,
+		}
+		nodeHandler = &api.NodeHandler{Service: nodeSvc}
+		genHandler = &api.GenerationHandler{Service: gensvc.NewMemoryGenerationService()}
 		sceneHandler = &api.SceneHandler{SceneService: api.NewMemorySceneService()}
 		summaryHandler = &api.SummaryHandler{Service: api.NewMemorySummaryService()}
-		storyGenHandler = &api.StoryGeneratorHandler{Service: api.NewMemoryStoryGeneratorService()}
+		storyGenHandler = &api.StoryGeneratorHandler{Service: gensvc.NewMemoryStoryGeneratorService()}
 		titleHandler = &api.TitleHandler{Service: llm.NewTitleService(llmClient)}
 	}
 
+	var rateLimiter *cache.SlidingWindowRateLimiter
+	if redisCache != nil {
+		rateLimiter = redisCache.RateLimiter
+	}
 	srv := api.NewServer(charHandler, actorHandler, traitHandler, castingHandler, locHandler, loreHandler, storyHandler, nodeHandler, genHandler, sceneHandler, summaryHandler, storyGenHandler, titleHandler, rateLimiter)
 
 	httpServer := &http.Server{
@@ -201,8 +234,8 @@ func main() {
 		castingHandler.Service,
 		locHandler.Service,
 		loreHandler.Service,
-		storyHandler.Service,
-		nodeHandler.Service,
+		grpcStorySvc,
+		grpcNodeSvc,
 		genHandler.Service,
 		sceneHandler.SceneService,
 		summaryHandler.Service,
@@ -231,7 +264,7 @@ func main() {
 }
 
 type storyGenWrapper struct {
-	svc api.StoryGeneratorService
+	svc gensvc.StoryGeneratorService
 }
 
 func (w storyGenWrapper) GenerateStory(ctx context.Context, synopsis string) (string, string, error) {

@@ -19,8 +19,8 @@ func (h *StoryHandler) UpsertTimelineEvent(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusServiceUnavailable, "timeline service unavailable")
 		return
 	}
-	if h.Service != nil {
-		if _, err := h.Service.Get(r.Context(), storyID); err != nil {
+	if h.StorySvc != nil {
+		if _, err := h.StorySvc.Get(r.Context(), storyID); err != nil {
 			writeError(w, http.StatusNotFound, "story not found")
 			return
 		}

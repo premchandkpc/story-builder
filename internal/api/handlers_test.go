@@ -11,6 +11,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/premchand/story-builder/internal/graph"
+	"github.com/premchand/story-builder/internal/service/edge"
+	"github.com/premchand/story-builder/internal/service/node"
+	storysvc "github.com/premchand/story-builder/internal/service/story"
 )
 
 func chiRequest(method, path string, body *bytes.Buffer, params map[string]string) *http.Request {
@@ -69,7 +72,7 @@ func TestParseOptionalUUID(t *testing.T) {
 
 func TestStoryCreateHandler_BlankTitle(t *testing.T) {
 	mem := graph.NewMemoryStore()
-	h := &StoryHandler{Service: NewGraphStoryService(mem)}
+	h := &StoryHandler{StorySvc: storysvc.NewMemoryService(mem), EdgeSvc: edge.NewMemoryService(mem), NodeSvc: node.NewMemoryService(mem)}
 
 	body := strings.NewReader(`{"title":"  "}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/stories/", body)
@@ -84,7 +87,7 @@ func TestStoryCreateHandler_BlankTitle(t *testing.T) {
 
 func TestStoryCreateHandler_Success(t *testing.T) {
 	mem := graph.NewMemoryStore()
-	h := &StoryHandler{Service: NewGraphStoryService(mem)}
+	h := &StoryHandler{StorySvc: storysvc.NewMemoryService(mem), EdgeSvc: edge.NewMemoryService(mem), NodeSvc: node.NewMemoryService(mem)}
 
 	body := strings.NewReader(`{"title":"The Red Path"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/stories/", body)
@@ -108,7 +111,7 @@ func TestStoryCreateHandler_Success(t *testing.T) {
 func TestNodeCreateHandler_InvalidCharRefs(t *testing.T) {
 	mem := graph.NewMemoryStore()
 	story, _ := mem.CreateStory("Test Story")
-	nh := &NodeHandler{Service: NewGraphNodeService(mem)}
+	nh := &NodeHandler{Service: node.NewMemoryService(mem)}
 
 	body := bytes.NewBufferString(`{"beat_intent":"test","character_refs":["not-a-uuid"]}`)
 	req := chiRequest(http.MethodPost, "/api/v1/stories/{storyID}/nodes/", body, map[string]string{"storyID": story.ID.String()})
@@ -123,7 +126,7 @@ func TestNodeCreateHandler_InvalidCharRefs(t *testing.T) {
 func TestNodeCreateHandler_Success(t *testing.T) {
 	mem := graph.NewMemoryStore()
 	story, _ := mem.CreateStory("Test Story")
-	nh := &NodeHandler{Service: NewGraphNodeService(mem)}
+	nh := &NodeHandler{Service: node.NewMemoryService(mem)}
 
 	body := bytes.NewBufferString(`{"beat_intent":"open with conflict","pov":"hero","tone":"tense","target_words":500}`)
 	req := chiRequest(http.MethodPost, "/api/v1/stories/{storyID}/nodes/", body, map[string]string{"storyID": story.ID.String()})
@@ -146,7 +149,7 @@ func TestNodeCreateHandler_Success(t *testing.T) {
 func TestStoryCreateEdge_InvalidNodeRefs(t *testing.T) {
 	mem := graph.NewMemoryStore()
 	story, _ := mem.CreateStory("Test Story")
-	sh := &StoryHandler{Service: NewGraphStoryService(mem)}
+	sh := &StoryHandler{StorySvc: storysvc.NewMemoryService(mem), EdgeSvc: edge.NewMemoryService(mem), NodeSvc: node.NewMemoryService(mem)}
 
 	body := bytes.NewBufferString(`{"from_node":"bad-uuid","to_node":"also-bad","edge_type":"seq"}`)
 	req := chiRequest(http.MethodPost, "/api/v1/stories/{storyID}/edges/", body, map[string]string{"storyID": story.ID.String()})

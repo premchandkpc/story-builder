@@ -10,10 +10,12 @@ import (
 	"github.com/premchand/story-builder/internal/compiler"
 	"github.com/premchand/story-builder/internal/graph"
 	"github.com/premchand/story-builder/internal/scene"
+	canonsvc "github.com/premchand/story-builder/internal/service/canon"
+	gensvc "github.com/premchand/story-builder/internal/service/generation"
 )
 
 type LoreHandler struct {
-	Service LoreService
+	Service canonsvc.LoreService
 }
 
 type createLoreRequest struct {
@@ -74,7 +76,7 @@ func (h *LoreHandler) Search(w http.ResponseWriter, r *http.Request) {
 }
 
 type GenerationHandler struct {
-	Service GenerationService
+	Service gensvc.GenerationService
 }
 
 type acceptGenerationRequest struct {

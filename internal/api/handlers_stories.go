@@ -8,10 +8,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/premchand/story-builder/internal/graph"
 	"github.com/premchand/story-builder/internal/llm"
+	"github.com/premchand/story-builder/internal/service/edge"
+	"github.com/premchand/story-builder/internal/service/generation"
+	"github.com/premchand/story-builder/internal/service/node"
+	"github.com/premchand/story-builder/internal/service/story"
 )
 
 type StoryHandler struct {
-	Service          StoryService
+	StorySvc         story.StoryService
+	EdgeSvc          edge.Service
+	NodeSvc          node.Service
 	BlueprintService BlueprintService
 	TimelineService  TimelineService
 }
@@ -31,7 +37,7 @@ func (h *StoryHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	story, err := h.Service.Create(r.Context(), title)
+	story, err := h.StorySvc.Create(r.Context(), title)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -45,7 +51,7 @@ func (h *StoryHandler) Get(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	story, err := h.Service.Get(r.Context(), id)
+	story, err := h.StorySvc.Get(r.Context(), id)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -54,7 +60,7 @@ func (h *StoryHandler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *StoryHandler) List(w http.ResponseWriter, r *http.Request) {
-	stories, err := h.Service.List(r.Context())
+	stories, err := h.StorySvc.List(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -89,7 +95,7 @@ func (h *StoryHandler) CreateEdge(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid to_node")
 		return
 	}
-	if err := h.Service.CreateEdge(r.Context(), storyID, from, to, req.EdgeType); err != nil {
+	if err := h.EdgeSvc.Create(r.Context(), storyID, from, to, req.EdgeType); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -102,7 +108,7 @@ func (h *StoryHandler) ListEdges(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid story id")
 		return
 	}
-	edges, err := h.Service.ListEdges(r.Context(), storyID)
+	edges, err := h.EdgeSvc.List(r.Context(), storyID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -116,12 +122,12 @@ func (h *StoryHandler) Topology(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid story id")
 		return
 	}
-	nodes, err := h.Service.ListNodes(r.Context(), storyID)
+	nodes, err := h.NodeSvc.List(r.Context(), storyID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	edges, err := h.Service.ListEdges(r.Context(), storyID)
+	edges, err := h.EdgeSvc.List(r.Context(), storyID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -134,7 +140,7 @@ func (h *StoryHandler) Topology(w http.ResponseWriter, r *http.Request) {
 }
 
 type NodeHandler struct {
-	Service NodeService
+	Service node.Service
 }
 
 type createNodeRequest struct {
@@ -246,7 +252,7 @@ type StoryGenerateResult struct {
 }
 
 type StoryGeneratorHandler struct {
-	Service StoryGeneratorService
+	Service generation.StoryGeneratorService
 }
 
 type TitleHandler struct {

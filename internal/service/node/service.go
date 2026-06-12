@@ -1,0 +1,194 @@
+package node
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/premchand/story-builder/internal/db"
+	"github.com/premchand/story-builder/internal/graph"
+)
+
+type Service interface {
+	Create(ctx context.Context, storyID uuid.UUID, beatIntent string, characterRefs []uuid.UUID, locationRef *uuid.UUID, pov, tone string, targetWords int) (*graph.Node, error)
+	Get(ctx context.Context, id uuid.UUID) (*graph.Node, error)
+	Update(ctx context.Context, id uuid.UUID, beatIntent string, characterRefs []uuid.UUID, locationRef *uuid.UUID, pov, tone string, targetWords int, sceneStructure *graph.SceneStructure) (*graph.Node, error)
+	SetSceneStructure(ctx context.Context, id uuid.UUID, ss graph.SceneStructure) error
+	List(ctx context.Context, storyID uuid.UUID) ([]graph.Node, error)
+}
+
+type memoryService struct {
+	g *graph.MemoryStore
+}
+
+func NewMemoryService(gs *graph.MemoryStore) *memoryService {
+	return &memoryService{g: gs}
+}
+
+func (s *memoryService) Create(ctx context.Context, storyID uuid.UUID, beatIntent string, characterRefs []uuid.UUID, locationRef *uuid.UUID, pov, tone string, targetWords int) (*graph.Node, error) {
+	return s.g.CreateNode(storyID, beatIntent, characterRefs, locationRef, pov, tone, targetWords)
+}
+
+func (s *memoryService) Get(ctx context.Context, id uuid.UUID) (*graph.Node, error) {
+	return s.g.GetNode(id)
+}
+
+func (s *memoryService) Update(ctx context.Context, id uuid.UUID, beatIntent string, characterRefs []uuid.UUID, locationRef *uuid.UUID, pov, tone string, targetWords int, sceneStructure *graph.SceneStructure) (*graph.Node, error) {
+	return s.g.UpdateNode(id, beatIntent, characterRefs, locationRef, pov, tone, targetWords, sceneStructure)
+}
+
+func (s *memoryService) SetSceneStructure(ctx context.Context, id uuid.UUID, ss graph.SceneStructure) error {
+	return s.g.SetSceneStructure(id, ss)
+}
+
+func (s *memoryService) List(ctx context.Context, storyID uuid.UUID) ([]graph.Node, error) {
+	return s.g.ListNodes(storyID)
+}
+
+type dbService struct {
+	q *db.Queries
+}
+
+func NewDBService(q *db.Queries) *dbService {
+	return &dbService{q: q}
+}
+
+func (s *dbService) Create(ctx context.Context, storyID uuid.UUID, beatIntent string, characterRefs []uuid.UUID, locationRef *uuid.UUID, pov, tone string, targetWords int) (*graph.Node, error) {
+	refs := make([]pgtype.UUID, len(characterRefs))
+	for i, r := range characterRefs {
+		refs[i] = toUUID(r)
+	}
+	var locRef pgtype.UUID
+	if locationRef != nil {
+		locRef = toUUID(*locationRef)
+	}
+	n, err := s.q.CreateNode(ctx, db.CreateNodeParams{
+		StoryID:       toUUID(storyID),
+		BeatIntent:    beatIntent,
+		CharacterRefs: refs,
+		LocationRef:   locRef,
+		Pov:           pov,
+		Tone:          tone,
+		TargetWords:   int32(targetWords),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return toDomainNode(n), nil
+}
+
+func (s *dbService) Get(ctx context.Context, id uuid.UUID) (*graph.Node, error) {
+	return getNode(ctx, s.q, id)
+}
+
+func (s *dbService) Update(ctx context.Context, id uuid.UUID, beatIntent string, characterRefs []uuid.UUID, locationRef *uuid.UUID, pov, tone string, targetWords int, sceneStructure *graph.SceneStructure) (*graph.Node, error) {
+	refs := make([]pgtype.UUID, len(characterRefs))
+	for i, r := range characterRefs {
+		refs[i] = toUUID(r)
+	}
+	var locRef pgtype.UUID
+	if locationRef != nil {
+		locRef = toUUID(*locationRef)
+	}
+	ssBytes := jsonBytes(graph.SceneStructure{FlowType: graph.FlowMonologue, SituationFlow: ""})
+	if sceneStructure != nil {
+		ssBytes = jsonBytes(sceneStructure)
+	}
+	n, err := s.q.UpdateNode(ctx, db.UpdateNodeParams{
+		ID:             toUUID(id),
+		BeatIntent:     beatIntent,
+		CharacterRefs:  refs,
+		LocationRef:    locRef,
+		Pov:            pov,
+		Tone:           tone,
+		TargetWords:    int32(targetWords),
+		SceneStructure: ssBytes,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return toDomainNode(n), nil
+}
+
+func (s *dbService) SetSceneStructure(ctx context.Context, id uuid.UUID, ss graph.SceneStructure) error {
+	return s.q.UpdateNodeSceneStructure(ctx, db.UpdateNodeSceneStructureParams{
+		ID:             toUUID(id),
+		SceneStructure: jsonBytes(ss),
+	})
+}
+
+func (s *dbService) List(ctx context.Context, storyID uuid.UUID) ([]graph.Node, error) {
+	return listNodes(ctx, s.q, storyID)
+}
+
+func toDomainNode(n db.Node) *graph.Node {
+	refs := make([]uuid.UUID, len(n.CharacterRefs))
+	for i, r := range n.CharacterRefs {
+		refs[i] = fromUUID(r)
+	}
+	var locRef *uuid.UUID
+	if n.LocationRef.Valid {
+		l := fromUUID(n.LocationRef)
+		locRef = &l
+	}
+	var ss *graph.SceneStructure
+	if len(n.SceneStructure) > 0 {
+		var s graph.SceneStructure
+		if json.Unmarshal(n.SceneStructure, &s) == nil {
+			ss = &s
+		}
+	}
+	return &graph.Node{
+		ID:             fromUUID(n.ID),
+		StoryID:        fromUUID(n.StoryID),
+		BeatIntent:     n.BeatIntent,
+		CharacterRefs:  refs,
+		LocationRef:    locRef,
+		POV:            n.Pov,
+		Tone:           n.Tone,
+		TargetWords:    int(n.TargetWords),
+		Status:         graph.NodeStatus(n.Status),
+		SceneStructure: ss,
+		CreatedAt:      n.CreatedAt.Time,
+		UpdatedAt:      n.UpdatedAt.Time,
+	}
+}
+
+func getNode(ctx context.Context, q *db.Queries, id uuid.UUID) (*graph.Node, error) {
+	n, err := q.GetNode(ctx, toUUID(id))
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("node %s not found", id)
+		}
+		return nil, err
+	}
+	return toDomainNode(n), nil
+}
+
+func listNodes(ctx context.Context, q *db.Queries, storyID uuid.UUID) ([]graph.Node, error) {
+	nodes, err := q.ListNodes(ctx, toUUID(storyID))
+	if err != nil {
+		return nil, err
+	}
+	result := make([]graph.Node, len(nodes))
+	for i, n := range nodes {
+		result[i] = *toDomainNode(n)
+	}
+	return result, nil
+}
+
+func toUUID(id uuid.UUID) pgtype.UUID {
+	return pgtype.UUID{Bytes: id, Valid: true}
+}
+
+func fromUUID(id pgtype.UUID) uuid.UUID {
+	return id.Bytes
+}
+
+func jsonBytes(v any) []byte {
+	b, _ := json.Marshal(v)
+	return b
+}

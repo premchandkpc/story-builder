@@ -6,10 +6,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	canonsvc "github.com/premchand/story-builder/internal/service/canon"
 )
 
 type CharacterHandler struct {
-	Service CharacterService
+	Service canonsvc.CharacterService
 }
 
 type createCharacterRequest struct {
@@ -93,7 +94,7 @@ func (h *CharacterHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 type ActorHandler struct {
-	Service ActorService
+	Service canonsvc.ActorService
 }
 
 type createActorRequest struct {
@@ -170,7 +171,7 @@ func (h *ActorHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 type CharacterTraitHandler struct {
-	Service TraitService
+	Service canonsvc.TraitService
 }
 
 type createCharacterTraitRequest struct {
@@ -278,7 +279,7 @@ func (h *CharacterTraitHandler) GetAssignments(w http.ResponseWriter, r *http.Re
 }
 
 type CastingHandler struct {
-	Service CastingService
+	Service canonsvc.CastingService
 }
 
 type createCastingRequest struct {
@@ -359,7 +360,7 @@ func (h *CastingHandler) ListForActor(w http.ResponseWriter, r *http.Request) {
 }
 
 type LocationHandler struct {
-	Service LocationService
+	Service canonsvc.LocationService
 }
 
 type createLocationRequest struct {
