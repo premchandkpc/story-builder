@@ -2,6 +2,25 @@
 
 Full-stack story graph editor with DAG-based plot structure and LLM-generated prose.
 
+## Startup ritual
+
+**Every new chat or prompt:** read ALL `docs/*.md` files. These are the source of truth for architecture, schema, API, LLM pipeline, rules, and ADRs.
+
+## Docs discipline
+
+**Every code change that affects structure, interfaces, types, flow, or packages MUST update all relevant `.md` files in `docs/`.** If you add a package, change a function signature, rename a type, add a handler, or alter the pipeline, update the corresponding doc. No code change lands without a doc update.
+
+Files to keep in sync:
+- `docs/architecture.md` — package tree, deps, flow diagrams
+- `docs/services.md` — River workers, service interfaces, handlers
+- `docs/llm.md` — prompt templates, compiler, model tiers
+- `docs/schema.md` — DB tables, columns, migrations
+- `docs/api.md` — HTTP endpoints
+- `docs/adr/0002-narrative-os-direction.md` — ✅/❌ status on all phases
+- `AGENTS.md` — key types table, progress status, next steps
+
+Same applies to `AGENTS.md` itself — it's the session anchor and must reflect current reality.
+
 ## Quick start
 
 ```bash

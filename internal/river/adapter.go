@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/premchand/story-builder/internal/canon"
 	"github.com/premchand/story-builder/internal/db"
 	"github.com/premchand/story-builder/internal/graph"
@@ -18,7 +19,7 @@ type dbSceneProvider struct {
 	q *db.Queries
 }
 
-func newDBSceneProvider(q *db.Queries) SceneContextProvider {
+func NewSceneContextProvider(q *db.Queries) SceneContextProvider {
 	return &dbSceneProvider{q: q}
 }
 
@@ -37,7 +38,7 @@ func (p *dbSceneProvider) CharacterLatest(ctx context.Context, id uuid.UUID) (*c
 	}
 	return &canon.Character{
 		ID:            id,
-		Version:       c.Version,
+		Version:       int(c.Version),
 		Name:          c.Name,
 		Persona:       c.Persona,
 		Backstory:     c.Backstory,
@@ -58,7 +59,7 @@ func (p *dbSceneProvider) LocationLatest(ctx context.Context, id uuid.UUID) (*ca
 	}
 	return &canon.Location{
 		ID:          id,
-		Version:     loc.Version,
+		Version:     int(loc.Version),
 		Name:        loc.Name,
 		Description: loc.Description,
 		Props:       props,
@@ -117,7 +118,7 @@ type dbGenWriter struct {
 	q *db.Queries
 }
 
-func newDBGenWriter(q *db.Queries) GenerationWriter {
+func NewGenerationWriter(q *db.Queries) GenerationWriter {
 	return &dbGenWriter{q: q}
 }
 
@@ -131,7 +132,7 @@ type dbCharNamer struct {
 	q *db.Queries
 }
 
-func newDBCharNamer(q *db.Queries) CharacterNamer {
+func NewCharacterNamer(q *db.Queries) CharacterNamer {
 	return &dbCharNamer{q: q}
 }
 
@@ -149,7 +150,7 @@ type dbStateWriter struct {
 	q *db.Queries
 }
 
-func newDBStateWriter(q *db.Queries) CharacterStateWriter {
+func NewCharacterStateWriter(q *db.Queries) CharacterStateWriter {
 	return &dbStateWriter{q: q}
 }
 
@@ -172,7 +173,7 @@ type dbSummaryWriter struct {
 	q *db.Queries
 }
 
-func newDBSummaryWriter(q *db.Queries) SummaryWriter {
+func NewSummaryWriter(q *db.Queries) SummaryWriter {
 	return &dbSummaryWriter{q: q}
 }
 
@@ -197,7 +198,7 @@ type dbValWriter struct {
 	q *db.Queries
 }
 
-func newDBValWriter(q *db.Queries) ValidationWriter {
+func NewValidationWriter(q *db.Queries) ValidationWriter {
 	return &dbValWriter{q: q}
 }
 
@@ -211,7 +212,7 @@ type dbStoryFactory struct {
 	q *db.Queries
 }
 
-func newDBStoryFactory(q *db.Queries) StoryFactory {
+func NewStoryFactory(q *db.Queries) StoryFactory {
 	return &dbStoryFactory{q: q}
 }
 
@@ -268,7 +269,7 @@ func (f *dbStoryFactory) ListChapters(ctx context.Context, storyID uuid.UUID) ([
 			Title:      r.Title,
 			Goal:       r.Goal,
 			Summary:    r.Summary,
-			Status:     r.Status,
+			Status:     graph.ChapterStatus(r.Status),
 			OrderIndex: int(r.OrderIndex),
 		}
 	}

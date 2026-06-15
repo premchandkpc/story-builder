@@ -297,33 +297,36 @@ Additional cache prefixes: `PrefixContextHash = "story:%s:context:hash"`, `Prefi
 
 All workers in `internal/river/jobs.go`. 6 job types with 5 queues.
 
+**Workers depend on narrow service interfaces, not `*db.Queries` directly.** Each worker receives the interfaces it needs (DIP). Adapters in `internal/river/adapter.go` wrap `*db.Queries` behind domain-typed interfaces.
+
 ### GenerateSceneWorker (queue: `generate`)
-1. `compilePromptParams` — loads characters, location, lore, state, summary
+1. `compilePromptParams` — loads characters, location, lore, state, summary via `SceneContextProvider` interface
 2. Calls `ProseService.GenerateScene(params)` → Router dispatches to Anthropic/Ollama
-3. Calls `UpdateGenerationOutput` to store result
+3. Calls `GenerationWriter.UpdateOutput` to store result
 
 ### ExtractStateWorker (queue: `extract`)
-1. Calls `ExtractionService.ExtractState(sceneText, roster)`
-2. Persists each delta via `UpsertCharacterState` (character_state table)
+1. Calls `ExtractionService.ExtractState(sceneText, roster)` — roster built via `CharacterNamer` interface
+2. Persists each delta via `CharacterStateWriter.UpsertState` (character_state table)
+3. Publishes `EvStateDeltaApplied` to event bus
 
 ### UpdateSummaryWorker (queue: `default`)
 1. Calls `SummaryService.UpdateSummary(previousSummary, acceptedScene)`
-2. Upserts scene-level summary
+2. Upserts scene-level summary via `SummaryWriter.UpsertSceneSummary`
 
 ### MergeBranchesWorker (queue: `merge`)
 1. Calls `MergeService.MergeBranches(summaryA, summaryB, timelineNote)`
 2. Extracts `merged_summary` from result
-3. Upserts story-level summary
+3. Upserts story-level summary via `SummaryWriter.UpsertStorySummary`
 
 ### ValidateSceneWorker (queue: `validate`)
 1. Runs 4 domain validators: Character (presence/voice/traits), World Rules (substring check), Dialogue/Behavior (alignment/personality), Timeline (structural)
 2. Calls `LLM.ValidationService.ValidateAgainstCanon(canonXML, charState, sceneText)`
-3. Stores LLM result via `UpdateGenerationValidation` (generations.validation_result column)
+3. Stores LLM result via `ValidationWriter.UpdateValidation` (generations.validation_result column)
 4. Domain validation checks stored in `validation.MemoryStore` (in-memory)
 
 ### GenerateStoryWorker (queue: `default`)
 1. Calls `OutlineService.GenerateOutline(synopsis)`
-2. Creates story + characters + scenes + scene_edges from outline
+2. Creates story + characters + scenes + scene_edges from outline via `StoryFactory` interface
 3. Maps character names to IDs, beat titles to scene IDs
 4. Handles case where StoryID is nil (creates new story)
 

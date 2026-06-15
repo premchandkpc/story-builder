@@ -152,15 +152,21 @@ func main() {
 		valSvc := validation.NewValidatorService(valStore, canon.NewMemoryStore())
 
 		deps := &river.Dependencies{
-			Prose:     proseSvc,
-			Extract:   extractSvc,
-			Summary:   summarySvc,
-			Merge:     mergeSvc,
-			Validate:  validateSvc,
-			Validator: valSvc,
-			Outline:   outlineSvc,
-			Queries:   q,
-			EventBus:  eventBus,
+			Prose:      proseSvc,
+			Extract:    extractSvc,
+			Summary:    summarySvc,
+			Merge:      mergeSvc,
+			Validate:   validateSvc,
+			Outline:    outlineSvc,
+			Validator:  valSvc,
+			Provider:   river.NewSceneContextProvider(q),
+			GenStore:   river.NewGenerationWriter(q),
+			Namer:      river.NewCharacterNamer(q),
+			StateStore: river.NewCharacterStateWriter(q),
+			SumWriter:  river.NewSummaryWriter(q),
+			ValWriter:  river.NewValidationWriter(q),
+			StoryFac:   river.NewStoryFactory(q),
+			EventBus:   eventBus,
 		}
 		workers := river.Workers(deps)
 
