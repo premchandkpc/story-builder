@@ -96,7 +96,11 @@ cmd/server/main.go
     │   ├── traversal.go       ─── TopologicalSort, IdentifyBranches
     │   └── memory.go          ─── In-memory GraphService
     │
-    ├── internal/canon         ─── Versioned domain types
+    ├── internal/character     ─── Unified character domain (Phase 4)
+    │   ├── models.go          ─── Definition, State, Memory, RetrievalQuery
+    │   └── service.go         ─── Service interface + InMemoryService (wraps canon/ledger/memory)
+    │
+    ├── internal/canon         ─── Versioned domain types (legacy, migrating to character/)
     │   ├── models.go          ─── Character, Location, Lore, Actor, Card, Casting,
     │   │                          CharacterTrait, TraitAssignment, StoryBible,
     │   │                          ValidationResult, Violation, ValidatorService, Validator
@@ -170,9 +174,9 @@ cmd/server/main.go
     ├── internal/entity        ─── Entity models
     │   └── models.go
     │
-    ├── internal/event         ─── Event store
-    │   ├── models.go
-    │   └── store.go
+    ├── internal/event         ─── Event store + bus (wired into ledger.MemoryStore)
+    │   ├── models.go           ─── 20 event types incl. EvStateDeltaApplied
+    │   └── store.go            ─── MemoryStore + MemoryBus
     │
     ├── internal/memory        ─── Character memory system
     │   ├── errors.go
@@ -208,9 +212,9 @@ cmd/server/main.go
     ├── internal/telemetry     ─── Telemetry/metrics
     │   └── metrics.go
     │
-    ├── internal/validation    ─── Validation subsystem
-    │   ├── models.go
-    │   └── store.go
+    ├── internal/validation    ─── 4 validators (Character/Timeline/Lore/Dialogue)
+    │   ├── models.go           ─── ValidationCheck, ValidationReport
+    │   └── store.go            ─── MemoryStore + ValidatorService (wired into ValidateSceneWorker)
     │
     ├── internal/workflow      ─── Workflow engine
     │   ├── errors.go

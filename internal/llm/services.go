@@ -8,19 +8,19 @@ import (
 
 	"github.com/premchand/story-builder/internal/compiler"
 	"github.com/premchand/story-builder/internal/ledger"
+	"github.com/premchand/story-builder/internal/prompt"
 )
 
-func NewProseService(client LLMClient) *ProseServiceImpl {
-	return &ProseServiceImpl{client: client}
+func NewProseService(client LLMClient, c *prompt.CompilerService) *ProseServiceImpl {
+	return &ProseServiceImpl{client: client, compiler: c}
 }
 
 type ProseServiceImpl struct {
-	client LLMClient
+	client   LLMClient
+	compiler *prompt.CompilerService
 }
 
 func (s *ProseServiceImpl) GenerateScene(ctx context.Context, params PromptParams) (*CompletionResponse, error) {
-	cfg := PromptRegistry[PromptSceneProse]
-
 	cc := &compiler.CompiledContext{
 		CharacterCards: params.CharacterCards,
 		LocationCard:   params.LocationCard,
@@ -42,36 +42,51 @@ func (s *ProseServiceImpl) GenerateScene(ctx context.Context, params PromptParam
 		}
 	}
 
-	systemPrompt := cc.BuildSceneProseSystemPrompt()
-	userMessage := cc.BuildSceneProseUserMessage()
-
-	req := CompletionRequest{
-		Model:       cfg.Model,
-		System:      systemPrompt,
-		UserMessage: userMessage,
-		Temperature: cfg.Temperature,
-		MaxTokens:   4096,
+	compiled, err := s.compiler.Compile(&prompt.CompileRequest{
+		ScenePrompt:   cc.BuildSceneProseUserMessage(),
+		CanonXML:      cc.BuildCanonXML(),
+		CharStateXML:  cc.BuildCharStateXML(),
+		BranchSummary: params.BranchSummary,
+		TargetWords:   params.TargetWords,
+	}, "scene_prose")
+	if err != nil {
+		return nil, fmt.Errorf("compile prompt: %w", err)
 	}
 
+	req := CompletionRequest{
+		Model:       ModelTier(compiled.Model),
+		System:      compiled.System,
+		UserMessage: compiled.User,
+		Temperature: compiled.Temperature,
+		MaxTokens:   compiled.MaxTokens,
+	}
 	return s.client.Complete(ctx, req)
 }
 
-func NewExtractionService(client LLMClient) *ExtractionServiceImpl {
-	return &ExtractionServiceImpl{client: client}
+func NewExtractionService(client LLMClient, c *prompt.CompilerService) *ExtractionServiceImpl {
+	return &ExtractionServiceImpl{client: client, compiler: c}
 }
 
 type ExtractionServiceImpl struct {
-	client LLMClient
+	client   LLMClient
+	compiler *prompt.CompilerService
 }
 
 func (s *ExtractionServiceImpl) ExtractState(ctx context.Context, sceneText string, roster map[string]string) (*ledger.StateDeltas, error) {
-	cfg := PromptRegistry[PromptStateExtract]
+	rosterJSON, _ := json.Marshal(roster)
+	compiled, err := s.compiler.Compile(&prompt.CompileRequest{
+		ScenePrompt: sceneText,
+		RosterJSON:  string(rosterJSON),
+	}, "state_extract")
+	if err != nil {
+		return nil, fmt.Errorf("compile prompt: %w", err)
+	}
 	req := CompletionRequest{
-		Model:       cfg.Model,
-		System:      compiler.BuildStateExtractSystemPrompt(roster),
-		UserMessage: sceneText,
-		Temperature: cfg.Temperature,
-		MaxTokens:   1024,
+		Model:       ModelTier(compiled.Model),
+		System:      compiled.System,
+		UserMessage: compiled.User,
+		Temperature: compiled.Temperature,
+		MaxTokens:   compiled.MaxTokens,
 	}
 	res, err := s.client.Complete(ctx, req)
 	if err != nil {
@@ -87,22 +102,29 @@ func (s *ExtractionServiceImpl) ExtractState(ctx context.Context, sceneText stri
 	return &result, nil
 }
 
-func NewSummaryService(client LLMClient) *SummaryServiceImpl {
-	return &SummaryServiceImpl{client: client}
+func NewSummaryService(client LLMClient, c *prompt.CompilerService) *SummaryServiceImpl {
+	return &SummaryServiceImpl{client: client, compiler: c}
 }
 
 type SummaryServiceImpl struct {
-	client LLMClient
+	client   LLMClient
+	compiler *prompt.CompilerService
 }
 
 func (s *SummaryServiceImpl) UpdateSummary(ctx context.Context, previousSummary, newScene string) (string, error) {
-	cfg := PromptRegistry[PromptSummaryUpdate]
+	userMsg := compiler.BuildSummaryUpdateSystemPrompt(previousSummary, newScene)
+	compiled, err := s.compiler.Compile(&prompt.CompileRequest{
+		ScenePrompt: userMsg,
+	}, "summary_update")
+	if err != nil {
+		return "", fmt.Errorf("compile prompt: %w", err)
+	}
 	req := CompletionRequest{
-		Model:       cfg.Model,
-		System:      "",
-		UserMessage: compiler.BuildSummaryUpdateSystemPrompt(previousSummary, newScene),
-		Temperature: cfg.Temperature,
-		MaxTokens:   1024,
+		Model:       ModelTier(compiled.Model),
+		System:      compiled.System,
+		UserMessage: compiled.User,
+		Temperature: compiled.Temperature,
+		MaxTokens:   compiled.MaxTokens,
 	}
 	res, err := s.client.Complete(ctx, req)
 	if err != nil {
@@ -111,22 +133,29 @@ func (s *SummaryServiceImpl) UpdateSummary(ctx context.Context, previousSummary,
 	return res.Content, nil
 }
 
-func NewMergeService(client LLMClient) *MergeServiceImpl {
-	return &MergeServiceImpl{client: client}
+func NewMergeService(client LLMClient, c *prompt.CompilerService) *MergeServiceImpl {
+	return &MergeServiceImpl{client: client, compiler: c}
 }
 
 type MergeServiceImpl struct {
-	client LLMClient
+	client   LLMClient
+	compiler *prompt.CompilerService
 }
 
 func (s *MergeServiceImpl) MergeBranches(ctx context.Context, summaryA, summaryB, timelineNote string) (map[string]interface{}, error) {
-	cfg := PromptRegistry[PromptJoinMerge]
+	userMsg := compiler.BuildJoinMergeSystemPrompt(summaryA, summaryB, timelineNote)
+	compiled, err := s.compiler.Compile(&prompt.CompileRequest{
+		ScenePrompt: userMsg,
+	}, "join_merge")
+	if err != nil {
+		return nil, fmt.Errorf("compile prompt: %w", err)
+	}
 	req := CompletionRequest{
-		Model:       cfg.Model,
-		System:      "",
-		UserMessage: compiler.BuildJoinMergeSystemPrompt(summaryA, summaryB, timelineNote),
-		Temperature: cfg.Temperature,
-		MaxTokens:   1024,
+		Model:       ModelTier(compiled.Model),
+		System:      compiled.System,
+		UserMessage: compiled.User,
+		Temperature: compiled.Temperature,
+		MaxTokens:   compiled.MaxTokens,
 	}
 	res, err := s.client.Complete(ctx, req)
 	if err != nil {
@@ -139,22 +168,30 @@ func (s *MergeServiceImpl) MergeBranches(ctx context.Context, summaryA, summaryB
 	return result, nil
 }
 
-func NewValidationService(client LLMClient) *ValidationServiceImpl {
-	return &ValidationServiceImpl{client: client}
+func NewValidationService(client LLMClient, c *prompt.CompilerService) *ValidationServiceImpl {
+	return &ValidationServiceImpl{client: client, compiler: c}
 }
 
 type ValidationServiceImpl struct {
-	client LLMClient
+	client   LLMClient
+	compiler *prompt.CompilerService
 }
 
 func (s *ValidationServiceImpl) ValidateAgainstCanon(ctx context.Context, canonXML, charState, draft string) (map[string]interface{}, error) {
-	cfg := PromptRegistry[PromptCanonValidate]
+	userMsg := compiler.BuildCanonValidateSystemPrompt(canonXML, charState, draft)
+	compiled, err := s.compiler.Compile(&prompt.CompileRequest{
+		ScenePrompt:   userMsg,
+		CompiledCanon: canonXML,
+	}, "canon_validate")
+	if err != nil {
+		return nil, fmt.Errorf("compile prompt: %w", err)
+	}
 	req := CompletionRequest{
-		Model:       cfg.Model,
-		System:      "",
-		UserMessage: compiler.BuildCanonValidateSystemPrompt(canonXML, charState, draft),
-		Temperature: cfg.Temperature,
-		MaxTokens:   2048,
+		Model:       ModelTier(compiled.Model),
+		System:      compiled.System,
+		UserMessage: compiled.User,
+		Temperature: compiled.Temperature,
+		MaxTokens:   compiled.MaxTokens,
 	}
 	res, err := s.client.Complete(ctx, req)
 	if err != nil {
@@ -167,23 +204,29 @@ func (s *ValidationServiceImpl) ValidateAgainstCanon(ctx context.Context, canonX
 	return result, nil
 }
 
-func NewOutlineService(client LLMClient) *OutlineServiceImpl {
-	return &OutlineServiceImpl{client: client}
+func NewOutlineService(client LLMClient, c *prompt.CompilerService) *OutlineServiceImpl {
+	return &OutlineServiceImpl{client: client, compiler: c}
 }
 
 type OutlineServiceImpl struct {
-	client LLMClient
+	client   LLMClient
+	compiler *prompt.CompilerService
 }
 
 func (s *OutlineServiceImpl) GenerateOutline(ctx context.Context, synopsis string) (*StoryOutline, error) {
-	cfg := PromptRegistry[PromptOutlineStory]
-	systemPrompt := compiler.BuildOutlineStorySystemPrompt(synopsis)
+	compiled, err := s.compiler.Compile(&prompt.CompileRequest{
+		ScenePrompt: synopsis,
+		Synopsis:    synopsis,
+	}, "outline_story")
+	if err != nil {
+		return nil, fmt.Errorf("compile prompt: %w", err)
+	}
 	req := CompletionRequest{
-		Model:       cfg.Model,
-		System:      systemPrompt,
-		UserMessage: synopsis,
-		Temperature: cfg.Temperature,
-		MaxTokens:   4096,
+		Model:       ModelTier(compiled.Model),
+		System:      compiled.System,
+		UserMessage: compiled.User,
+		Temperature: compiled.Temperature,
+		MaxTokens:   compiled.MaxTokens,
 	}
 	res, err := s.client.Complete(ctx, req)
 	if err != nil {

@@ -1,9 +1,6 @@
 package prompt
 
-import (
-	"github.com/google/uuid"
-	"github.com/premchand/story-builder/internal/llm"
-)
+import "github.com/google/uuid"
 
 type LayerID string
 
@@ -35,20 +32,20 @@ type PromptLayer struct {
 	Strategy  MergeStrategy `json:"strategy"`
 	System    string        `json:"system"`
 	Template  string        `json:"template,omitempty"`
-	Model     llm.ModelTier `json:"model,omitempty"`
+	Model     string        `json:"model,omitempty"`
 	Priority  int           `json:"priority"`
 	Version   int           `json:"version"`
 }
 
 type PromptTemplate struct {
-	ID          uuid.UUID            `json:"id"`
-	Name        string               `json:"name"`
-	Layers      []PromptLayer        `json:"layers"`
-	Model       llm.ModelTier        `json:"model"`
-	Temperature float64              `json:"temperature"`
-	MaxTokens   int                  `json:"max_tokens"`
-	Version     int                  `json:"version"`
-	CreatedAt   string               `json:"created_at"`
+	ID          uuid.UUID     `json:"id"`
+	Name        string        `json:"name"`
+	Layers      []PromptLayer `json:"layers"`
+	Model       string        `json:"model"`
+	Temperature float64       `json:"temperature"`
+	MaxTokens   int           `json:"max_tokens"`
+	Version     int           `json:"version"`
+	CreatedAt   string        `json:"created_at"`
 }
 
 type CompileRequest struct {
@@ -57,20 +54,33 @@ type CompileRequest struct {
 	SceneID     uuid.UUID
 	CharacterID uuid.UUID
 
+	// Prompt text overrides — ScenePrompt becomes the user message
 	StoryPrompt     string
 	ChapterPrompt   string
 	ScenePrompt     string
 	CharacterPrompt string
 	CulturePrompt   string
 	MemoryContext   string
+
+	// Dynamic context injected into system prompt via buildDynamicContext
+	CanonXML      string
+	CharStateXML  string
+	BranchSummary string
+	TargetWords   int
+
+	// Pipeline inputs for extraction/validation/outline
+	RosterJSON    string
+	SceneText     string
+	CompiledCanon string
+	Synopsis      string
 }
 
 type CompiledPrompt struct {
-	System    string
-	User      string
-	Model     llm.ModelTier
-	Temperature float64
-	MaxTokens   int
+	System        string
+	User          string
+	Model         string
+	Temperature   float64
+	MaxTokens     int
 	LayersApplied []LayerID
 }
 

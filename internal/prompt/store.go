@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/premchand/story-builder/internal/llm"
 )
 
 type MemoryStore struct {
@@ -58,46 +57,75 @@ func DefaultTemplates() []*PromptTemplate {
 	return []*PromptTemplate{
 		{
 			Name:        "scene_prose",
-			Model:       llm.ModelSonnet,
+			Model:       "claude-sonnet",
 			Temperature: 0.8,
 			MaxTokens:   4096,
 			Layers: []PromptLayer{
-				{ID: LayerGlobal, Strategy: MergeOverride, System: "You are a fiction co-writer writing a narrative scene.", Priority: 1},
-				{ID: LayerCulture, Strategy: MergeMerge, System: "", Priority: 2},
-				{ID: LayerStory, Strategy: MergeOverride, System: "Canon is law. Never contradict established facts.", Priority: 3},
-				{ID: LayerMemory, Strategy: MergeAppend, System: "", Priority: 4},
-				{ID: LayerChapter, Strategy: MergeMerge, System: "", Priority: 5},
-				{ID: LayerCharacter, Strategy: MergeMerge, System: "", Priority: 6},
-				{ID: LayerScene, Strategy: MergeOverride, Template: "Write the scene as described below.", Priority: 7},
-				{ID: LayerSafety, Strategy: MergeOverride, System: "HARD RULES:\n1. Canon is law.\n2. No new named characters/locations.\n3. Dialogue must match voice samples.\n4. Output prose only.", Priority: 8},
+				{ID: LayerGlobal, Strategy: MergeOverride, System: "You are a fiction co-writer. Write ONE scene and nothing else.", Priority: 1},
+				{ID: LayerFrame, Strategy: MergeOverride, Priority: 2},
+				{ID: LayerSafety, Strategy: MergeOverride, System: "HARD RULES:\n1. Canon is law. Never contradict <canon> or <current_state>.\n2. A character cannot reference knowledge listed in their 'does NOT know'.\n3. Introduce NO new named characters or locations. Unnamed extras are fine.\n4. Every line of dialogue must pass the voice-sample test for that character.\n5. End the scene when the beat resolves. Do not set up the next scene.\n6. Output prose only — no titles, no notes, no 'Scene:' headers.", Priority: 10},
 			},
 		},
 		{
 			Name:        "state_extract",
-			Model:       llm.ModelLocal,
+			Model:       "local-7b",
 			Temperature: 0.0,
 			MaxTokens:   2048,
 			Layers: []PromptLayer{
-				{ID: LayerGlobal, Strategy: MergeOverride, System: "You are a continuity clerk. Extract state deltas from the scene.", Priority: 1},
-				{ID: LayerScene, Strategy: MergeOverride, Template: "Extract character state changes from this scene.", Priority: 2},
+				{ID: LayerGlobal, Strategy: MergeOverride, System: "You are a continuity clerk. Read the scene and call record_state_deltas.", Priority: 1},
+				{ID: LayerFrame, Strategy: MergeOverride, Priority: 2},
+				{ID: LayerScene, Strategy: MergeOverride, System: "Rules: extract ONLY what is explicit in the text. No inference, no speculation about feelings not shown. If a character appears but nothing changed for them, omit them entirely. 'learned' means information the character witnessed or was told IN THIS SCENE.\nOutput valid JSON with a top-level object containing a 'deltas' array and an optional 'open_threads' array.", Priority: 3},
 			},
 		},
 		{
 			Name:        "summary_update",
-			Model:       llm.ModelLocal,
+			Model:       "local-7b",
 			Temperature: 0.2,
 			MaxTokens:   1024,
 			Layers: []PromptLayer{
 				{ID: LayerGlobal, Strategy: MergeOverride, System: "You maintain a running plot summary for one storyline branch.", Priority: 1},
+				{ID: LayerScene, Strategy: MergeOverride, System: "Produce an updated summary. Rules:\n- Max 200 words. Plot facts and character knowledge only — no prose style, no atmosphere, no quotes.\n- Preserve every fact from the previous summary unless the new scene explicitly supersedes it.\n- Chronological order. Present tense.\n- Output the summary only.", Priority: 2},
+			},
+		},
+		{
+			Name:        "join_merge",
+			Model:       "claude-haiku",
+			Temperature: 0.2,
+			MaxTokens:   1024,
+			Layers: []PromptLayer{
+				{ID: LayerGlobal, Strategy: MergeOverride, System: "Two parallel storylines are converging. Merge their summaries.", Priority: 1},
+				{ID: LayerScene, Strategy: MergeOverride, System: "Output JSON: {\"merged_summary\": \"...\", \"conflicts\": [{\"description\": \"...\", \"severity\": \"blocking|warning\"}]}\n\nA conflict is: the same character acting in both branches, contradictory facts, or events that cannot coexist on the stated timeline. If branches are cleanly disjoint, conflicts is []. Interleave events chronologically in the merged summary.", Priority: 2},
 			},
 		},
 		{
 			Name:        "canon_validate",
-			Model:       llm.ModelHaiku,
+			Model:       "claude-haiku",
 			Temperature: 0.0,
 			MaxTokens:   2048,
 			Layers: []PromptLayer{
-				{ID: LayerGlobal, Strategy: MergeOverride, System: "You are a strict continuity editor. Check draft against canon.", Priority: 1},
+				{ID: LayerGlobal, Strategy: MergeOverride, System: "You are a strict continuity editor. Check this draft against canon.", Priority: 1},
+				{ID: LayerFrame, Strategy: MergeOverride, Priority: 2},
+				{ID: LayerScene, Strategy: MergeOverride, System: "Output JSON: {\"violations\": [{\"type\": \"voice|knowledge|trait|location|world_rule\", \"character\": \"...\", \"evidence\": \"<short quote from draft>\", \"explanation\": \"...\", \"severity\": \"high|low\"}]}\n\nCheck specifically: (1) any character using knowledge from their does-not-know list, (2) dialogue that doesn't match voice samples, (3) trait contradictions, (4) physical impossibilities given locations, (5) world-rule breaks.\nEmpty array if clean. Do not comment on writing quality — continuity only.", Priority: 3},
+			},
+		},
+		{
+			Name:        "outline_story",
+			Model:       "local-7b",
+			Temperature: 0.7,
+			MaxTokens:   4096,
+			Layers: []PromptLayer{
+				{ID: LayerGlobal, Strategy: MergeOverride, System: "You are a master story architect. Given a synopsis, generate a structured story outline with characters, plot beats, and narrative flow.", Priority: 1},
+				{ID: LayerFrame, Strategy: MergeOverride, Priority: 2},
+				{ID: LayerScene, Strategy: MergeOverride, System: "Output VALID JSON only — no markdown, no code fences, no commentary. Schema:\n{\n  \"title\": \"...\",\n  \"synopsis\": \"...\",\n  \"characters\": [...],\n  \"beats\": [...],\n  \"edges\": [...]\n}\n\nRULES:\n1. 5-12 beats. First beat = inciting incident. Last beat = climax + resolution.\n2. Each character has at least one goal and one flaw.\n3. Character names must exactly match across beats, edges, and characters array.\n4. Edge types: seq (scene follows previous), fork (branch point), join (convergence).\n5. Assign acts (1-3) so each act has 2-5 beats.\n6. target_words per beat: 400-1000.\n7. Provide voice_samples (2 per character) that reveal personality.", Priority: 3},
+			},
+		},
+		{
+			Name:        "generate_title",
+			Model:       "local-7b",
+			Temperature: 0.5,
+			MaxTokens:   64,
+			Layers: []PromptLayer{
+				{ID: LayerGlobal, Strategy: MergeOverride, System: "You are a creative title generator. Given a synopsis, generate a short, engaging story title (3-8 words). Return ONLY the title, no quotes or punctuation.", Priority: 1},
 			},
 		},
 	}

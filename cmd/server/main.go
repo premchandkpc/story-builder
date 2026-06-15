@@ -13,8 +13,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/premchand/story-builder/internal/api"
 	"github.com/premchand/story-builder/internal/cache"
+	"github.com/premchand/story-builder/internal/canon"
+	"github.com/premchand/story-builder/internal/character"
 	"github.com/premchand/story-builder/internal/config"
 	"github.com/premchand/story-builder/internal/db"
+	"github.com/premchand/story-builder/internal/event"
 	"github.com/premchand/story-builder/internal/graph"
 	"github.com/premchand/story-builder/internal/memory"
 	"github.com/premchand/story-builder/internal/planner"
@@ -22,8 +25,10 @@ import (
 	"github.com/premchand/story-builder/internal/llm"
 	applog "github.com/premchand/story-builder/internal/log"
 	"github.com/premchand/story-builder/internal/migrate"
+	"github.com/premchand/story-builder/internal/prompt"
 	"github.com/premchand/story-builder/internal/river"
 	"github.com/premchand/story-builder/internal/storage"
+	"github.com/premchand/story-builder/internal/validation"
 	cachesvc "github.com/premchand/story-builder/internal/service/cache"
 	blueprintsvc "github.com/premchand/story-builder/internal/service/blueprint"
 	canonsvc "github.com/premchand/story-builder/internal/service/canon"
@@ -108,7 +113,22 @@ func main() {
 	blueprintService := blueprintsvc.NewMemoryService()
 	timelineService := timelinesvc.NewMemoryService()
 
+	eventStore := event.NewMemoryStore()
+	eventBus := event.NewMemoryBus()
+	eventBus.Start()
+	defer eventBus.Stop()
+
+	charService := character.NewEventSourcedService(eventStore, eventBus)
+	_ = charService
+
 	llmClient := createLLMClient(cfg)
+	promptStore := prompt.NewMemoryStore()
+	for _, t := range prompt.DefaultTemplates() {
+		if err := promptStore.Save(t); err != nil {
+			slog.Warn("prompt template save", "name", t.Name, "error", err)
+		}
+	}
+	prompter := prompt.NewCompilerService(promptStore)
 
 	if dbOk {
 		q := db.New(pool)
@@ -121,21 +141,26 @@ func main() {
 			slog.Info("mongo available for runtime services")
 		}
 
-		proseSvc := llm.NewProseService(llmClient)
-		extractSvc := llm.NewExtractionService(llmClient)
-		summarySvc := llm.NewSummaryService(llmClient)
-		mergeSvc := llm.NewMergeService(llmClient)
-		validateSvc := llm.NewValidationService(llmClient)
-		outlineSvc := llm.NewOutlineService(llmClient)
+		proseSvc := llm.NewProseService(llmClient, prompter)
+		extractSvc := llm.NewExtractionService(llmClient, prompter)
+		summarySvc := llm.NewSummaryService(llmClient, prompter)
+		mergeSvc := llm.NewMergeService(llmClient, prompter)
+		validateSvc := llm.NewValidationService(llmClient, prompter)
+		outlineSvc := llm.NewOutlineService(llmClient, prompter)
+
+		valStore := validation.NewMemoryStore()
+		valSvc := validation.NewValidatorService(valStore, canon.NewMemoryStore())
 
 		deps := &river.Dependencies{
-			Prose:    proseSvc,
-			Extract:  extractSvc,
-			Summary:  summarySvc,
-			Merge:    mergeSvc,
-			Validate: validateSvc,
-			Outline:  outlineSvc,
-			Queries:  q,
+			Prose:     proseSvc,
+			Extract:   extractSvc,
+			Summary:   summarySvc,
+			Merge:     mergeSvc,
+			Validate:  validateSvc,
+			Validator: valSvc,
+			Outline:   outlineSvc,
+			Queries:   q,
+			EventBus:  eventBus,
 		}
 		workers := river.Workers(deps)
 

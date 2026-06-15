@@ -27,6 +27,7 @@ const (
 	EvCanonViolationDetected EventType = "canon.violation_detected"
 	EvCharacterMoved         EventType = "character.moved"
 	EvEmotionChanged         EventType = "emotion.changed"
+	EvStateDeltaApplied      EventType = "state_delta.applied"
 )
 
 type Event struct {

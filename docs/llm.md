@@ -11,9 +11,11 @@ const (
 ```
 
 **Default model mappings:**
-- `claude-sonnet` → `claude-sonnet-4-20250514` (Anthropic)
-- `claude-haiku` → `claude-haiku-3-5-20250224` (Anthropic)
+- `sonnet` → `claude-sonnet-4-20250514` (Anthropic)
+- `haiku` → `claude-haiku-3-5-20250224` (Anthropic)
 - `local-7b` → `llama3.2:3b` (Ollama)
+
+Templates use `sonnet`/`haiku`/`local-7b` keys (string, not `llm.ModelTier` enum — avoids circular import between `prompt` and `llm` packages).
 
 ## LLM Router
 
@@ -24,19 +26,9 @@ const (
 
 Both clients are always created at startup. Router retries on failure (1 initial + 2 retries = 3 total, exponential backoff 250ms/500ms).
 
-## Prompt Registry
+## Prompt Registry (Legacy — Only TitleService)
 
-All entries in `internal/llm/types.go:140-183`:
-
-| Template Key | Model | Temp | System Text |
-|---|---|---|---|
-| `scene_prose` | Sonnet | 0.8 | "You are a fiction co-writer. Write ONE scene and nothing else." |
-| `state_extract` | local-7b | 0 | "You are a continuity clerk. Read the scene and call record_state_deltas." |
-| `summary_update` | local-7b | 0.2 | "You maintain a running plot summary for one storyline branch." |
-| `join_merge` | Haiku | 0.2 | "Two parallel storylines are converging. Merge their summaries." |
-| `canon_validate` | Haiku | 0 | "You are a strict continuity editor. Check this draft against canon." |
-| `outline_story` | local-7b | 0.7 | "You are a master story architect. Given a synopsis, generate a structured story outline with characters, plot beats, and narrative flow." |
-| `generate_title` | local-7b | 0.5 | "You are a creative title generator. Given a synopsis, generate a short, engaging story title (3-8 words). Return ONLY the title, no quotes or punctuation." |
+The inline registry in `internal/llm/types.go:140-183` is now only used by `TitleService`. All other services use `CompilerService.Compile()`. The 7 templates are mirrored in `internal/prompt/store.go:DefaultTemplates()` (the canonical source for all prompt services). See [Templates (7 built-in)](#templates-7-built-in-stored-in-internalpromptstorego) below.
 
 ## Service Interfaces
 
@@ -44,37 +36,37 @@ All interfaces defined in `internal/llm/types.go:53-79`, implementations in `int
 
 ### ProseService (`types.go:53`, `services.go:17`)
 - `GenerateScene(ctx, params PromptParams) (*CompletionResponse, error)`
-- Builds `CompiledContext` → `BuildSceneProseSystemPrompt()` → system prompt with canon XML + state
+- Calls `s.compiler.Compile(req, "scene_prose")` → system prompt with all 10 layers
 - `BuildSceneProseUserMessage()` → user message with beat intent, POV, tone
-- System prompt includes: character cards (name, traits, relationships, voice samples), location card, world rules (lore), current state, branch summary
+- System prompt includes: character cards, location card, world rules, current state, branch summary
 - Hard rules: canon is law, no new characters, voice match, word count ±20%, prose only
 - Temperature: 0.8, MaxTokens: 4096
 
 ### ExtractionService (`types.go:57`, `services.go:63`)
 - `ExtractState(ctx, sceneText string, roster map[string]string) (*ledger.StateDeltas, error)`
 - Extracts state deltas from generated scene text
-- Uses `BuildStateExtractSystemPrompt(roster)` for system prompt
+- Calls `s.compiler.Compile(req, "state_extract")` for system prompt (includes roster XML)
 - Expects JSON response from LLM
 - Temperature: 0, MaxTokens: 1024
 
 ### SummaryService (`types.go:61`, `services.go:94`)
 - `UpdateSummary(ctx, previousSummary, newScene string) (string, error)`
 - Updates running plot summary for a branch
-- Uses `BuildSummaryUpdateSystemPrompt(previousSummary, newScene)`
+- Calls `s.compiler.Compile(req, "summary_update")` for system prompt (includes previous summary + scene)
 - Rules: max 200 words, preserve facts, chronological, present tense
 - Temperature: 0.2, MaxTokens: 1024
 
 ### MergeService (`types.go:65`, `services.go:118`)
 - `MergeBranches(ctx, summaryA, summaryB, timelineNote string) (map[string]interface{}, error)`
 - Merges parallel branch summaries at join nodes
-- Uses `BuildJoinMergeSystemPrompt(summaryA, summaryB, timelineNote)`
+- Calls `s.compiler.Compile(req, "join_merge")` for system prompt (includes both summaries + timeline)
 - Outputs JSON: `{"merged_summary": "...", "conflicts": [...]}`
 - Temperature: 0.2, MaxTokens: 1024
 
 ### ValidationService (`types.go:69`, `services.go:146`)
 - `ValidateAgainstCanon(ctx, canonXML, charState, draft string) (map[string]interface{}, error)`
 - Validates draft against canon for continuity violations
-- Uses `BuildCanonValidateSystemPrompt(canonXML, charState, draft)`
+- Calls `s.compiler.Compile(req, "canon_validate")` for system prompt (includes canon XML + char state + draft)
 - Outputs JSON: `{"violations": [{"type": "...", "character": "...", "evidence": "...", "explanation": "...", "severity": "high|low"}]}`
 - Checks: knowledge, voice, traits, location, world rules
 - Temperature: 0, MaxTokens: 2048
@@ -82,7 +74,7 @@ All interfaces defined in `internal/llm/types.go:53-79`, implementations in `int
 ### OutlineService (`types.go:73`, `services.go:174`)
 - `GenerateOutline(ctx, synopsis string) (*StoryOutline, error)`
 - Generates structured story outline from synopsis
-- Uses `BuildOutlineStorySystemPrompt(synopsis)`
+- Calls `s.compiler.Compile(req, "outline_story")` for system prompt (includes synopsis)
 - Output: `StoryOutline` with title, characters, beats, edges
 - Schema: 5-12 beats, characters with goals/flaws, seq/fork/join edges, acts 1-3
 - Temperature: 0.7, MaxTokens: 4096
@@ -93,9 +85,9 @@ All interfaces defined in `internal/llm/types.go:53-79`, implementations in `int
 - Temperature: 0.5, MaxTokens: 64
 - Strips quotes and whitespace from output
 
-## Prompt Compiler (Built, Not Yet Wired)
+## Prompt Compiler (Wired)
 
-The Prompt Compiler (`internal/prompt/compiler.go`) is built but not yet wired into the River generation pipeline.
+The Prompt Compiler (`internal/prompt/compiler.go`) is built and wired into all 6 LLM services (Prose, Extraction, Summary, Merge, Validation, Outline). Only TitleService uses the legacy PromptRegistry.
 
 ### 10-Layer Hierarchy
 
@@ -125,21 +117,21 @@ type CompilerService struct {
 
 - `Compile(req CompileRequest, templateName PromptTemplate) *CompiledPrompt`
 - Compiles layers in order (Global → Culture → Story → Memory → Chapter → Scenario → Character → Scene → Frame → Safety)
-- Hardcoded templates are still used in `llm/` — migration to CompilerService is the next step
 - See `internal/prompt/` for the full implementation
 
-### Templates (4 built-in, stored in `internal/prompt/store.go`)
+### Templates (7 built-in, stored in `internal/prompt/store.go`)
 
 | Name | Model | Temp | System |
 |---|---|---|---|
-| `scene_prose` | Sonnet | 0.8 | — |
-| `state_extract` | local-7b | 0 | — |
-| `summary_update` | local-7b | 0.2 | — |
-| `canon_validate` | Haiku | 0 | — |
+| `scene_prose` | sonnet | 0.8 | "You generate story prose" |
+| `state_extract` | haiku | 0 | "You extract character state deltas" |
+| `summary_update` | haiku | 0.2 | "You maintain a running plot summary" |
+| `canon_validate` | haiku | 0 | "You check continuity violations" |
+| `join_merge` | haiku | 0.2 | "You merge parallel branch summaries" |
+| `outline_story` | sonnet | 0.7 | "You generate structured story outlines" |
+| `generate_title` | haiku | 0.5 | "You generate short story titles" |
 
-These overlap with the inline registry in `llm/types.go`. The Compiler's templates are the canonical source; the hardcoded prompt builders in `compiler/prompts.go` still handle actual prompt assembly.
-
-**Next step:** Replace `PromptRegistry` + `compiler.Build*SystemPrompt()` calls in `llm/services.go` with `CompilerService.Compile()`.
+Templates use string model tier keys (no circular import with `llm`). The `CompileRequest` carries all dynamic content: `CanonXML`, `CharStateXML`, `BranchSummary`, `TargetWords`, `RosterJSON`, `CompiledCanon`, `Synopsis`.
 
 See `docs/adr/0002-narrative-os-direction.md` (Phase 2 ✅ Built) and `docs/vision.md`.
 

@@ -22,7 +22,7 @@ internal/service/
   cache/       Redis cache wrapper + rate limiter
 ```
 
-Blueprints and timelines are memory-only — no DB tables or sqlc queries exist yet.
+A new domain-level `internal/character/` package provides a unified Service interface combining Definition (immutable), State (per-scene), and Memory (vector) — wrapping the legacy `canon`, `ledger`, and `memory` stores. Blueprints and timelines are memory-only — no DB tables or sqlc queries exist yet.
 
 ---
 
@@ -316,8 +316,10 @@ All workers in `internal/river/jobs.go`. 6 job types with 5 queues.
 3. Upserts story-level summary
 
 ### ValidateSceneWorker (queue: `validate`)
-1. Calls `ValidationService.ValidateAgainstCanon(canonXML, charState, sceneText)`
-2. Stores result via `UpdateGenerationValidation` (generations.validation_result column)
+1. Runs 4 domain validators: Character (presence/voice/traits), World Rules (substring check), Dialogue/Behavior (alignment/personality), Timeline (structural)
+2. Calls `LLM.ValidationService.ValidateAgainstCanon(canonXML, charState, sceneText)`
+3. Stores LLM result via `UpdateGenerationValidation` (generations.validation_result column)
+4. Domain validation checks stored in `validation.MemoryStore` (in-memory)
 
 ### GenerateStoryWorker (queue: `default`)
 1. Calls `OutlineService.GenerateOutline(synopsis)`

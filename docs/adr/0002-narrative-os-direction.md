@@ -210,8 +210,11 @@ Format-independent. Consumable by Stable Diffusion, Flux, Sora, Unreal, Unity.
 
 - **Domain before infrastructure.** Kafka (#11), Neo4j (#10), Qdrant (#9) come last. The real hard problem is: "Can character A remain emotionally consistent through 200 scenes across multiple timelines?" Solve that first; databases are implementation details.
 - All new entities go into new tables/collections first. Existing tables are migrated in-place via SQL.
-- ✅ Prompt compiler built at `internal/prompt/` — 10 layers, 5 merge strategies, in-memory template store with default templates. CompilerService + MemoryStore. Next: wire into River worker pipeline.
-- ✅ Timeline engine built at `internal/timeline/engine.go` — event-sourced on top of `event.Store`/`event.Bus`, branch/fork/merge/past/future support. Next: connect character state reconstruction from timeline events.
+- ✅ Prompt compiler built at `internal/prompt/` and wired into all 6 LLM services (Prose, Extraction, Summary, Merge, Validation, Outline). Circular dependency `prompt→llm` broken by using `string` model fields instead of `llm.ModelTier`. 7 default templates. Only TitleService remains on legacy PromptRegistry.
+- ✅ Character split: `internal/character/` package created — `Definition` (immutable), `State` (per-scene), `Memory` (vector) types with unified `Service` interface. Wraps existing `canon`/`ledger`/`memory` stores. InMemoryService created in `main.go`, not yet wired into handlers.
+- ✅ Timeline engine built at `internal/timeline/engine.go` — event-sourced on top of `event.Store`/`event.Bus`, branch/fork/merge/past/future support.
+- ✅ Character state event-sourced: `ledger.MemoryStore` now wraps `event.Store`/`event.Bus`. `ApplyDelta` appends an `EvStateDeltaApplied` event, updates an in-memory projection, and publishes to the bus. `ReplayOnStartup` rebuilds projection from event store. River `ExtractStateWorker` also publishes events after DB upsert.
+- ✅ 4 domain validators built and wired: `validation.ValidatorService` with Character (voice/presence/traits), Timeline (structural), World Rules (substring), Dialogue/Behavior (alignment/personality). Runs inside `ValidateSceneWorker` alongside LLM validation.
 - Character state tracking (Phase 4) is the minimum viable fix for LLM hallucination. Without per-scene state snapshots, outfits, emotions, and relationships change randomly.
 - MongoDB comes at Phase 6 — *after* domains are stable. Don't add MongoDB while the data model is still in flux.
 - The emotion engine becomes simple once character state is event-sourced. With event sourcing, inner/displayed/suppressed emotion is just a query across recent state deltas.

@@ -36,60 +36,52 @@ func (s *CompilerService) Compile(req *CompileRequest, templateName string) (*Co
 	layers := s.resolveLayers(tmpl.Layers)
 
 	var systemParts []string
-	safetyLayer := ""
 	var userLayer *PromptLayer
-	frameLayer := &PromptLayer{}
 	appliedLayers := make([]LayerID, 0, len(layers))
 	model := tmpl.Model
 	temp := tmpl.Temperature
 	maxTokens := tmpl.MaxTokens
 
 	for _, layer := range layers {
-		switch layer.Strategy {
-		case MergeDisable:
+		if layer.Strategy == MergeDisable {
 			continue
+		}
+
+		content := layer.System
+		if layer.ID == LayerFrame {
+			content = s.buildDynamicContext(req)
+			if content == "" {
+				appliedLayers = append(appliedLayers, layer.ID)
+				continue
+			}
+		}
+
+		switch layer.Strategy {
 		case MergeOverride:
 			if layer.HasUserContent() {
 				userLayer = &layer
-			} else if layer.System != "" {
-				systemParts = []string{layer.System}
+				continue
+			}
+			if content != "" {
+				systemParts = []string{content}
 			}
 		case MergeReplace:
-			if layer.System != "" {
-				systemParts = []string{layer.System}
+			if content != "" {
+				systemParts = []string{content}
 			}
-		case MergeMerge:
-			if layer.System != "" {
-				systemParts = append(systemParts, layer.System)
-			}
-		case MergeAppend:
-			if layer.System != "" {
-				systemParts = append(systemParts, layer.System)
+		case MergeMerge, MergeAppend:
+			if content != "" {
+				systemParts = append(systemParts, content)
 			}
 		}
 
-		if layer.ID == LayerSafety {
-			safetyLayer = layer.System
-		}
-		if layer.ID == LayerFrame {
-			frameLayer = &layer
-		}
 		if layer.Model != "" {
 			model = layer.Model
 		}
-
 		appliedLayers = append(appliedLayers, layer.ID)
 	}
 
 	system := strings.Join(systemParts, "\n\n")
-	if len(systemParts) > 0 {
-		system += "\n\n"
-	}
-	system += s.buildUserPrompt(req, frameLayer)
-
-	if safetyLayer != "" {
-		system = safetyLayer + "\n\n" + system
-	}
 
 	user := req.ScenePrompt
 	if userLayer != nil && userLayer.Template != "" {
@@ -99,12 +91,12 @@ func (s *CompilerService) Compile(req *CompileRequest, templateName string) (*Co
 	}
 
 	return &CompiledPrompt{
-		System:         system,
-		User:           user,
-		Model:          model,
-		Temperature:    temp,
-		MaxTokens:      maxTokens,
-		LayersApplied:  appliedLayers,
+		System:        system,
+		User:          user,
+		Model:         model,
+		Temperature:   temp,
+		MaxTokens:     maxTokens,
+		LayersApplied: appliedLayers,
 	}, nil
 }
 
@@ -126,25 +118,43 @@ func layerIndex(id LayerID) int {
 	return len(layerOrder)
 }
 
-func (s *CompilerService) buildUserPrompt(req *CompileRequest, frameLayer *PromptLayer) string {
+func (s *CompilerService) buildDynamicContext(req *CompileRequest) string {
 	var b strings.Builder
 
-	if req.StoryPrompt != "" {
-		b.WriteString(fmt.Sprintf("<story>%s</story>\n", esc(req.StoryPrompt)))
+	if req.CanonXML != "" {
+		b.WriteString(fmt.Sprintf("<canon>\n%s\n</canon>", req.CanonXML))
 	}
-	if req.ChapterPrompt != "" {
-		b.WriteString(fmt.Sprintf("<chapter>%s</chapter>\n", esc(req.ChapterPrompt)))
+	if req.CharStateXML != "" {
+		b.WriteString(fmt.Sprintf("\n\n<current_state>\n%s\n</current_state>", req.CharStateXML))
 	}
-	if req.CulturePrompt != "" {
-		b.WriteString(fmt.Sprintf("<culture>%s</culture>\n", esc(req.CulturePrompt)))
+	if req.BranchSummary != "" {
+		b.WriteString(fmt.Sprintf("\n\n<story_so_far>%s</story_so_far>", esc(req.BranchSummary)))
 	}
-	if req.MemoryContext != "" {
-		b.WriteString(fmt.Sprintf("<memory>%s</memory>\n", esc(req.MemoryContext)))
+	if req.TargetWords > 0 {
+		b.WriteString(fmt.Sprintf("\n\nTarget word count: %d.", req.TargetWords))
 	}
-	if req.CharacterPrompt != "" {
-		b.WriteString(fmt.Sprintf("<character_prompt>%s</character_prompt>\n", esc(req.CharacterPrompt)))
+	if req.RosterJSON != "" {
+		b.WriteString(fmt.Sprintf("\nKnown characters and names to preserve: %s", req.RosterJSON))
+	}
+	if req.Synopsis != "" {
+		b.WriteString(fmt.Sprintf("\n<synopsis>%s</synopsis>", esc(req.Synopsis)))
 	}
 
+	if req.StoryPrompt != "" {
+		b.WriteString(fmt.Sprintf("\n<story>%s</story>", esc(req.StoryPrompt)))
+	}
+	if req.ChapterPrompt != "" {
+		b.WriteString(fmt.Sprintf("\n<chapter>%s</chapter>", esc(req.ChapterPrompt)))
+	}
+	if req.CulturePrompt != "" {
+		b.WriteString(fmt.Sprintf("\n<culture>%s</culture>", esc(req.CulturePrompt)))
+	}
+	if req.MemoryContext != "" {
+		b.WriteString(fmt.Sprintf("\n<memory>%s</memory>", esc(req.MemoryContext)))
+	}
+	if req.CharacterPrompt != "" {
+		b.WriteString(fmt.Sprintf("\n<character_prompt>%s</character_prompt>", esc(req.CharacterPrompt)))
+	}
 	return b.String()
 }
 

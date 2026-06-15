@@ -11,8 +11,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/premchand/story-builder/internal/canon"
 	"github.com/premchand/story-builder/internal/db"
+	"github.com/premchand/story-builder/internal/event"
 	"github.com/premchand/story-builder/internal/ledger"
 	"github.com/premchand/story-builder/internal/llm"
+	"github.com/premchand/story-builder/internal/validation"
 	"github.com/riverqueue/river"
 )
 
@@ -163,12 +165,13 @@ func (ExtractStateArgs) Kind() string { return "extract_state" }
 
 type ExtractStateWorker struct {
 	river.WorkerDefaults[ExtractStateArgs]
-	Extract llm.ExtractionService
-	Queries *db.Queries
+	Extract  llm.ExtractionService
+	Queries  *db.Queries
+	EventBus event.Bus
 }
 
-func NewExtractStateWorker(extract llm.ExtractionService, q *db.Queries) *ExtractStateWorker {
-	return &ExtractStateWorker{Extract: extract, Queries: q}
+func NewExtractStateWorker(extract llm.ExtractionService, q *db.Queries, bus event.Bus) *ExtractStateWorker {
+	return &ExtractStateWorker{Extract: extract, Queries: q, EventBus: bus}
 }
 
 func (w *ExtractStateWorker) Work(ctx context.Context, job *river.Job[ExtractStateArgs]) error {
@@ -215,6 +218,34 @@ func (w *ExtractStateWorker) Work(ctx context.Context, job *river.Job[ExtractSta
 			State:       stateJSON,
 		}); err != nil {
 			return fmt.Errorf("upsert character state: %w", err)
+		}
+
+		if w.EventBus != nil {
+			evt := &event.Event{
+				Type:        event.EvStateDeltaApplied,
+				AggregateID: d.Character,
+				StoryID:     args.StoryID,
+				SceneID:     args.NodeID,
+				CharID:      d.Character,
+				Payload: map[string]any{
+					"character":    d.Character.String(),
+					"new_location": d.NewLocation,
+					"learned":      d.Learned,
+					"mood":         d.Mood,
+					"items_gained": d.ItemsGained,
+					"items_lost":   d.ItemsLost,
+				},
+			}
+			if len(d.RelationshipChanges) > 0 {
+				rels := make([]map[string]string, len(d.RelationshipChanges))
+				for i, r := range d.RelationshipChanges {
+					rels[i] = map[string]string{"with": r.With.String(), "change": r.Change}
+				}
+				evt.Payload["relationship_changes"] = rels
+			}
+			if err := w.EventBus.Publish(evt); err != nil {
+				slog.Warn("publish state delta event", "error", err)
+			}
 		}
 	}
 
@@ -308,16 +339,24 @@ func (ValidateSceneArgs) Kind() string { return "validate_scene" }
 
 type ValidateSceneWorker struct {
 	river.WorkerDefaults[ValidateSceneArgs]
-	Validate llm.ValidationService
-	Queries  *db.Queries
+	Validate   llm.ValidationService
+	Validator  validation.ValidatorService
+	Queries    *db.Queries
 }
 
-func NewValidateSceneWorker(svc llm.ValidationService, q *db.Queries) *ValidateSceneWorker {
-	return &ValidateSceneWorker{Validate: svc, Queries: q}
+func NewValidateSceneWorker(svc llm.ValidationService, v validation.ValidatorService, q *db.Queries) *ValidateSceneWorker {
+	return &ValidateSceneWorker{Validate: svc, Validator: v, Queries: q}
 }
 
 func (w *ValidateSceneWorker) Work(ctx context.Context, job *river.Job[ValidateSceneArgs]) error {
 	args := job.Args
+
+	if w.Validator != nil {
+		charIDs := make([]uuid.UUID, 0)
+		w.Validator.ValidateAgainstCanon(args.StoryID, args.NodeID, args.SceneText, charIDs)
+		w.Validator.ValidateCharacterBehavior(uuid.Nil, args.SceneText, nil)
+	}
+
 	result, err := w.Validate.ValidateAgainstCanon(ctx, args.CompiledCanon, args.CharState, args.SceneText)
 	if err != nil {
 		return fmt.Errorf("validate scene: %w", err)
@@ -449,22 +488,24 @@ func (w *GenerateStoryWorker) Work(ctx context.Context, job *river.Job[GenerateS
 // ── Workers Registry ──────────────────────────────────────────
 
 type Dependencies struct {
-	Prose    llm.ProseService
-	Extract  llm.ExtractionService
-	Summary  llm.SummaryService
-	Merge    llm.MergeService
-	Validate llm.ValidationService
-	Outline  llm.OutlineService
-	Queries  *db.Queries
+	Prose     llm.ProseService
+	Extract   llm.ExtractionService
+	Summary   llm.SummaryService
+	Merge     llm.MergeService
+	Validate  llm.ValidationService
+	Validator validation.ValidatorService
+	Outline   llm.OutlineService
+	Queries   *db.Queries
+	EventBus  event.Bus
 }
 
 func Workers(deps *Dependencies) *river.Workers {
 	workers := river.NewWorkers()
 	river.AddWorker(workers, NewGenerateSceneWorker(deps.Prose, deps.Queries))
-	river.AddWorker(workers, NewExtractStateWorker(deps.Extract, deps.Queries))
+	river.AddWorker(workers, NewExtractStateWorker(deps.Extract, deps.Queries, deps.EventBus))
 	river.AddWorker(workers, NewUpdateSummaryWorker(deps.Summary, deps.Queries))
 	river.AddWorker(workers, NewMergeBranchesWorker(deps.Merge, deps.Queries))
-	river.AddWorker(workers, NewValidateSceneWorker(deps.Validate, deps.Queries))
+	river.AddWorker(workers, NewValidateSceneWorker(deps.Validate, deps.Validator, deps.Queries))
 	river.AddWorker(workers, NewGenerateStoryWorker(deps.Outline, deps.Queries, deps.Prose))
 	return workers
 }
