@@ -1,0 +1,159 @@
+@startuml
+left to right direction
+skinparam monochrome true
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+title Narrative OS — Target Architecture
+
+' ── Data Stores ──
+
+package "Data Stores" {
+  database "PostgreSQL" as PG {
+    frame "Transactional" as TX
+    frame "stories"
+    frame "chapters"
+    frame "scenes"
+    frame "users"
+    frame "generation_jobs"
+    frame "audit_logs"
+  }
+
+  database "MongoDB" as MONGO {
+    frame "Documents" as DOC
+    frame "character_profiles"
+    frame "scene_templates"
+    frame "prompt_templates"
+    frame "world_definitions"
+    frame "culture_definitions"
+  }
+
+  database "Neo4j" as NEO {
+    frame "Relationships" as REL
+    frame "Character↔Character"
+    frame "Character↔Scene"
+    frame "Scene↔Scene"
+  }
+
+  database "Qdrant" as QDRANT {
+    frame "Vectors" as VEC
+    frame "character_memories"
+    frame "story_embeddings"
+    frame "culture_embeddings"
+  }
+
+  database "Redis" as REDIS {
+    frame "Cache" as CACHE
+    frame "prompt_cache"
+    frame "context_cache"
+    frame "rate_limiter"
+    frame "dist_lock"
+  }
+}
+
+' ── Canonical Model ──
+
+package "Canonical Model" {
+  frame "Universe" as U
+  frame "World" as W
+  frame "Timeline" as T
+  frame "Story" as S
+  frame "Scenario" as SC
+  frame "Scene" as SE
+  frame "Frame" as F
+}
+
+U --> W : contains
+W --> T : owns
+W --> S : owns
+S --> SC : contains
+SC --> SE : contains
+SE --> F : composed of
+
+' ── Services ──
+
+package "Services (Modular Monolith)" {
+  frame "Prompt Compiler" as PC
+  frame "Context Builder" as CB
+  frame "Generation Service" as GS
+  frame "Character Service" as CS
+  frame "Timeline Service" as TS
+  frame "Memory Service" as MS
+  frame "Emotion Service" as ES
+  frame "Culture Service" as CUS
+  frame "Validation Service" as VS
+  frame "Render Service" as RS
+  frame "Casting Service" as CAS
+  frame "Analytics Service" as AS
+}
+
+' ── External ──
+
+rectangle "LLM Providers" as LLM {
+  frame "Anthropic"
+  frame "Ollama"
+  frame "OpenAI"
+}
+
+rectangle "Render Targets" as RENDER {
+  frame "Prose"
+  frame "Visual Novel"
+  frame "Screenplay"
+  frame "Comic Panel"
+  frame "Game Dialog"
+  frame "2D/3D Scene"
+}
+
+' ── Connections ──
+
+PC --> CB : compiled prompt
+CB --> PG : canon + state
+CB --> MONGO : templates + culture
+CB --> NEO : relationships
+CB --> QDRANT : memories
+CB --> REDIS : cache check
+
+GS --> LLM : completion request
+GS --> VS : validate output
+GS --> RS : render output
+
+CS --> NEO : relationship queries
+CS --> QDRANT : memory storage
+CS --> PG : state persistence
+
+TS --> PG : event store
+TS --> REDIS : timeline cache
+
+MS --> QDRANT : semantic search
+MS --> QDRANT : memory write
+
+ES --> CS : character state
+ES --> PC : emotion context
+
+CUS --> MONGO : culture definitions
+CUS --> PC : culture context
+
+VS --> PG : validation results
+
+RS --> RENDER : format-specific output
+
+AS --> PG : analytics data
+AS --> LLM : usage metrics
+
+' ── Events ──
+
+frame "Kafka" as KAFKA {
+  frame "Event Bus" as EVT
+}
+
+GS --> EVT : SceneGenerated
+CS --> EVT : CharacterChanged
+ES --> EVT : EmotionChanged
+TS --> EVT : TimelineChanged
+RS --> EVT : RenderGenerated
+
+EVT --> AS : consume events
+EVT --> MS : consume events
+EVT --> CS : consume events
+
+@enduml

@@ -360,14 +360,62 @@ When Postgres is unavailable:
 - Blueprint + Timeline always use memory stores (no DB backing yet)
 - Redis cache is optional; when available wraps LLM client with caching + rate limiting
 
+## Evolution Path: Narrative OS
+
+This project is evolving from a story graph generator into a **Narrative Operating System** — a reusable platform for books, visual novels, RPGs, movies, anime, comics, interactive stories, and 2D/3D scene generation from a single canonical model.
+
+### Current Model (Phase 0)
+
+```
+Story → Chapter → Scene
+```
+
+### Target Model (Phase 6)
+
+```
+Universe → World → Timeline → Story → Scenario → Scene → Frame
+```
+
+Six-phase migration defined in `docs/vision.md` and `docs/adr/0002-narrative-os-direction.md`.
+
+### Key Upgrades
+
+| Area | Current | Future |
+|---|---|---|
+| Data model | Story→Chapter→Scene | Universe→World→Timeline→Story→Scenario→Scene→Frame |
+| Character state | JSONB per scene | Event-sourced ledger |
+| Prompts | Hardcoded in registry | Layered compiler (global→story→scene→character) |
+| Relationships | JSONB maps | Neo4j graph |
+| Memory | None | Qdrant vector semantic retrieval |
+| Culture | None | Culture engine for region-aware rendering |
+| Emotion | None | Inner/displayed/suppressed emotion engine |
+| Rendering | Prose only | Multi-format (prose, VN, screenplay, comic, game) |
+| Events | River job queue | Kafka event-driven architecture |
+| Validation | None | 4 validators (character, timeline, lore, dialogue) |
+| Databases | Postgres | Postgres + MongoDB + Neo4j + Qdrant + Redis |
+
+See `docs/vision.md` for the complete architecture plan.
+
+---
+
 ## Known Gaps
 
-| Area | Issue | File |
+| Area | Issue | File / Phase |
 |---|---|---|
 | pgvector embeddings | `CreateLore` inserts empty vector. Embeddings are never computed. | `internal/service/canon/` |
 | Multi-agent scene | `StartScene`/`NextTurn`/`FinishScene` return `fmt.Errorf("not implemented")` in DB mode. | `internal/service/scene/` |
 | Blueprint + Timeline | Only memory-backed. No DB tables or sqlc queries exist. | `internal/service/blueprint/`, `internal/service/timeline/` |
 | Story→Chapter→Scene | `GenerateStoryWorker` creates scenes but chapter mapping is basic (single default chapter). | `internal/river/jobs.go` |
+| No Universe/World model | Stories are top-level, no multiverse or world hierarchy | Phase 1 |
+| No event-sourced ledger | Character state is mutable JSONB, not event-sourced | Phase 1 |
+| No prompt layering | Prompts are hardcoded in registry, no inheritance/override chain | Phase 2 |
+| No character memory | Characters have no persistent memory; LLM forgets past events across scenes | Phase 2 |
+| No culture engine | All output is culture-neutral, no region-aware rendering | Phase 3 |
+| No emotion engine | Characters have mood (string) but no inner/displayed/suppressed emotion model | Phase 3 |
+| No relationship graph | Relationships stored as JSONB maps; complex queries require full scan | Phase 4 |
+| No validators | No automated continuity, timeline, lore, or dialogue validation | Phase 5 |
+| Single output format | Prose only — no screenplay, VN, comic, or game format support | Phase 6 |
+| No Kafka events | Services coupled via Go method calls; no event-driven decoupling | Phase 4 |
 
 ## gRPC
 

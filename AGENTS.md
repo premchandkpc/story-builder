@@ -29,8 +29,11 @@ Go server (chi) + React Flow frontend + Postgres + pgvector + River async jobs.
 | Graph    | `graph`     | Story, Node, Edge — DAG with seq/fork/join/choice |
 | Ledger   | `ledger`    | CharacterState per (story, char, node), StateDelta |
 | Compiler | `compiler`  | CompiledContext + Hash() — resolved canon + state for prompting |
+| Prompt   | `prompt`    | CompilerService (10 layers, 5 merge strategies), PromptTemplate, MemoryStore |
 | LLM      | `llm`       | ModelTier enum, 7 service interfaces, PromptRegistry |
+| Timeline | `timeline`  | Engine (event-sourced, branches, past/present/future), Event, MemoryStore |
 | River    | `river`     | 6 job types matching prompt pipeline |
+| Event    | `event`     | Store + Bus (in-memory), 19 event types, evPromptCompiled |
 | API      | `api`       | chi handlers + DB/in-memory service implementations |
 | DB       | `db`        | sqlc-generated query methods (76) |
 

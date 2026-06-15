@@ -93,6 +93,30 @@ All interfaces defined in `internal/llm/types.go:53-79`, implementations in `int
 - Temperature: 0.5, MaxTokens: 64
 - Strips quotes and whitespace from output
 
+## Prompt Layering System (Future)
+
+The current prompt registry is flat. The target architecture uses hierarchical prompt layering:
+
+```
+Global Prompt           Genre, rating, safety rules
+    │
+    ├── Story Prompt    Premise, theme, tone
+    │
+    ├── Culture Prompt  Region, language, social norms (Phase 3)
+    │
+    ├── Safety Prompt   Content filters, banned topics
+    │
+    ├── Scene Prompt    Beat intent, POV, location, emotion
+    │
+    ├── Character Prompt  Current mood, memory, relationships
+    │
+    └── Memory Prompt   Retrieved character/world memories (Phase 2)
+```
+
+Each layer supports: `override`, `merge`, `append`, `replace`, `disable`.
+
+The **Prompt Compiler Service** (future) assembles these layers into the final system prompt sent to the LLM. See `docs/vision.md` for the full architecture.
+
 ## Pipeline Flow (per scene generation)
 
 ```

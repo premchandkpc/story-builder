@@ -1,116 +1,104 @@
 package prompt
 
 import (
+	"fmt"
 	"sync"
-	"time"
 
 	"github.com/google/uuid"
+	"github.com/premchand/story-builder/internal/llm"
 )
 
 type MemoryStore struct {
-	mu       sync.RWMutex
-	prompts  map[uuid.UUID]*Prompt
-	byName   map[string]*Prompt
-	versions map[uuid.UUID][]PromptVersion
+	mu   sync.RWMutex
+	data map[string]*PromptTemplate
 }
 
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		prompts:  make(map[uuid.UUID]*Prompt),
-		byName:   make(map[string]*Prompt),
-		versions: make(map[uuid.UUID][]PromptVersion),
+		data: make(map[string]*PromptTemplate),
 	}
 }
 
-func (m *MemoryStore) Create(p *Prompt) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	p.ID = uuid.New()
-	p.CurrentVer = 1
-	p.CreatedAt = time.Now()
-	p.UpdatedAt = time.Now()
-	m.prompts[p.ID] = p
-	m.byName[p.Name] = p
+func (s *MemoryStore) Save(tmpl *PromptTemplate) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	tmpl.ID = uuid.New()
+	s.data[tmpl.Name] = tmpl
 	return nil
 }
 
-func (m *MemoryStore) Get(id uuid.UUID) (*Prompt, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	p, ok := m.prompts[id]
+func (s *MemoryStore) Get(name string) (*PromptTemplate, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	tmpl, ok := s.data[name]
 	if !ok {
-		return nil, ErrNotFound
+		return nil, fmt.Errorf("prompt template %q not found", name)
 	}
-	return p, nil
+	return tmpl, nil
 }
 
-func (m *MemoryStore) GetByName(name string) (*Prompt, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	p, ok := m.byName[name]
-	if !ok {
-		return nil, ErrNotFound
+func (s *MemoryStore) List() ([]PromptTemplate, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]PromptTemplate, 0, len(s.data))
+	for _, v := range s.data {
+		out = append(out, *v)
 	}
-	return p, nil
+	return out, nil
 }
 
-func (m *MemoryStore) List() ([]Prompt, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	var result []Prompt
-	for _, p := range m.prompts {
-		result = append(result, *p)
-	}
-	return result, nil
-}
-
-func (m *MemoryStore) Update(p *Prompt) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	p.UpdatedAt = time.Now()
-	m.prompts[p.ID] = p
-	m.byName[p.Name] = p
+func (s *MemoryStore) Delete(name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.data, name)
 	return nil
 }
 
-func (m *MemoryStore) CreateVersion(pv *PromptVersion) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	pv.ID = uuid.New()
-	pv.CreatedAt = time.Now()
-	p, ok := m.prompts[pv.PromptID]
-	if !ok {
-		return ErrNotFound
+func DefaultTemplates() []*PromptTemplate {
+	return []*PromptTemplate{
+		{
+			Name:        "scene_prose",
+			Model:       llm.ModelSonnet,
+			Temperature: 0.8,
+			MaxTokens:   4096,
+			Layers: []PromptLayer{
+				{ID: LayerGlobal, Strategy: MergeOverride, System: "You are a fiction co-writer writing a narrative scene.", Priority: 1},
+				{ID: LayerCulture, Strategy: MergeMerge, System: "", Priority: 2},
+				{ID: LayerStory, Strategy: MergeOverride, System: "Canon is law. Never contradict established facts.", Priority: 3},
+				{ID: LayerMemory, Strategy: MergeAppend, System: "", Priority: 4},
+				{ID: LayerChapter, Strategy: MergeMerge, System: "", Priority: 5},
+				{ID: LayerCharacter, Strategy: MergeMerge, System: "", Priority: 6},
+				{ID: LayerScene, Strategy: MergeOverride, Template: "Write the scene as described below.", Priority: 7},
+				{ID: LayerSafety, Strategy: MergeOverride, System: "HARD RULES:\n1. Canon is law.\n2. No new named characters/locations.\n3. Dialogue must match voice samples.\n4. Output prose only.", Priority: 8},
+			},
+		},
+		{
+			Name:        "state_extract",
+			Model:       llm.ModelLocal,
+			Temperature: 0.0,
+			MaxTokens:   2048,
+			Layers: []PromptLayer{
+				{ID: LayerGlobal, Strategy: MergeOverride, System: "You are a continuity clerk. Extract state deltas from the scene.", Priority: 1},
+				{ID: LayerScene, Strategy: MergeOverride, Template: "Extract character state changes from this scene.", Priority: 2},
+			},
+		},
+		{
+			Name:        "summary_update",
+			Model:       llm.ModelLocal,
+			Temperature: 0.2,
+			MaxTokens:   1024,
+			Layers: []PromptLayer{
+				{ID: LayerGlobal, Strategy: MergeOverride, System: "You maintain a running plot summary for one storyline branch.", Priority: 1},
+			},
+		},
+		{
+			Name:        "canon_validate",
+			Model:       llm.ModelHaiku,
+			Temperature: 0.0,
+			MaxTokens:   2048,
+			Layers: []PromptLayer{
+				{ID: LayerGlobal, Strategy: MergeOverride, System: "You are a strict continuity editor. Check draft against canon.", Priority: 1},
+			},
+		},
 	}
-	pv.Version = p.CurrentVer + 1
-	p.CurrentVer = pv.Version
-	m.versions[pv.PromptID] = append(m.versions[pv.PromptID], *pv)
-	return nil
-}
-
-func (m *MemoryStore) ListVersions(promptID uuid.UUID) ([]PromptVersion, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	versions, ok := m.versions[promptID]
-	if !ok {
-		return nil, nil
-	}
-	result := make([]PromptVersion, len(versions))
-	copy(result, versions)
-	return result, nil
-}
-
-func (m *MemoryStore) GetVersion(promptID uuid.UUID, version int) (*PromptVersion, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	versions, ok := m.versions[promptID]
-	if !ok {
-		return nil, ErrNotFound
-	}
-	for _, v := range versions {
-		if v.Version == version {
-			return &v, nil
-		}
-	}
-	return nil, ErrNotFound
 }
