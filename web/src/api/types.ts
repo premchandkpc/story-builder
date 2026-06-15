@@ -74,11 +74,62 @@ export interface Lore {
   created_at: string
 }
 
+export interface Chapter {
+  id: string
+  story_id: string
+  title: string
+  description: string
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface Scene {
+  id: string
+  chapter_id: string
+  story_id: string
+  beat_intent: string
+  character_refs: string[]
+  location_ref: string | null
+  pov: string
+  tone: string
+  target_words: number
+  status: NodeStatus
+  scene_structure?: SceneStructure
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface SceneEdge {
+  story_id: string
+  from_scene: string
+  to_scene: string
+  edge_type: EdgeType
+}
+
 export interface Story {
   id: string
   title: string
   canon_pins: Record<string, unknown>
   created_at: string
+}
+
+export interface CreateChapterPayload {
+  title: string
+  description?: string
+  sort_order?: number
+}
+
+export interface CreateScenePayload {
+  beat_intent: string
+  character_refs: string[]
+  location_ref?: string | null
+  pov: string
+  tone: string
+  target_words: number
+  scene_structure?: SceneStructure
+  sort_order?: number
 }
 
 export interface StoryStats {

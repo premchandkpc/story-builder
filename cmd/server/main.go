@@ -16,18 +16,24 @@ import (
 	"github.com/premchand/story-builder/internal/config"
 	"github.com/premchand/story-builder/internal/db"
 	"github.com/premchand/story-builder/internal/graph"
+	"github.com/premchand/story-builder/internal/memory"
+	"github.com/premchand/story-builder/internal/planner"
 	grpcserver "github.com/premchand/story-builder/internal/grpc/server"
 	"github.com/premchand/story-builder/internal/llm"
 	applog "github.com/premchand/story-builder/internal/log"
 	"github.com/premchand/story-builder/internal/migrate"
 	"github.com/premchand/story-builder/internal/river"
+	"github.com/premchand/story-builder/internal/storage"
 	cachesvc "github.com/premchand/story-builder/internal/service/cache"
 	blueprintsvc "github.com/premchand/story-builder/internal/service/blueprint"
 	canonsvc "github.com/premchand/story-builder/internal/service/canon"
 	chaptersvc "github.com/premchand/story-builder/internal/service/chapter"
+	contextsvc "github.com/premchand/story-builder/internal/service/context"
 	edgesvc "github.com/premchand/story-builder/internal/service/edge"
 	gensvc "github.com/premchand/story-builder/internal/service/generation"
+	memsvc "github.com/premchand/story-builder/internal/service/memory"
 	nodesvc "github.com/premchand/story-builder/internal/service/node"
+	plannersvc "github.com/premchand/story-builder/internal/service/planner"
 	scenesvc "github.com/premchand/story-builder/internal/service/scene"
 	storysvc "github.com/premchand/story-builder/internal/service/story"
 	summarysvc "github.com/premchand/story-builder/internal/service/summary"
@@ -47,6 +53,11 @@ func main() {
 	defer cancel()
 
 	cfg := config.FromEnv()
+
+	adapters := storage.Init(ctx, &cfg)
+	if adapters.Mongo != nil {
+		slog.Info("storage adapters initialized", "mongo", true, "qdrant", adapters.Qdrant != nil, "redis", adapters.Redis != nil, "kafka", adapters.EventBus != nil)
+	}
 
 	var pool *pgxpool.Pool
 	dbOk := false
@@ -104,6 +115,10 @@ func main() {
 
 		if redisCache != nil {
 			llmClient = redisCache.WrapLLMClient(llmClient)
+		}
+
+		if adapters.Mongo != nil {
+			slog.Info("mongo available for runtime services")
 		}
 
 		proseSvc := llm.NewProseService(llmClient)
@@ -180,7 +195,13 @@ func main() {
 		if redisCache != nil {
 			contextCache = redisCache.ContextCache
 		}
-		genHandler = &api.GenerationHandler{Service: gensvc.NewDBGenerationServiceWithCache(q, rivClient, contextCache)}
+
+		ctxBuilder := contextsvc.NewBuilderService(q)
+		memSvc := memsvc.NewService(memory.NewMemoryStore())
+		memStore := planner.NewMemoryStore()
+		plannerSvc := plannersvc.NewService(planner.NewPlannerService(memStore))
+
+		genHandler = &api.GenerationHandler{Service: gensvc.NewDBGenerationServiceWithServices(q, rivClient, contextCache, ctxBuilder, memSvc, plannerSvc)}
 		sceneHandler = &api.SceneHandler{SceneService: scenesvc.NewDBService(q)}
 		summaryHandler = &api.SummaryHandler{Service: summarysvc.NewDBService(q)}
 		storyGenHandler = &api.StoryGeneratorHandler{Service: gensvc.NewDBStoryGeneratorService(q, rivClient)}

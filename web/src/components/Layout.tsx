@@ -47,7 +47,8 @@ export default function Layout() {
                   <StoryListItem
                     key={s.id}
                     story={s}
-                    nodeCount={st.total}
+                    chapterCount={st.total}
+                    sceneCount={st.total}
                     accepted={st.accepted}
                     generated={st.generated}
                     stale={st.stale}

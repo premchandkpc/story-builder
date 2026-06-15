@@ -3,21 +3,22 @@ import type { Story } from "../api/types"
 
 interface StoryListItemProps {
   story: Story
-  nodeCount: number
+  chapterCount: number
+  sceneCount: number
   accepted: number
   generated: number
   stale: number
   isActive: boolean
 }
 
-export default function StoryListItem({ story, nodeCount, accepted, generated, stale, isActive }: StoryListItemProps) {
+export default function StoryListItem({ story, chapterCount, sceneCount, accepted, generated, stale, isActive }: StoryListItemProps) {
   const navigate = useNavigate()
-  const nodeInfo =
-    nodeCount === 0
-      ? "No nodes"
-      : `${nodeCount} nodes · ${accepted} accepted · ${generated} generated`
+  const info =
+    sceneCount === 0
+      ? "No scenes"
+      : `${chapterCount} chapters · ${sceneCount} scenes · ${accepted} accepted · ${generated} generated`
   const statusColor =
-    stale > 0 ? "#ef4444" : nodeCount > 0 && accepted === nodeCount ? "#22c55e" : nodeCount > 0 ? "#eab308" : "#64748b"
+    stale > 0 ? "#ef4444" : sceneCount > 0 && accepted === sceneCount ? "#22c55e" : sceneCount > 0 ? "#eab308" : "#64748b"
   const date = new Date(story.created_at).toLocaleDateString()
 
   return (
@@ -42,7 +43,7 @@ export default function StoryListItem({ story, nodeCount, accepted, generated, s
         <span style={{ width: 8, height: 8, borderRadius: "50%", background: statusColor, flexShrink: 0 }} />
         <span style={{ fontWeight: isActive ? 700 : 500 }}>{story.title}</span>
       </div>
-      <div style={{ fontSize: 11, color: "#64748b", paddingLeft: 14 }}>{nodeInfo} · {date}</div>
+      <div style={{ fontSize: 11, color: "#64748b", paddingLeft: 14 }}>{info} · {date}</div>
     </button>
   )
 }

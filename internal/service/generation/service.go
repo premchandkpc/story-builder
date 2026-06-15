@@ -13,6 +13,10 @@ import (
 	"github.com/premchand/story-builder/internal/db"
 	"github.com/premchand/story-builder/internal/ledger"
 	"github.com/premchand/story-builder/internal/llm"
+	"github.com/premchand/story-builder/internal/planner"
+	ctxsvc "github.com/premchand/story-builder/internal/service/context"
+	memsvc "github.com/premchand/story-builder/internal/service/memory"
+	plansvc "github.com/premchand/story-builder/internal/service/planner"
 	"github.com/premchand/story-builder/internal/river"
 	riv "github.com/riverqueue/river"
 )
@@ -79,9 +83,12 @@ func (s *memoryStoryGeneratorService) GenerateStory(ctx context.Context, synopsi
 // ── DB-backed Generation ─────────────────────────────────────────
 
 type dbGenerationService struct {
-	q            *db.Queries
-	rivClient    *riv.Client[pgx.Tx]
-	contextCache *cache.ContextCache
+	q             *db.Queries
+	rivClient     *riv.Client[pgx.Tx]
+	contextCache  *cache.ContextCache
+	ctxBuilder    ctxsvc.BuilderService
+	memSvc        memsvc.Service
+	plannerSvc    plansvc.Service
 }
 
 func NewDBGenerationService(q *db.Queries, rivClient *riv.Client[pgx.Tx]) *dbGenerationService {
@@ -90,6 +97,10 @@ func NewDBGenerationService(q *db.Queries, rivClient *riv.Client[pgx.Tx]) *dbGen
 
 func NewDBGenerationServiceWithCache(q *db.Queries, rivClient *riv.Client[pgx.Tx], cc *cache.ContextCache) *dbGenerationService {
 	return &dbGenerationService{q: q, rivClient: rivClient, contextCache: cc}
+}
+
+func NewDBGenerationServiceWithServices(q *db.Queries, rivClient *riv.Client[pgx.Tx], cc *cache.ContextCache, cbs ctxsvc.BuilderService, ms memsvc.Service, ps plansvc.Service) *dbGenerationService {
+	return &dbGenerationService{q: q, rivClient: rivClient, contextCache: cc, ctxBuilder: cbs, memSvc: ms, plannerSvc: ps}
 }
 
 func (s *dbGenerationService) Generate(ctx context.Context, sceneID uuid.UUID) (*compiler.Generation, error) {
@@ -110,9 +121,31 @@ func (s *dbGenerationService) Generate(ctx context.Context, sceneID uuid.UUID) (
 		}
 	}
 
-	compiled, err := s.compileContext(ctx, storyID, scene)
+	var compiled *compiler.CompiledContext
+	if s.ctxBuilder != nil {
+		if s.memSvc != nil {
+			compiled, err = s.ctxBuilder.BuildContextWithMemories(ctx, sceneID, s.memSvc)
+		} else {
+			compiled, err = s.ctxBuilder.BuildSceneContext(ctx, sceneID)
+		}
+	} else {
+		compiled, err = s.compileContext(ctx, storyID, scene)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("compile context: %w", err)
+	}
+
+	if s.plannerSvc != nil {
+		charIDs := make([]uuid.UUID, 0, len(scene.CharacterRefs))
+		for _, ref := range scene.CharacterRefs {
+			charIDs = append(charIDs, db.FromUUID(ref))
+		}
+		_, _ = s.plannerSvc.PlanScene(ctx, storyID, db.FromUUID(scene.ChapterID), sceneID, planner.SceneContext{
+			ChapterGoal: "Advance narrative",
+			Characters:  charIDs,
+			Tension:     0.5,
+			Pacing:      "normal",
+		})
 	}
 
 	if s.contextCache != nil {
@@ -252,12 +285,15 @@ func (s *dbGenerationService) AcceptGeneration(ctx context.Context, sceneID, gen
 		return err
 	}
 
+	scene, err := s.q.GetScene(ctx, db.ToUUID(sceneID))
+	if err != nil {
+		return fmt.Errorf("get scene: %w", err)
+	}
+
+	storyID := db.FromUUID(scene.StoryID)
+
 	if s.contextCache != nil {
-		scene, err := s.q.GetScene(ctx, db.ToUUID(sceneID))
-		if err == nil {
-			storyID := db.FromUUID(scene.StoryID)
-			_ = s.contextCache.Invalidate(ctx, storyID.String())
-		}
+		_ = s.contextCache.Invalidate(ctx, storyID.String())
 	}
 	if err := s.q.RejectOtherGenerations(ctx, db.RejectOtherGenerationsParams{
 		SceneID: db.ToUUID(sceneID),
@@ -266,15 +302,17 @@ func (s *dbGenerationService) AcceptGeneration(ctx context.Context, sceneID, gen
 		return err
 	}
 
+	if s.memSvc != nil {
+		for _, ref := range scene.CharacterRefs {
+			charID := db.FromUUID(ref)
+			_, _ = s.memSvc.StoreMemory(ctx, storyID, charID, sceneID, "observation",
+				fmt.Sprintf("Scene occurred: %s", scene.BeatIntent), 0.5)
+		}
+	}
+
 	if s.rivClient == nil {
 		return nil
 	}
-
-	scene, err := s.q.GetScene(ctx, db.ToUUID(sceneID))
-	if err != nil {
-		return err
-	}
-	storyID := db.FromUUID(scene.StoryID)
 
 	var charRefs []uuid.UUID
 	for _, ref := range scene.CharacterRefs {

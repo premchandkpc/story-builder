@@ -1,14 +1,17 @@
 import type {
   Actor,
   Casting,
+  Chapter,
   Character,
   CharacterTrait,
   CreateActorPayload,
   CreateCharacterPayload,
   CreateCharacterTraitPayload,
   CreateCastingPayload,
+  CreateChapterPayload,
   CreateLocationPayload,
   CreateNodePayload,
+  CreateScenePayload,
   CreateStoryPayload,
   CreateEdgePayload,
   ElevateCheck,
@@ -17,6 +20,8 @@ import type {
   GraphNode,
   Location,
   Lore,
+  Scene,
+  SceneEdge,
   Story,
   StoryGenerateResult,
   StorySummary,
@@ -130,6 +135,57 @@ export const api = {
       }),
     generateTitle: (data: { synopsis: string }) =>
       request<{ title: string }>("/stories/generate-title", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+  },
+
+  // Chapters
+  chapters: {
+    list: (storyId: string) =>
+      request<Chapter[]>(`/stories/${storyId}/chapters`),
+    get: (storyId: string, id: string) =>
+      request<Chapter>(`/stories/${storyId}/chapters/${id}`),
+    create: (storyId: string, data: CreateChapterPayload) =>
+      request<Chapter>(`/stories/${storyId}/chapters`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    update: (storyId: string, id: string, data: CreateChapterPayload) =>
+      request<Chapter>(`/stories/${storyId}/chapters/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+    delete: (storyId: string, id: string) =>
+      request<void>(`/stories/${storyId}/chapters/${id}`, {
+        method: "DELETE",
+      }),
+  },
+
+  // Scenes
+  scenes: {
+    list: (storyId: string, chapterId: string) =>
+      request<Scene[]>(`/stories/${storyId}/chapters/${chapterId}/scenes`),
+    get: (storyId: string, chapterId: string, id: string) =>
+      request<Scene>(`/stories/${storyId}/chapters/${chapterId}/scenes/${id}`),
+    create: (storyId: string, chapterId: string, data: CreateScenePayload) =>
+      request<Scene>(`/stories/${storyId}/chapters/${chapterId}/scenes`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    update: (storyId: string, chapterId: string, id: string, data: CreateScenePayload) =>
+      request<Scene>(`/stories/${storyId}/chapters/${chapterId}/scenes/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+  },
+
+  // Scene Edges
+  sceneEdges: {
+    list: (storyId: string) =>
+      request<SceneEdge[]>(`/stories/${storyId}/scene-edges`),
+    create: (storyId: string, data: { from_scene: string; to_scene: string; edge_type: string }) =>
+      request<void>(`/stories/${storyId}/scene-edges`, {
         method: "POST",
         body: JSON.stringify(data),
       }),

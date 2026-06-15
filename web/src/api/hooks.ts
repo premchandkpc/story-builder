@@ -1,12 +1,35 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "react-router-dom"
 import { api } from "./client"
-import type { Story, StoryStats } from "./types"
+import type { Chapter, Scene, Story, StoryStats } from "./types"
 
 export function useStories() {
   return useQuery<Story[]>({
     queryKey: ["stories"],
     queryFn: () => api.stories.list(),
+  })
+}
+
+export function useChapters(storyId: string) {
+  return useQuery<Chapter[]>({
+    queryKey: ["chapters", storyId],
+    queryFn: () => api.chapters.list(storyId),
+  })
+}
+
+export function useCreateChapter(storyId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { title: string; description?: string }) =>
+      api.chapters.create(storyId, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["chapters", storyId] }),
+  })
+}
+
+export function useScenes(storyId: string, chapterId: string) {
+  return useQuery<Scene[]>({
+    queryKey: ["scenes", storyId, chapterId],
+    queryFn: () => api.scenes.list(storyId, chapterId),
   })
 }
 
