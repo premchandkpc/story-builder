@@ -16,30 +16,40 @@ type Querier interface {
 	CountSummariesByLevel(ctx context.Context, arg CountSummariesByLevelParams) (int64, error)
 	CreateActor(ctx context.Context, arg CreateActorParams) (Actor, error)
 	CreateCasting(ctx context.Context, arg CreateCastingParams) (Casting, error)
+	// ── Chapters ─────────────────────────────────────────────────────────
+	CreateChapter(ctx context.Context, arg CreateChapterParams) (Chapter, error)
 	CreateCharacter(ctx context.Context, arg CreateCharacterParams) (Character, error)
 	CreateCharacterTrait(ctx context.Context, arg CreateCharacterTraitParams) (CharacterTrait, error)
-	CreateEdge(ctx context.Context, arg CreateEdgeParams) error
+	// ── Generations ──────────────────────────────────────────────────────
 	CreateGeneration(ctx context.Context, arg CreateGenerationParams) (Generation, error)
 	CreateLocation(ctx context.Context, arg CreateLocationParams) (Location, error)
 	CreateLore(ctx context.Context, arg CreateLoreParams) (Lore, error)
-	CreateNode(ctx context.Context, arg CreateNodeParams) (Node, error)
+	// ── Scenes ───────────────────────────────────────────────────────────
+	CreateScene(ctx context.Context, arg CreateSceneParams) (Scene, error)
+	// ── Scene Edges ──────────────────────────────────────────────────────
+	CreateSceneEdge(ctx context.Context, arg CreateSceneEdgeParams) error
+	// ── Scene Turns ──────────────────────────────────────────────────────
 	CreateSceneTurn(ctx context.Context, arg CreateSceneTurnParams) (SceneTurn, error)
+	// ── Stories ──────────────────────────────────────────────────────────
 	CreateStory(ctx context.Context, title string) (Story, error)
+	DeleteChapter(ctx context.Context, id pgtype.UUID) error
+	DeleteScene(ctx context.Context, id pgtype.UUID) error
 	DeleteStorySummary(ctx context.Context, id pgtype.UUID) error
-	GetAcceptedGenerationForNode(ctx context.Context, nodeID pgtype.UUID) (Generation, error)
+	GetAcceptedGenerationForScene(ctx context.Context, sceneID pgtype.UUID) (Generation, error)
 	GetActor(ctx context.Context, id pgtype.UUID) (Actor, error)
+	GetChapter(ctx context.Context, id pgtype.UUID) (Chapter, error)
 	GetCharacterAtVersion(ctx context.Context, arg GetCharacterAtVersionParams) (Character, error)
 	GetCharacterLatest(ctx context.Context, id pgtype.UUID) (LatestCharacter, error)
 	GetCharacterState(ctx context.Context, arg GetCharacterStateParams) (CharacterState, error)
 	GetCharacterTrait(ctx context.Context, id pgtype.UUID) (CharacterTrait, error)
-	GetIncomingEdges(ctx context.Context, toNode pgtype.UUID) ([]Edge, error)
+	GetIncomingSceneEdges(ctx context.Context, toScene pgtype.UUID) ([]SceneEdge, error)
 	GetLocationAtVersion(ctx context.Context, arg GetLocationAtVersionParams) (Location, error)
 	GetLocationLatest(ctx context.Context, id pgtype.UUID) (LatestLocation, error)
-	GetNode(ctx context.Context, id pgtype.UUID) (Node, error)
-	GetOutgoingEdges(ctx context.Context, fromNode pgtype.UUID) ([]Edge, error)
+	GetOutgoingSceneEdges(ctx context.Context, fromScene pgtype.UUID) ([]SceneEdge, error)
+	GetScene(ctx context.Context, id pgtype.UUID) (Scene, error)
 	GetSceneSummary(ctx context.Context, arg GetSceneSummaryParams) (StorySummary, error)
 	GetStatesAtBranch(ctx context.Context, arg GetStatesAtBranchParams) ([]CharacterState, error)
-	GetStatesForNode(ctx context.Context, arg GetStatesForNodeParams) ([]CharacterState, error)
+	GetStatesForScene(ctx context.Context, arg GetStatesForSceneParams) ([]CharacterState, error)
 	GetStory(ctx context.Context, id pgtype.UUID) (Story, error)
 	GetSummaryByLevel(ctx context.Context, arg GetSummaryByLevelParams) (StorySummary, error)
 	GetTraitAssignments(ctx context.Context, characterID pgtype.UUID) ([]GetTraitAssignmentsRow, error)
@@ -48,29 +58,35 @@ type Querier interface {
 	ListCastingForActor(ctx context.Context, actorID pgtype.UUID) ([]ListCastingForActorRow, error)
 	ListCastingForCharacter(ctx context.Context, characterID pgtype.UUID) ([]ListCastingForCharacterRow, error)
 	ListCastingForStory(ctx context.Context, storyID pgtype.UUID) ([]ListCastingForStoryRow, error)
+	ListChapters(ctx context.Context, storyID pgtype.UUID) ([]Chapter, error)
 	ListCharacterTraits(ctx context.Context) ([]CharacterTrait, error)
 	ListCharacters(ctx context.Context) ([]LatestCharacter, error)
-	ListEdges(ctx context.Context, storyID pgtype.UUID) ([]Edge, error)
-	ListGenerationsForNode(ctx context.Context, nodeID pgtype.UUID) ([]Generation, error)
+	ListGenerationsForScene(ctx context.Context, sceneID pgtype.UUID) ([]Generation, error)
 	ListLocations(ctx context.Context) ([]LatestLocation, error)
 	ListLore(ctx context.Context) ([]Lore, error)
-	ListNodes(ctx context.Context, storyID pgtype.UUID) ([]Node, error)
-	ListSceneTurns(ctx context.Context, nodeID pgtype.UUID) ([]SceneTurn, error)
+	ListSceneEdges(ctx context.Context, storyID pgtype.UUID) ([]SceneEdge, error)
+	ListSceneTurns(ctx context.Context, sceneID pgtype.UUID) ([]SceneTurn, error)
+	ListScenes(ctx context.Context, storyID pgtype.UUID) ([]Scene, error)
+	ListScenesByChapter(ctx context.Context, chapterID pgtype.UUID) ([]Scene, error)
 	ListStories(ctx context.Context) ([]Story, error)
 	ListSummariesByLevel(ctx context.Context, arg ListSummariesByLevelParams) ([]StorySummary, error)
 	RejectOtherGenerations(ctx context.Context, arg RejectOtherGenerationsParams) error
 	SearchLoreByTags(ctx context.Context, dollar_1 []string) ([]Lore, error)
 	SearchLoreSimilar(ctx context.Context, arg SearchLoreSimilarParams) ([]Lore, error)
-	SetNodeStatus(ctx context.Context, arg SetNodeStatusParams) error
+	SetSceneStatus(ctx context.Context, arg SetSceneStatusParams) error
 	UnassignTrait(ctx context.Context, arg UnassignTraitParams) error
 	UpdateActor(ctx context.Context, arg UpdateActorParams) (Actor, error)
+	UpdateChapter(ctx context.Context, arg UpdateChapterParams) (Chapter, error)
 	UpdateCharacter(ctx context.Context, arg UpdateCharacterParams) (Character, error)
 	UpdateLocation(ctx context.Context, arg UpdateLocationParams) (Location, error)
-	UpdateNode(ctx context.Context, arg UpdateNodeParams) (Node, error)
-	UpdateNodeSceneStructure(ctx context.Context, arg UpdateNodeSceneStructureParams) error
+	UpdateScene(ctx context.Context, arg UpdateSceneParams) (Scene, error)
+	UpdateSceneStructure(ctx context.Context, arg UpdateSceneStructureParams) error
+	UpdateStory(ctx context.Context, arg UpdateStoryParams) (Story, error)
 	UpdateStoryCanonPins(ctx context.Context, arg UpdateStoryCanonPinsParams) error
 	UpsertActSummary(ctx context.Context, arg UpsertActSummaryParams) error
+	// ── Character State ──────────────────────────────────────────────────
 	UpsertCharacterState(ctx context.Context, arg UpsertCharacterStateParams) error
+	// ── Summaries ────────────────────────────────────────────────────────
 	UpsertSceneSummary(ctx context.Context, arg UpsertSceneSummaryParams) error
 	UpsertStorySummary(ctx context.Context, arg UpsertStorySummaryParams) error
 }

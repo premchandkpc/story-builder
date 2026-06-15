@@ -9,6 +9,7 @@ import (
 	"github.com/premchand/story-builder/internal/graph"
 	"github.com/premchand/story-builder/internal/llm"
 	blueprintsvc "github.com/premchand/story-builder/internal/service/blueprint"
+	chaptersvc "github.com/premchand/story-builder/internal/service/chapter"
 	"github.com/premchand/story-builder/internal/service/edge"
 	"github.com/premchand/story-builder/internal/service/generation"
 	"github.com/premchand/story-builder/internal/service/node"
@@ -56,6 +57,27 @@ func (h *StoryHandler) Get(w http.ResponseWriter, r *http.Request) {
 	story, err := h.StorySvc.Get(r.Context(), id)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, story)
+}
+
+func (h *StoryHandler) Update(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var req struct {
+		Title string `json:"title"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	story, err := h.StorySvc.Update(r.Context(), id, req.Title)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, story)
@@ -307,4 +329,102 @@ func (h *StoryGeneratorHandler) Generate(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	writeJSON(w, http.StatusAccepted, result)
+}
+
+// ── Chapter Handler ─────────────────────────────────────────────────────
+
+type ChapterHandler struct {
+	Service chaptersvc.Service
+}
+
+type createChapterRequest struct {
+	Title      string `json:"title"`
+	OrderIndex int    `json:"order_index"`
+}
+
+type updateChapterRequest struct {
+	Title      string `json:"title"`
+	Goal       string `json:"goal"`
+	Summary    string `json:"summary"`
+	Status     string `json:"status"`
+	OrderIndex int    `json:"order_index"`
+}
+
+func (h *ChapterHandler) Create(w http.ResponseWriter, r *http.Request) {
+	storyID, err := uuid.Parse(chi.URLParam(r, "storyID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid story id")
+		return
+	}
+	var req createChapterRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	ch, err := h.Service.Create(r.Context(), storyID, req.Title, req.OrderIndex)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, ch)
+}
+
+func (h *ChapterHandler) Get(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	ch, err := h.Service.Get(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, ch)
+}
+
+func (h *ChapterHandler) Update(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var req updateChapterRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	ch, err := h.Service.Update(r.Context(), id, req.Title, req.Goal, req.Summary, req.Status, req.OrderIndex)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, ch)
+}
+
+func (h *ChapterHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	if err := h.Service.Delete(r.Context(), id); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *ChapterHandler) List(w http.ResponseWriter, r *http.Request) {
+	storyID, err := uuid.Parse(chi.URLParam(r, "storyID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid story id")
+		return
+	}
+	chapters, err := h.Service.List(r.Context(), storyID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, chapters)
 }

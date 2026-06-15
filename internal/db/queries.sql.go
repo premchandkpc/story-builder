@@ -155,6 +155,43 @@ func (q *Queries) CreateCasting(ctx context.Context, arg CreateCastingParams) (C
 	return i, err
 }
 
+const createChapter = `-- name: CreateChapter :one
+
+INSERT INTO chapters (story_id, title, goal, order_index)
+VALUES ($1, $2, $3, $4)
+RETURNING id, story_id, title, goal, order_index, summary, status, created_at, updated_at
+`
+
+type CreateChapterParams struct {
+	StoryID    pgtype.UUID `json:"story_id"`
+	Title      string      `json:"title"`
+	Goal       string      `json:"goal"`
+	OrderIndex int32       `json:"order_index"`
+}
+
+// ── Chapters ─────────────────────────────────────────────────────────
+func (q *Queries) CreateChapter(ctx context.Context, arg CreateChapterParams) (Chapter, error) {
+	row := q.db.QueryRow(ctx, createChapter,
+		arg.StoryID,
+		arg.Title,
+		arg.Goal,
+		arg.OrderIndex,
+	)
+	var i Chapter
+	err := row.Scan(
+		&i.ID,
+		&i.StoryID,
+		&i.Title,
+		&i.Goal,
+		&i.OrderIndex,
+		&i.Summary,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createCharacter = `-- name: CreateCharacter :one
 INSERT INTO characters (name, persona, backstory, moral_alignment, personality, flaws, goals, traits, voice_samples, relationships, parent_id)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -234,46 +271,25 @@ func (q *Queries) CreateCharacterTrait(ctx context.Context, arg CreateCharacterT
 	return i, err
 }
 
-const createEdge = `-- name: CreateEdge :exec
-INSERT INTO edges (story_id, from_node, to_node, edge_type)
-VALUES ($1, $2, $3, $4)
-ON CONFLICT DO NOTHING
-`
-
-type CreateEdgeParams struct {
-	StoryID  pgtype.UUID `json:"story_id"`
-	FromNode pgtype.UUID `json:"from_node"`
-	ToNode   pgtype.UUID `json:"to_node"`
-	EdgeType string      `json:"edge_type"`
-}
-
-func (q *Queries) CreateEdge(ctx context.Context, arg CreateEdgeParams) error {
-	_, err := q.db.Exec(ctx, createEdge,
-		arg.StoryID,
-		arg.FromNode,
-		arg.ToNode,
-		arg.EdgeType,
-	)
-	return err
-}
-
 const createGeneration = `-- name: CreateGeneration :one
-INSERT INTO generations (node_id, context_hash, prompt_snapshot, output, model)
+
+INSERT INTO generations (scene_id, context_hash, prompt_snapshot, output, model)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, node_id, context_hash, prompt_snapshot, output, model, accepted, created_at
+RETURNING id, scene_id, context_hash, prompt_snapshot, output, model, accepted, created_at, validation_result
 `
 
 type CreateGenerationParams struct {
-	NodeID         pgtype.UUID `json:"node_id"`
+	SceneID        pgtype.UUID `json:"scene_id"`
 	ContextHash    string      `json:"context_hash"`
 	PromptSnapshot string      `json:"prompt_snapshot"`
 	Output         string      `json:"output"`
 	Model          string      `json:"model"`
 }
 
+// ── Generations ──────────────────────────────────────────────────────
 func (q *Queries) CreateGeneration(ctx context.Context, arg CreateGenerationParams) (Generation, error) {
 	row := q.db.QueryRow(ctx, createGeneration,
-		arg.NodeID,
+		arg.SceneID,
 		arg.ContextHash,
 		arg.PromptSnapshot,
 		arg.Output,
@@ -282,13 +298,14 @@ func (q *Queries) CreateGeneration(ctx context.Context, arg CreateGenerationPara
 	var i Generation
 	err := row.Scan(
 		&i.ID,
-		&i.NodeID,
+		&i.SceneID,
 		&i.ContextHash,
 		&i.PromptSnapshot,
 		&i.Output,
 		&i.Model,
 		&i.Accepted,
 		&i.CreatedAt,
+		&i.ValidationResult,
 	)
 	return i, err
 }
@@ -344,13 +361,15 @@ func (q *Queries) CreateLore(ctx context.Context, arg CreateLoreParams) (Lore, e
 	return i, err
 }
 
-const createNode = `-- name: CreateNode :one
-INSERT INTO nodes (story_id, beat_intent, character_refs, location_ref, pov, tone, target_words)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, story_id, beat_intent, character_refs, location_ref, pov, tone, target_words, status, created_at, updated_at, scene_structure
+const createScene = `-- name: CreateScene :one
+
+INSERT INTO scenes (chapter_id, story_id, beat_intent, character_refs, location_ref, pov, tone, target_words)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, chapter_id, story_id, title, beat_intent, character_refs, location_ref, pov, tone, target_words, scene_structure, parent_scene_id, timeline_position, flow_type, max_turns, status, created_at, updated_at
 `
 
-type CreateNodeParams struct {
+type CreateSceneParams struct {
+	ChapterID     pgtype.UUID   `json:"chapter_id"`
 	StoryID       pgtype.UUID   `json:"story_id"`
 	BeatIntent    string        `json:"beat_intent"`
 	CharacterRefs []pgtype.UUID `json:"character_refs"`
@@ -360,8 +379,10 @@ type CreateNodeParams struct {
 	TargetWords   int32         `json:"target_words"`
 }
 
-func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) (Node, error) {
-	row := q.db.QueryRow(ctx, createNode,
+// ── Scenes ───────────────────────────────────────────────────────────
+func (q *Queries) CreateScene(ctx context.Context, arg CreateSceneParams) (Scene, error) {
+	row := q.db.QueryRow(ctx, createScene,
+		arg.ChapterID,
 		arg.StoryID,
 		arg.BeatIntent,
 		arg.CharacterRefs,
@@ -370,32 +391,64 @@ func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) (Node, e
 		arg.Tone,
 		arg.TargetWords,
 	)
-	var i Node
+	var i Scene
 	err := row.Scan(
 		&i.ID,
+		&i.ChapterID,
 		&i.StoryID,
+		&i.Title,
 		&i.BeatIntent,
 		&i.CharacterRefs,
 		&i.LocationRef,
 		&i.Pov,
 		&i.Tone,
 		&i.TargetWords,
+		&i.SceneStructure,
+		&i.ParentSceneID,
+		&i.TimelinePosition,
+		&i.FlowType,
+		&i.MaxTurns,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.SceneStructure,
 	)
 	return i, err
 }
 
+const createSceneEdge = `-- name: CreateSceneEdge :exec
+
+INSERT INTO scene_edges (story_id, from_scene, to_scene, edge_type)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT DO NOTHING
+`
+
+type CreateSceneEdgeParams struct {
+	StoryID   pgtype.UUID `json:"story_id"`
+	FromScene pgtype.UUID `json:"from_scene"`
+	ToScene   pgtype.UUID `json:"to_scene"`
+	EdgeType  string      `json:"edge_type"`
+}
+
+// ── Scene Edges ──────────────────────────────────────────────────────
+func (q *Queries) CreateSceneEdge(ctx context.Context, arg CreateSceneEdgeParams) error {
+	_, err := q.db.Exec(ctx, createSceneEdge,
+		arg.StoryID,
+		arg.FromScene,
+		arg.ToScene,
+		arg.EdgeType,
+	)
+	return err
+}
+
 const createSceneTurn = `-- name: CreateSceneTurn :one
-INSERT INTO scene_turns (node_id, turn_number, actor_ids, prompt, output, model, status)
+
+INSERT INTO scene_turns (scene_id, turn_number, actor_ids, prompt, output, model, status)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, node_id, turn_number, actor_ids, prompt, output, model, status, created_at
+RETURNING id, scene_id, turn_number, actor_ids, prompt, output, model, status, created_at
 `
 
 type CreateSceneTurnParams struct {
-	NodeID     pgtype.UUID   `json:"node_id"`
+	SceneID    pgtype.UUID   `json:"scene_id"`
 	TurnNumber int32         `json:"turn_number"`
 	ActorIds   []pgtype.UUID `json:"actor_ids"`
 	Prompt     string        `json:"prompt"`
@@ -404,9 +457,10 @@ type CreateSceneTurnParams struct {
 	Status     string        `json:"status"`
 }
 
+// ── Scene Turns ──────────────────────────────────────────────────────
 func (q *Queries) CreateSceneTurn(ctx context.Context, arg CreateSceneTurnParams) (SceneTurn, error) {
 	row := q.db.QueryRow(ctx, createSceneTurn,
-		arg.NodeID,
+		arg.SceneID,
 		arg.TurnNumber,
 		arg.ActorIds,
 		arg.Prompt,
@@ -417,7 +471,7 @@ func (q *Queries) CreateSceneTurn(ctx context.Context, arg CreateSceneTurnParams
 	var i SceneTurn
 	err := row.Scan(
 		&i.ID,
-		&i.NodeID,
+		&i.SceneID,
 		&i.TurnNumber,
 		&i.ActorIds,
 		&i.Prompt,
@@ -430,9 +484,13 @@ func (q *Queries) CreateSceneTurn(ctx context.Context, arg CreateSceneTurnParams
 }
 
 const createStory = `-- name: CreateStory :one
-INSERT INTO stories (title) VALUES ($1) RETURNING id, title, canon_pins, created_at
+
+INSERT INTO stories (title, genre, theme, main_prompt, general_prompt)
+VALUES ($1, '', '', '', '')
+RETURNING id, title, canon_pins, created_at, genre, theme, main_prompt, general_prompt
 `
 
+// ── Stories ──────────────────────────────────────────────────────────
 func (q *Queries) CreateStory(ctx context.Context, title string) (Story, error) {
 	row := q.db.QueryRow(ctx, createStory, title)
 	var i Story
@@ -441,8 +499,30 @@ func (q *Queries) CreateStory(ctx context.Context, title string) (Story, error) 
 		&i.Title,
 		&i.CanonPins,
 		&i.CreatedAt,
+		&i.Genre,
+		&i.Theme,
+		&i.MainPrompt,
+		&i.GeneralPrompt,
 	)
 	return i, err
+}
+
+const deleteChapter = `-- name: DeleteChapter :exec
+DELETE FROM chapters WHERE id = $1
+`
+
+func (q *Queries) DeleteChapter(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteChapter, id)
+	return err
+}
+
+const deleteScene = `-- name: DeleteScene :exec
+DELETE FROM scenes WHERE id = $1
+`
+
+func (q *Queries) DeleteScene(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteScene, id)
+	return err
 }
 
 const deleteStorySummary = `-- name: DeleteStorySummary :exec
@@ -454,22 +534,23 @@ func (q *Queries) DeleteStorySummary(ctx context.Context, id pgtype.UUID) error 
 	return err
 }
 
-const getAcceptedGenerationForNode = `-- name: GetAcceptedGenerationForNode :one
-SELECT id, node_id, context_hash, prompt_snapshot, output, model, accepted, created_at FROM generations WHERE node_id = $1 AND accepted = true LIMIT 1
+const getAcceptedGenerationForScene = `-- name: GetAcceptedGenerationForScene :one
+SELECT id, scene_id, context_hash, prompt_snapshot, output, model, accepted, created_at, validation_result FROM generations WHERE scene_id = $1 AND accepted = true LIMIT 1
 `
 
-func (q *Queries) GetAcceptedGenerationForNode(ctx context.Context, nodeID pgtype.UUID) (Generation, error) {
-	row := q.db.QueryRow(ctx, getAcceptedGenerationForNode, nodeID)
+func (q *Queries) GetAcceptedGenerationForScene(ctx context.Context, sceneID pgtype.UUID) (Generation, error) {
+	row := q.db.QueryRow(ctx, getAcceptedGenerationForScene, sceneID)
 	var i Generation
 	err := row.Scan(
 		&i.ID,
-		&i.NodeID,
+		&i.SceneID,
 		&i.ContextHash,
 		&i.PromptSnapshot,
 		&i.Output,
 		&i.Model,
 		&i.Accepted,
 		&i.CreatedAt,
+		&i.ValidationResult,
 	)
 	return i, err
 }
@@ -498,6 +579,27 @@ func (q *Queries) GetActor(ctx context.Context, id pgtype.UUID) (Actor, error) {
 		&i.Nationality,
 		&i.Traits,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getChapter = `-- name: GetChapter :one
+SELECT id, story_id, title, goal, order_index, summary, status, created_at, updated_at FROM chapters WHERE id = $1
+`
+
+func (q *Queries) GetChapter(ctx context.Context, id pgtype.UUID) (Chapter, error) {
+	row := q.db.QueryRow(ctx, getChapter, id)
+	var i Chapter
+	err := row.Scan(
+		&i.ID,
+		&i.StoryID,
+		&i.Title,
+		&i.Goal,
+		&i.OrderIndex,
+		&i.Summary,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -560,23 +662,23 @@ func (q *Queries) GetCharacterLatest(ctx context.Context, id pgtype.UUID) (Lates
 }
 
 const getCharacterState = `-- name: GetCharacterState :one
-SELECT story_id, character_id, as_of_node, state, updated_at FROM character_state
-WHERE story_id = $1 AND character_id = $2 AND as_of_node = $3
+SELECT story_id, character_id, as_of_scene, state, updated_at FROM character_state
+WHERE story_id = $1 AND character_id = $2 AND as_of_scene = $3
 `
 
 type GetCharacterStateParams struct {
 	StoryID     pgtype.UUID `json:"story_id"`
 	CharacterID pgtype.UUID `json:"character_id"`
-	AsOfNode    pgtype.UUID `json:"as_of_node"`
+	AsOfScene   pgtype.UUID `json:"as_of_scene"`
 }
 
 func (q *Queries) GetCharacterState(ctx context.Context, arg GetCharacterStateParams) (CharacterState, error) {
-	row := q.db.QueryRow(ctx, getCharacterState, arg.StoryID, arg.CharacterID, arg.AsOfNode)
+	row := q.db.QueryRow(ctx, getCharacterState, arg.StoryID, arg.CharacterID, arg.AsOfScene)
 	var i CharacterState
 	err := row.Scan(
 		&i.StoryID,
 		&i.CharacterID,
-		&i.AsOfNode,
+		&i.AsOfScene,
 		&i.State,
 		&i.UpdatedAt,
 	)
@@ -600,24 +702,25 @@ func (q *Queries) GetCharacterTrait(ctx context.Context, id pgtype.UUID) (Charac
 	return i, err
 }
 
-const getIncomingEdges = `-- name: GetIncomingEdges :many
-SELECT story_id, from_node, to_node, edge_type FROM edges WHERE to_node = $1
+const getIncomingSceneEdges = `-- name: GetIncomingSceneEdges :many
+SELECT story_id, from_scene, to_scene, edge_type, condition FROM scene_edges WHERE to_scene = $1
 `
 
-func (q *Queries) GetIncomingEdges(ctx context.Context, toNode pgtype.UUID) ([]Edge, error) {
-	rows, err := q.db.Query(ctx, getIncomingEdges, toNode)
+func (q *Queries) GetIncomingSceneEdges(ctx context.Context, toScene pgtype.UUID) ([]SceneEdge, error) {
+	rows, err := q.db.Query(ctx, getIncomingSceneEdges, toScene)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Edge{}
+	items := []SceneEdge{}
 	for rows.Next() {
-		var i Edge
+		var i SceneEdge
 		if err := rows.Scan(
 			&i.StoryID,
-			&i.FromNode,
-			&i.ToNode,
+			&i.FromScene,
+			&i.ToScene,
 			&i.EdgeType,
+			&i.Condition,
 		); err != nil {
 			return nil, err
 		}
@@ -670,48 +773,25 @@ func (q *Queries) GetLocationLatest(ctx context.Context, id pgtype.UUID) (Latest
 	return i, err
 }
 
-const getNode = `-- name: GetNode :one
-SELECT id, story_id, beat_intent, character_refs, location_ref, pov, tone, target_words, status, created_at, updated_at, scene_structure FROM nodes WHERE id = $1
+const getOutgoingSceneEdges = `-- name: GetOutgoingSceneEdges :many
+SELECT story_id, from_scene, to_scene, edge_type, condition FROM scene_edges WHERE from_scene = $1
 `
 
-func (q *Queries) GetNode(ctx context.Context, id pgtype.UUID) (Node, error) {
-	row := q.db.QueryRow(ctx, getNode, id)
-	var i Node
-	err := row.Scan(
-		&i.ID,
-		&i.StoryID,
-		&i.BeatIntent,
-		&i.CharacterRefs,
-		&i.LocationRef,
-		&i.Pov,
-		&i.Tone,
-		&i.TargetWords,
-		&i.Status,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.SceneStructure,
-	)
-	return i, err
-}
-
-const getOutgoingEdges = `-- name: GetOutgoingEdges :many
-SELECT story_id, from_node, to_node, edge_type FROM edges WHERE from_node = $1
-`
-
-func (q *Queries) GetOutgoingEdges(ctx context.Context, fromNode pgtype.UUID) ([]Edge, error) {
-	rows, err := q.db.Query(ctx, getOutgoingEdges, fromNode)
+func (q *Queries) GetOutgoingSceneEdges(ctx context.Context, fromScene pgtype.UUID) ([]SceneEdge, error) {
+	rows, err := q.db.Query(ctx, getOutgoingSceneEdges, fromScene)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Edge{}
+	items := []SceneEdge{}
 	for rows.Next() {
-		var i Edge
+		var i SceneEdge
 		if err := rows.Scan(
 			&i.StoryID,
-			&i.FromNode,
-			&i.ToNode,
+			&i.FromScene,
+			&i.ToScene,
 			&i.EdgeType,
+			&i.Condition,
 		); err != nil {
 			return nil, err
 		}
@@ -723,23 +803,53 @@ func (q *Queries) GetOutgoingEdges(ctx context.Context, fromNode pgtype.UUID) ([
 	return items, nil
 }
 
+const getScene = `-- name: GetScene :one
+SELECT id, chapter_id, story_id, title, beat_intent, character_refs, location_ref, pov, tone, target_words, scene_structure, parent_scene_id, timeline_position, flow_type, max_turns, status, created_at, updated_at FROM scenes WHERE id = $1
+`
+
+func (q *Queries) GetScene(ctx context.Context, id pgtype.UUID) (Scene, error) {
+	row := q.db.QueryRow(ctx, getScene, id)
+	var i Scene
+	err := row.Scan(
+		&i.ID,
+		&i.ChapterID,
+		&i.StoryID,
+		&i.Title,
+		&i.BeatIntent,
+		&i.CharacterRefs,
+		&i.LocationRef,
+		&i.Pov,
+		&i.Tone,
+		&i.TargetWords,
+		&i.SceneStructure,
+		&i.ParentSceneID,
+		&i.TimelinePosition,
+		&i.FlowType,
+		&i.MaxTurns,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getSceneSummary = `-- name: GetSceneSummary :one
-SELECT id, story_id, node_id, level, content, word_count, created_at FROM story_summaries
-WHERE story_id = $1 AND node_id = $2 AND level = 'scene'
+SELECT id, story_id, scene_id, level, content, word_count, created_at FROM story_summaries
+WHERE story_id = $1 AND scene_id = $2 AND level = 'scene'
 `
 
 type GetSceneSummaryParams struct {
 	StoryID pgtype.UUID `json:"story_id"`
-	NodeID  pgtype.UUID `json:"node_id"`
+	SceneID pgtype.UUID `json:"scene_id"`
 }
 
 func (q *Queries) GetSceneSummary(ctx context.Context, arg GetSceneSummaryParams) (StorySummary, error) {
-	row := q.db.QueryRow(ctx, getSceneSummary, arg.StoryID, arg.NodeID)
+	row := q.db.QueryRow(ctx, getSceneSummary, arg.StoryID, arg.SceneID)
 	var i StorySummary
 	err := row.Scan(
 		&i.ID,
 		&i.StoryID,
-		&i.NodeID,
+		&i.SceneID,
 		&i.Level,
 		&i.Content,
 		&i.WordCount,
@@ -749,19 +859,19 @@ func (q *Queries) GetSceneSummary(ctx context.Context, arg GetSceneSummaryParams
 }
 
 const getStatesAtBranch = `-- name: GetStatesAtBranch :many
-SELECT DISTINCT ON (cs.character_id) cs.story_id, cs.character_id, cs.as_of_node, cs.state, cs.updated_at
+SELECT DISTINCT ON (cs.character_id) cs.story_id, cs.character_id, cs.as_of_scene, cs.state, cs.updated_at
 FROM character_state cs
-WHERE cs.story_id = $1 AND cs.as_of_node = $2
-ORDER BY cs.character_id, cs.as_of_node DESC
+WHERE cs.story_id = $1 AND cs.as_of_scene = $2
+ORDER BY cs.character_id, cs.as_of_scene DESC
 `
 
 type GetStatesAtBranchParams struct {
-	StoryID  pgtype.UUID `json:"story_id"`
-	AsOfNode pgtype.UUID `json:"as_of_node"`
+	StoryID   pgtype.UUID `json:"story_id"`
+	AsOfScene pgtype.UUID `json:"as_of_scene"`
 }
 
 func (q *Queries) GetStatesAtBranch(ctx context.Context, arg GetStatesAtBranchParams) ([]CharacterState, error) {
-	rows, err := q.db.Query(ctx, getStatesAtBranch, arg.StoryID, arg.AsOfNode)
+	rows, err := q.db.Query(ctx, getStatesAtBranch, arg.StoryID, arg.AsOfScene)
 	if err != nil {
 		return nil, err
 	}
@@ -772,7 +882,7 @@ func (q *Queries) GetStatesAtBranch(ctx context.Context, arg GetStatesAtBranchPa
 		if err := rows.Scan(
 			&i.StoryID,
 			&i.CharacterID,
-			&i.AsOfNode,
+			&i.AsOfScene,
 			&i.State,
 			&i.UpdatedAt,
 		); err != nil {
@@ -786,18 +896,18 @@ func (q *Queries) GetStatesAtBranch(ctx context.Context, arg GetStatesAtBranchPa
 	return items, nil
 }
 
-const getStatesForNode = `-- name: GetStatesForNode :many
-SELECT story_id, character_id, as_of_node, state, updated_at FROM character_state
-WHERE story_id = $1 AND as_of_node = $2
+const getStatesForScene = `-- name: GetStatesForScene :many
+SELECT story_id, character_id, as_of_scene, state, updated_at FROM character_state
+WHERE story_id = $1 AND as_of_scene = $2
 `
 
-type GetStatesForNodeParams struct {
-	StoryID  pgtype.UUID `json:"story_id"`
-	AsOfNode pgtype.UUID `json:"as_of_node"`
+type GetStatesForSceneParams struct {
+	StoryID   pgtype.UUID `json:"story_id"`
+	AsOfScene pgtype.UUID `json:"as_of_scene"`
 }
 
-func (q *Queries) GetStatesForNode(ctx context.Context, arg GetStatesForNodeParams) ([]CharacterState, error) {
-	rows, err := q.db.Query(ctx, getStatesForNode, arg.StoryID, arg.AsOfNode)
+func (q *Queries) GetStatesForScene(ctx context.Context, arg GetStatesForSceneParams) ([]CharacterState, error) {
+	rows, err := q.db.Query(ctx, getStatesForScene, arg.StoryID, arg.AsOfScene)
 	if err != nil {
 		return nil, err
 	}
@@ -808,7 +918,7 @@ func (q *Queries) GetStatesForNode(ctx context.Context, arg GetStatesForNodePara
 		if err := rows.Scan(
 			&i.StoryID,
 			&i.CharacterID,
-			&i.AsOfNode,
+			&i.AsOfScene,
 			&i.State,
 			&i.UpdatedAt,
 		); err != nil {
@@ -823,7 +933,7 @@ func (q *Queries) GetStatesForNode(ctx context.Context, arg GetStatesForNodePara
 }
 
 const getStory = `-- name: GetStory :one
-SELECT id, title, canon_pins, created_at FROM stories WHERE id = $1
+SELECT id, title, canon_pins, created_at, genre, theme, main_prompt, general_prompt FROM stories WHERE id = $1
 `
 
 func (q *Queries) GetStory(ctx context.Context, id pgtype.UUID) (Story, error) {
@@ -834,12 +944,16 @@ func (q *Queries) GetStory(ctx context.Context, id pgtype.UUID) (Story, error) {
 		&i.Title,
 		&i.CanonPins,
 		&i.CreatedAt,
+		&i.Genre,
+		&i.Theme,
+		&i.MainPrompt,
+		&i.GeneralPrompt,
 	)
 	return i, err
 }
 
 const getSummaryByLevel = `-- name: GetSummaryByLevel :one
-SELECT id, story_id, node_id, level, content, word_count, created_at FROM story_summaries
+SELECT id, story_id, scene_id, level, content, word_count, created_at FROM story_summaries
 WHERE story_id = $1 AND level = $2
 ORDER BY created_at DESC LIMIT 1
 `
@@ -855,7 +969,7 @@ func (q *Queries) GetSummaryByLevel(ctx context.Context, arg GetSummaryByLevelPa
 	err := row.Scan(
 		&i.ID,
 		&i.StoryID,
-		&i.NodeID,
+		&i.SceneID,
 		&i.Level,
 		&i.Content,
 		&i.WordCount,
@@ -912,16 +1026,16 @@ func (q *Queries) GetTraitAssignments(ctx context.Context, characterID pgtype.UU
 
 const isGenerationStale = `-- name: IsGenerationStale :one
 SELECT COUNT(*) > 0 FROM generations
-WHERE node_id = $1 AND context_hash != $2
+WHERE scene_id = $1 AND context_hash != $2
 `
 
 type IsGenerationStaleParams struct {
-	NodeID      pgtype.UUID `json:"node_id"`
+	SceneID     pgtype.UUID `json:"scene_id"`
 	ContextHash string      `json:"context_hash"`
 }
 
 func (q *Queries) IsGenerationStale(ctx context.Context, arg IsGenerationStaleParams) (bool, error) {
-	row := q.db.QueryRow(ctx, isGenerationStale, arg.NodeID, arg.ContextHash)
+	row := q.db.QueryRow(ctx, isGenerationStale, arg.SceneID, arg.ContextHash)
 	var column_1 bool
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -1115,6 +1229,40 @@ func (q *Queries) ListCastingForStory(ctx context.Context, storyID pgtype.UUID) 
 	return items, nil
 }
 
+const listChapters = `-- name: ListChapters :many
+SELECT id, story_id, title, goal, order_index, summary, status, created_at, updated_at FROM chapters WHERE story_id = $1 ORDER BY order_index
+`
+
+func (q *Queries) ListChapters(ctx context.Context, storyID pgtype.UUID) ([]Chapter, error) {
+	rows, err := q.db.Query(ctx, listChapters, storyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Chapter{}
+	for rows.Next() {
+		var i Chapter
+		if err := rows.Scan(
+			&i.ID,
+			&i.StoryID,
+			&i.Title,
+			&i.Goal,
+			&i.OrderIndex,
+			&i.Summary,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCharacterTraits = `-- name: ListCharacterTraits :many
 SELECT id, name, category, description, created_at FROM character_traits ORDER BY name
 `
@@ -1184,41 +1332,12 @@ func (q *Queries) ListCharacters(ctx context.Context) ([]LatestCharacter, error)
 	return items, nil
 }
 
-const listEdges = `-- name: ListEdges :many
-SELECT story_id, from_node, to_node, edge_type FROM edges WHERE story_id = $1
+const listGenerationsForScene = `-- name: ListGenerationsForScene :many
+SELECT id, scene_id, context_hash, prompt_snapshot, output, model, accepted, created_at, validation_result FROM generations WHERE scene_id = $1 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListEdges(ctx context.Context, storyID pgtype.UUID) ([]Edge, error) {
-	rows, err := q.db.Query(ctx, listEdges, storyID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Edge{}
-	for rows.Next() {
-		var i Edge
-		if err := rows.Scan(
-			&i.StoryID,
-			&i.FromNode,
-			&i.ToNode,
-			&i.EdgeType,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listGenerationsForNode = `-- name: ListGenerationsForNode :many
-SELECT id, node_id, context_hash, prompt_snapshot, output, model, accepted, created_at FROM generations WHERE node_id = $1 ORDER BY created_at DESC
-`
-
-func (q *Queries) ListGenerationsForNode(ctx context.Context, nodeID pgtype.UUID) ([]Generation, error) {
-	rows, err := q.db.Query(ctx, listGenerationsForNode, nodeID)
+func (q *Queries) ListGenerationsForScene(ctx context.Context, sceneID pgtype.UUID) ([]Generation, error) {
+	rows, err := q.db.Query(ctx, listGenerationsForScene, sceneID)
 	if err != nil {
 		return nil, err
 	}
@@ -1228,13 +1347,14 @@ func (q *Queries) ListGenerationsForNode(ctx context.Context, nodeID pgtype.UUID
 		var i Generation
 		if err := rows.Scan(
 			&i.ID,
-			&i.NodeID,
+			&i.SceneID,
 			&i.ContextHash,
 			&i.PromptSnapshot,
 			&i.Output,
 			&i.Model,
 			&i.Accepted,
 			&i.CreatedAt,
+			&i.ValidationResult,
 		); err != nil {
 			return nil, err
 		}
@@ -1307,32 +1427,25 @@ func (q *Queries) ListLore(ctx context.Context) ([]Lore, error) {
 	return items, nil
 }
 
-const listNodes = `-- name: ListNodes :many
-SELECT id, story_id, beat_intent, character_refs, location_ref, pov, tone, target_words, status, created_at, updated_at, scene_structure FROM nodes WHERE story_id = $1 ORDER BY created_at
+const listSceneEdges = `-- name: ListSceneEdges :many
+SELECT story_id, from_scene, to_scene, edge_type, condition FROM scene_edges WHERE story_id = $1
 `
 
-func (q *Queries) ListNodes(ctx context.Context, storyID pgtype.UUID) ([]Node, error) {
-	rows, err := q.db.Query(ctx, listNodes, storyID)
+func (q *Queries) ListSceneEdges(ctx context.Context, storyID pgtype.UUID) ([]SceneEdge, error) {
+	rows, err := q.db.Query(ctx, listSceneEdges, storyID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Node{}
+	items := []SceneEdge{}
 	for rows.Next() {
-		var i Node
+		var i SceneEdge
 		if err := rows.Scan(
-			&i.ID,
 			&i.StoryID,
-			&i.BeatIntent,
-			&i.CharacterRefs,
-			&i.LocationRef,
-			&i.Pov,
-			&i.Tone,
-			&i.TargetWords,
-			&i.Status,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.SceneStructure,
+			&i.FromScene,
+			&i.ToScene,
+			&i.EdgeType,
+			&i.Condition,
 		); err != nil {
 			return nil, err
 		}
@@ -1345,11 +1458,11 @@ func (q *Queries) ListNodes(ctx context.Context, storyID pgtype.UUID) ([]Node, e
 }
 
 const listSceneTurns = `-- name: ListSceneTurns :many
-SELECT id, node_id, turn_number, actor_ids, prompt, output, model, status, created_at FROM scene_turns WHERE node_id = $1 ORDER BY turn_number
+SELECT id, scene_id, turn_number, actor_ids, prompt, output, model, status, created_at FROM scene_turns WHERE scene_id = $1 ORDER BY turn_number
 `
 
-func (q *Queries) ListSceneTurns(ctx context.Context, nodeID pgtype.UUID) ([]SceneTurn, error) {
-	rows, err := q.db.Query(ctx, listSceneTurns, nodeID)
+func (q *Queries) ListSceneTurns(ctx context.Context, sceneID pgtype.UUID) ([]SceneTurn, error) {
+	rows, err := q.db.Query(ctx, listSceneTurns, sceneID)
 	if err != nil {
 		return nil, err
 	}
@@ -1359,7 +1472,7 @@ func (q *Queries) ListSceneTurns(ctx context.Context, nodeID pgtype.UUID) ([]Sce
 		var i SceneTurn
 		if err := rows.Scan(
 			&i.ID,
-			&i.NodeID,
+			&i.SceneID,
 			&i.TurnNumber,
 			&i.ActorIds,
 			&i.Prompt,
@@ -1378,8 +1491,94 @@ func (q *Queries) ListSceneTurns(ctx context.Context, nodeID pgtype.UUID) ([]Sce
 	return items, nil
 }
 
+const listScenes = `-- name: ListScenes :many
+SELECT id, chapter_id, story_id, title, beat_intent, character_refs, location_ref, pov, tone, target_words, scene_structure, parent_scene_id, timeline_position, flow_type, max_turns, status, created_at, updated_at FROM scenes WHERE story_id = $1 ORDER BY created_at
+`
+
+func (q *Queries) ListScenes(ctx context.Context, storyID pgtype.UUID) ([]Scene, error) {
+	rows, err := q.db.Query(ctx, listScenes, storyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Scene{}
+	for rows.Next() {
+		var i Scene
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChapterID,
+			&i.StoryID,
+			&i.Title,
+			&i.BeatIntent,
+			&i.CharacterRefs,
+			&i.LocationRef,
+			&i.Pov,
+			&i.Tone,
+			&i.TargetWords,
+			&i.SceneStructure,
+			&i.ParentSceneID,
+			&i.TimelinePosition,
+			&i.FlowType,
+			&i.MaxTurns,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listScenesByChapter = `-- name: ListScenesByChapter :many
+SELECT id, chapter_id, story_id, title, beat_intent, character_refs, location_ref, pov, tone, target_words, scene_structure, parent_scene_id, timeline_position, flow_type, max_turns, status, created_at, updated_at FROM scenes WHERE chapter_id = $1 ORDER BY created_at
+`
+
+func (q *Queries) ListScenesByChapter(ctx context.Context, chapterID pgtype.UUID) ([]Scene, error) {
+	rows, err := q.db.Query(ctx, listScenesByChapter, chapterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Scene{}
+	for rows.Next() {
+		var i Scene
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChapterID,
+			&i.StoryID,
+			&i.Title,
+			&i.BeatIntent,
+			&i.CharacterRefs,
+			&i.LocationRef,
+			&i.Pov,
+			&i.Tone,
+			&i.TargetWords,
+			&i.SceneStructure,
+			&i.ParentSceneID,
+			&i.TimelinePosition,
+			&i.FlowType,
+			&i.MaxTurns,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listStories = `-- name: ListStories :many
-SELECT id, title, canon_pins, created_at FROM stories ORDER BY created_at DESC
+SELECT id, title, canon_pins, created_at, genre, theme, main_prompt, general_prompt FROM stories ORDER BY created_at DESC
 `
 
 func (q *Queries) ListStories(ctx context.Context) ([]Story, error) {
@@ -1396,6 +1595,10 @@ func (q *Queries) ListStories(ctx context.Context) ([]Story, error) {
 			&i.Title,
 			&i.CanonPins,
 			&i.CreatedAt,
+			&i.Genre,
+			&i.Theme,
+			&i.MainPrompt,
+			&i.GeneralPrompt,
 		); err != nil {
 			return nil, err
 		}
@@ -1408,7 +1611,7 @@ func (q *Queries) ListStories(ctx context.Context) ([]Story, error) {
 }
 
 const listSummariesByLevel = `-- name: ListSummariesByLevel :many
-SELECT id, story_id, node_id, level, content, word_count, created_at FROM story_summaries
+SELECT id, story_id, scene_id, level, content, word_count, created_at FROM story_summaries
 WHERE story_id = $1 AND level = $2
 ORDER BY created_at DESC
 `
@@ -1430,7 +1633,7 @@ func (q *Queries) ListSummariesByLevel(ctx context.Context, arg ListSummariesByL
 		if err := rows.Scan(
 			&i.ID,
 			&i.StoryID,
-			&i.NodeID,
+			&i.SceneID,
 			&i.Level,
 			&i.Content,
 			&i.WordCount,
@@ -1448,16 +1651,16 @@ func (q *Queries) ListSummariesByLevel(ctx context.Context, arg ListSummariesByL
 
 const rejectOtherGenerations = `-- name: RejectOtherGenerations :exec
 UPDATE generations SET accepted = false
-WHERE node_id = $1 AND id != $2
+WHERE scene_id = $1 AND id != $2
 `
 
 type RejectOtherGenerationsParams struct {
-	NodeID pgtype.UUID `json:"node_id"`
-	ID     pgtype.UUID `json:"id"`
+	SceneID pgtype.UUID `json:"scene_id"`
+	ID      pgtype.UUID `json:"id"`
 }
 
 func (q *Queries) RejectOtherGenerations(ctx context.Context, arg RejectOtherGenerationsParams) error {
-	_, err := q.db.Exec(ctx, rejectOtherGenerations, arg.NodeID, arg.ID)
+	_, err := q.db.Exec(ctx, rejectOtherGenerations, arg.SceneID, arg.ID)
 	return err
 }
 
@@ -1528,17 +1731,17 @@ func (q *Queries) SearchLoreSimilar(ctx context.Context, arg SearchLoreSimilarPa
 	return items, nil
 }
 
-const setNodeStatus = `-- name: SetNodeStatus :exec
-UPDATE nodes SET status = $2, updated_at = now() WHERE id = $1
+const setSceneStatus = `-- name: SetSceneStatus :exec
+UPDATE scenes SET status = $2, updated_at = now() WHERE id = $1
 `
 
-type SetNodeStatusParams struct {
+type SetSceneStatusParams struct {
 	ID     pgtype.UUID `json:"id"`
 	Status string      `json:"status"`
 }
 
-func (q *Queries) SetNodeStatus(ctx context.Context, arg SetNodeStatusParams) error {
-	_, err := q.db.Exec(ctx, setNodeStatus, arg.ID, arg.Status)
+func (q *Queries) SetSceneStatus(ctx context.Context, arg SetSceneStatusParams) error {
+	_, err := q.db.Exec(ctx, setSceneStatus, arg.ID, arg.Status)
 	return err
 }
 
@@ -1620,6 +1823,47 @@ func (q *Queries) UpdateActor(ctx context.Context, arg UpdateActorParams) (Actor
 		&i.Nationality,
 		&i.Traits,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const updateChapter = `-- name: UpdateChapter :one
+UPDATE chapters SET
+    title = $2, goal = $3, order_index = $4, summary = $5, status = $6,
+    updated_at = now()
+WHERE id = $1
+RETURNING id, story_id, title, goal, order_index, summary, status, created_at, updated_at
+`
+
+type UpdateChapterParams struct {
+	ID         pgtype.UUID `json:"id"`
+	Title      string      `json:"title"`
+	Goal       string      `json:"goal"`
+	OrderIndex int32       `json:"order_index"`
+	Summary    string      `json:"summary"`
+	Status     string      `json:"status"`
+}
+
+func (q *Queries) UpdateChapter(ctx context.Context, arg UpdateChapterParams) (Chapter, error) {
+	row := q.db.QueryRow(ctx, updateChapter,
+		arg.ID,
+		arg.Title,
+		arg.Goal,
+		arg.OrderIndex,
+		arg.Summary,
+		arg.Status,
+	)
+	var i Chapter
+	err := row.Scan(
+		&i.ID,
+		&i.StoryID,
+		&i.Title,
+		&i.Goal,
+		&i.OrderIndex,
+		&i.Summary,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -1710,28 +1954,33 @@ func (q *Queries) UpdateLocation(ctx context.Context, arg UpdateLocationParams) 
 	return i, err
 }
 
-const updateNode = `-- name: UpdateNode :one
-UPDATE nodes SET
+const updateScene = `-- name: UpdateScene :one
+UPDATE scenes SET
     beat_intent = $2, character_refs = $3, location_ref = $4,
     pov = $5, tone = $6, target_words = $7,
-    scene_structure = $8, updated_at = now()
+    scene_structure = $8, title = $9, timeline_position = $10,
+    flow_type = $11, max_turns = $12, updated_at = now()
 WHERE id = $1
-RETURNING id, story_id, beat_intent, character_refs, location_ref, pov, tone, target_words, status, created_at, updated_at, scene_structure
+RETURNING id, chapter_id, story_id, title, beat_intent, character_refs, location_ref, pov, tone, target_words, scene_structure, parent_scene_id, timeline_position, flow_type, max_turns, status, created_at, updated_at
 `
 
-type UpdateNodeParams struct {
-	ID             pgtype.UUID   `json:"id"`
-	BeatIntent     string        `json:"beat_intent"`
-	CharacterRefs  []pgtype.UUID `json:"character_refs"`
-	LocationRef    pgtype.UUID   `json:"location_ref"`
-	Pov            string        `json:"pov"`
-	Tone           string        `json:"tone"`
-	TargetWords    int32         `json:"target_words"`
-	SceneStructure []byte        `json:"scene_structure"`
+type UpdateSceneParams struct {
+	ID               pgtype.UUID   `json:"id"`
+	BeatIntent       string        `json:"beat_intent"`
+	CharacterRefs    []pgtype.UUID `json:"character_refs"`
+	LocationRef      pgtype.UUID   `json:"location_ref"`
+	Pov              string        `json:"pov"`
+	Tone             string        `json:"tone"`
+	TargetWords      int32         `json:"target_words"`
+	SceneStructure   []byte        `json:"scene_structure"`
+	Title            string        `json:"title"`
+	TimelinePosition string        `json:"timeline_position"`
+	FlowType         string        `json:"flow_type"`
+	MaxTurns         int32         `json:"max_turns"`
 }
 
-func (q *Queries) UpdateNode(ctx context.Context, arg UpdateNodeParams) (Node, error) {
-	row := q.db.QueryRow(ctx, updateNode,
+func (q *Queries) UpdateScene(ctx context.Context, arg UpdateSceneParams) (Scene, error) {
+	row := q.db.QueryRow(ctx, updateScene,
 		arg.ID,
 		arg.BeatIntent,
 		arg.CharacterRefs,
@@ -1740,37 +1989,87 @@ func (q *Queries) UpdateNode(ctx context.Context, arg UpdateNodeParams) (Node, e
 		arg.Tone,
 		arg.TargetWords,
 		arg.SceneStructure,
+		arg.Title,
+		arg.TimelinePosition,
+		arg.FlowType,
+		arg.MaxTurns,
 	)
-	var i Node
+	var i Scene
 	err := row.Scan(
 		&i.ID,
+		&i.ChapterID,
 		&i.StoryID,
+		&i.Title,
 		&i.BeatIntent,
 		&i.CharacterRefs,
 		&i.LocationRef,
 		&i.Pov,
 		&i.Tone,
 		&i.TargetWords,
+		&i.SceneStructure,
+		&i.ParentSceneID,
+		&i.TimelinePosition,
+		&i.FlowType,
+		&i.MaxTurns,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.SceneStructure,
 	)
 	return i, err
 }
 
-const updateNodeSceneStructure = `-- name: UpdateNodeSceneStructure :exec
-UPDATE nodes SET scene_structure = $2, updated_at = now() WHERE id = $1
+const updateSceneStructure = `-- name: UpdateSceneStructure :exec
+UPDATE scenes SET scene_structure = $2, updated_at = now() WHERE id = $1
 `
 
-type UpdateNodeSceneStructureParams struct {
+type UpdateSceneStructureParams struct {
 	ID             pgtype.UUID `json:"id"`
 	SceneStructure []byte      `json:"scene_structure"`
 }
 
-func (q *Queries) UpdateNodeSceneStructure(ctx context.Context, arg UpdateNodeSceneStructureParams) error {
-	_, err := q.db.Exec(ctx, updateNodeSceneStructure, arg.ID, arg.SceneStructure)
+func (q *Queries) UpdateSceneStructure(ctx context.Context, arg UpdateSceneStructureParams) error {
+	_, err := q.db.Exec(ctx, updateSceneStructure, arg.ID, arg.SceneStructure)
 	return err
+}
+
+const updateStory = `-- name: UpdateStory :one
+UPDATE stories SET
+    title = $2, genre = $3, theme = $4,
+    main_prompt = $5, general_prompt = $6
+WHERE id = $1
+RETURNING id, title, canon_pins, created_at, genre, theme, main_prompt, general_prompt
+`
+
+type UpdateStoryParams struct {
+	ID            pgtype.UUID `json:"id"`
+	Title         string      `json:"title"`
+	Genre         string      `json:"genre"`
+	Theme         string      `json:"theme"`
+	MainPrompt    string      `json:"main_prompt"`
+	GeneralPrompt string      `json:"general_prompt"`
+}
+
+func (q *Queries) UpdateStory(ctx context.Context, arg UpdateStoryParams) (Story, error) {
+	row := q.db.QueryRow(ctx, updateStory,
+		arg.ID,
+		arg.Title,
+		arg.Genre,
+		arg.Theme,
+		arg.MainPrompt,
+		arg.GeneralPrompt,
+	)
+	var i Story
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.CanonPins,
+		&i.CreatedAt,
+		&i.Genre,
+		&i.Theme,
+		&i.MainPrompt,
+		&i.GeneralPrompt,
+	)
+	return i, err
 }
 
 const updateStoryCanonPins = `-- name: UpdateStoryCanonPins :exec
@@ -1788,9 +2087,9 @@ func (q *Queries) UpdateStoryCanonPins(ctx context.Context, arg UpdateStoryCanon
 }
 
 const upsertActSummary = `-- name: UpsertActSummary :exec
-INSERT INTO story_summaries (story_id, node_id, level, content, word_count)
+INSERT INTO story_summaries (story_id, scene_id, level, content, word_count)
 VALUES ($1, NULL, 'act', $2, $3)
-ON CONFLICT (story_id, level) WHERE level = 'act' AND node_id IS NULL
+ON CONFLICT (story_id, level) WHERE level = 'act' AND scene_id IS NULL
 DO UPDATE SET content = $2, word_count = $3
 `
 
@@ -1806,47 +2105,51 @@ func (q *Queries) UpsertActSummary(ctx context.Context, arg UpsertActSummaryPara
 }
 
 const upsertCharacterState = `-- name: UpsertCharacterState :exec
-INSERT INTO character_state (story_id, character_id, as_of_node, state)
+
+INSERT INTO character_state (story_id, character_id, as_of_scene, state)
 VALUES ($1, $2, $3, $4)
-ON CONFLICT (story_id, character_id, as_of_node)
+ON CONFLICT (story_id, character_id, as_of_scene)
 DO UPDATE SET state = $4, updated_at = now()
 `
 
 type UpsertCharacterStateParams struct {
 	StoryID     pgtype.UUID `json:"story_id"`
 	CharacterID pgtype.UUID `json:"character_id"`
-	AsOfNode    pgtype.UUID `json:"as_of_node"`
+	AsOfScene   pgtype.UUID `json:"as_of_scene"`
 	State       []byte      `json:"state"`
 }
 
+// ── Character State ──────────────────────────────────────────────────
 func (q *Queries) UpsertCharacterState(ctx context.Context, arg UpsertCharacterStateParams) error {
 	_, err := q.db.Exec(ctx, upsertCharacterState,
 		arg.StoryID,
 		arg.CharacterID,
-		arg.AsOfNode,
+		arg.AsOfScene,
 		arg.State,
 	)
 	return err
 }
 
 const upsertSceneSummary = `-- name: UpsertSceneSummary :exec
-INSERT INTO story_summaries (story_id, node_id, level, content, word_count)
+
+INSERT INTO story_summaries (story_id, scene_id, level, content, word_count)
 VALUES ($1, $2, 'scene', $3, $4)
-ON CONFLICT (story_id, node_id) WHERE level = 'scene' AND node_id IS NOT NULL
+ON CONFLICT (story_id, scene_id) WHERE level = 'scene' AND scene_id IS NOT NULL
 DO UPDATE SET content = $3, word_count = $4
 `
 
 type UpsertSceneSummaryParams struct {
 	StoryID   pgtype.UUID `json:"story_id"`
-	NodeID    pgtype.UUID `json:"node_id"`
+	SceneID   pgtype.UUID `json:"scene_id"`
 	Content   string      `json:"content"`
 	WordCount int32       `json:"word_count"`
 }
 
+// ── Summaries ────────────────────────────────────────────────────────
 func (q *Queries) UpsertSceneSummary(ctx context.Context, arg UpsertSceneSummaryParams) error {
 	_, err := q.db.Exec(ctx, upsertSceneSummary,
 		arg.StoryID,
-		arg.NodeID,
+		arg.SceneID,
 		arg.Content,
 		arg.WordCount,
 	)
@@ -1854,9 +2157,9 @@ func (q *Queries) UpsertSceneSummary(ctx context.Context, arg UpsertSceneSummary
 }
 
 const upsertStorySummary = `-- name: UpsertStorySummary :exec
-INSERT INTO story_summaries (story_id, node_id, level, content, word_count)
+INSERT INTO story_summaries (story_id, scene_id, level, content, word_count)
 VALUES ($1, NULL, 'story', $2, $3)
-ON CONFLICT (story_id, level) WHERE level = 'story' AND node_id IS NULL
+ON CONFLICT (story_id, level) WHERE level = 'story' AND scene_id IS NULL
 DO UPDATE SET content = $2, word_count = $3
 `
 

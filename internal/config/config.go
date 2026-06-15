@@ -13,6 +13,11 @@ type Config struct {
 	RedisAddr    string
 	RedisPass    string
 	RedisDB      int
+	MongoURI     string
+	MongoDB      string
+	QdrantAddr   string
+	KafkaBrokers string
+	KafkaGroupID string
 }
 
 func FromEnv() Config {
@@ -25,6 +30,11 @@ func FromEnv() Config {
 		RedisAddr:    env("REDIS_ADDR", "localhost:6379"),
 		RedisPass:    os.Getenv("REDIS_PASSWORD"),
 		RedisDB:      0,
+		MongoURI:     env("MONGO_URI", "mongodb://localhost:27017"),
+		MongoDB:      env("MONGO_DB", "storybuilder"),
+		QdrantAddr:   env("QDRANT_ADDR", "localhost:6334"),
+		KafkaBrokers: os.Getenv("KAFKA_BROKERS"),
+		KafkaGroupID: env("KAFKA_GROUP_ID", "storybuilder"),
 	}
 }
 

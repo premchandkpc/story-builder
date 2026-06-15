@@ -123,9 +123,9 @@ func (w *GenerateSceneWorker) compilePromptParams(ctx context.Context, args Gene
 		}
 	}
 
-	states, err := w.Queries.GetStatesForNode(ctx, db.GetStatesForNodeParams{
-		StoryID:  db.ToUUID(args.StoryID),
-		AsOfNode: db.ToUUID(args.NodeID),
+	states, err := w.Queries.GetStatesForScene(ctx, db.GetStatesForSceneParams{
+		StoryID:   db.ToUUID(args.StoryID),
+		AsOfScene: db.ToUUID(args.NodeID),
 	})
 	if err == nil {
 		params.CharState = make(map[string]interface{})
@@ -211,7 +211,7 @@ func (w *ExtractStateWorker) Work(ctx context.Context, job *river.Job[ExtractSta
 		if err := w.Queries.UpsertCharacterState(ctx, db.UpsertCharacterStateParams{
 			StoryID:     db.ToUUID(args.StoryID),
 			CharacterID: db.ToUUID(d.Character),
-			AsOfNode:    db.ToUUID(args.NodeID),
+			AsOfScene:   db.ToUUID(args.NodeID),
 			State:       stateJSON,
 		}); err != nil {
 			return fmt.Errorf("upsert character state: %w", err)
@@ -250,7 +250,7 @@ func (w *UpdateSummaryWorker) Work(ctx context.Context, job *river.Job[UpdateSum
 	}
 	return w.Queries.UpsertSceneSummary(ctx, db.UpsertSceneSummaryParams{
 		StoryID: db.ToUUID(args.StoryID),
-		NodeID:  db.ToUUID(args.NodeID),
+		SceneID: db.ToUUID(args.NodeID),
 		Content: updated,
 	})
 }
@@ -393,6 +393,12 @@ func (w *GenerateStoryWorker) Work(ctx context.Context, job *river.Job[GenerateS
 		charNameToID[oc.Name] = c.ID
 	}
 
+	chapters, err := w.Queries.ListChapters(ctx, db.ToUUID(storyID))
+	if err != nil || len(chapters) == 0 {
+		return fmt.Errorf("no chapters for story %s", storyID)
+	}
+	chapterID := chapters[0].ID
+
 	beatTitleToID := make(map[string]pgtype.UUID)
 	for _, beat := range outline.Beats {
 		charRefs := make([]pgtype.UUID, 0, len(beat.CharacterNames))
@@ -402,7 +408,8 @@ func (w *GenerateStoryWorker) Work(ctx context.Context, job *river.Job[GenerateS
 			}
 		}
 
-		node, err := w.Queries.CreateNode(ctx, db.CreateNodeParams{
+		scene, err := w.Queries.CreateScene(ctx, db.CreateSceneParams{
+			ChapterID:     chapterID,
 			StoryID:       db.ToUUID(storyID),
 			BeatIntent:    beat.BeatIntent,
 			CharacterRefs: charRefs,
@@ -411,9 +418,9 @@ func (w *GenerateStoryWorker) Work(ctx context.Context, job *river.Job[GenerateS
 			TargetWords:   int32(beat.TargetWords),
 		})
 		if err != nil {
-			return fmt.Errorf("create node %s: %w", beat.Title, err)
+			return fmt.Errorf("create scene %s: %w", beat.Title, err)
 		}
-		beatTitleToID[beat.Title] = node.ID
+		beatTitleToID[beat.Title] = scene.ID
 	}
 
 	for _, edge := range outline.Edges {
@@ -425,11 +432,11 @@ func (w *GenerateStoryWorker) Work(ctx context.Context, job *river.Job[GenerateS
 		if !ok {
 			continue
 		}
-		err := w.Queries.CreateEdge(ctx, db.CreateEdgeParams{
-			StoryID:  db.ToUUID(storyID),
-			FromNode: fromID,
-			ToNode:   toID,
-			EdgeType: edge.Type,
+		err := w.Queries.CreateSceneEdge(ctx, db.CreateSceneEdgeParams{
+			StoryID:   db.ToUUID(storyID),
+			FromScene: fromID,
+			ToScene:   toID,
+			EdgeType:  edge.Type,
 		})
 		if err != nil {
 			return fmt.Errorf("create edge %s->%s: %w", edge.From, edge.To, err)

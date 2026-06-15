@@ -65,7 +65,15 @@ func (s *dbService) Create(ctx context.Context, storyID uuid.UUID, beatIntent st
 	if locationRef != nil {
 		locRef = db.ToUUID(*locationRef)
 	}
-	n, err := s.q.CreateNode(ctx, db.CreateNodeParams{
+
+	// Find the first chapter for this story
+	chapters, err := s.q.ListChapters(ctx, db.ToUUID(storyID))
+	if err != nil || len(chapters) == 0 {
+		return nil, fmt.Errorf("no chapters found for story %s", storyID)
+	}
+
+	n, err := s.q.CreateScene(ctx, db.CreateSceneParams{
+		ChapterID:     chapters[0].ID,
 		StoryID:       db.ToUUID(storyID),
 		BeatIntent:    beatIntent,
 		CharacterRefs: refs,
@@ -97,15 +105,19 @@ func (s *dbService) Update(ctx context.Context, id uuid.UUID, beatIntent string,
 	if sceneStructure != nil {
 		ssBytes = db.JSONBytes(sceneStructure)
 	}
-	n, err := s.q.UpdateNode(ctx, db.UpdateNodeParams{
-		ID:             db.ToUUID(id),
-		BeatIntent:     beatIntent,
-		CharacterRefs:  refs,
-		LocationRef:    locRef,
-		Pov:            pov,
-		Tone:           tone,
-		TargetWords:    int32(targetWords),
-		SceneStructure: ssBytes,
+	n, err := s.q.UpdateScene(ctx, db.UpdateSceneParams{
+		ID:               db.ToUUID(id),
+		BeatIntent:       beatIntent,
+		CharacterRefs:    refs,
+		LocationRef:      locRef,
+		Pov:              pov,
+		Tone:             tone,
+		TargetWords:      int32(targetWords),
+		SceneStructure:   ssBytes,
+		Title:            "",
+		TimelinePosition: "",
+		FlowType:         string(graph.FlowMonologue),
+		MaxTurns:         5,
 	})
 	if err != nil {
 		return nil, err
@@ -114,7 +126,7 @@ func (s *dbService) Update(ctx context.Context, id uuid.UUID, beatIntent string,
 }
 
 func (s *dbService) SetSceneStructure(ctx context.Context, id uuid.UUID, ss graph.SceneStructure) error {
-	return s.q.UpdateNodeSceneStructure(ctx, db.UpdateNodeSceneStructureParams{
+	return s.q.UpdateSceneStructure(ctx, db.UpdateSceneStructureParams{
 		ID:             db.ToUUID(id),
 		SceneStructure: db.JSONBytes(ss),
 	})
@@ -124,7 +136,7 @@ func (s *dbService) List(ctx context.Context, storyID uuid.UUID) ([]graph.Node, 
 	return listNodes(ctx, s.q, storyID)
 }
 
-func toDomainNode(n db.Node) *graph.Node {
+func toDomainNode(n db.Scene) *graph.Node {
 	refs := make([]uuid.UUID, len(n.CharacterRefs))
 	for i, r := range n.CharacterRefs {
 		refs[i] = db.FromUUID(r)
@@ -141,24 +153,35 @@ func toDomainNode(n db.Node) *graph.Node {
 			ss = &s
 		}
 	}
+	var parentSceneID *uuid.UUID
+	if n.ParentSceneID.Valid {
+		p := db.FromUUID(n.ParentSceneID)
+		parentSceneID = &p
+	}
 	return &graph.Node{
-		ID:             db.FromUUID(n.ID),
-		StoryID:        db.FromUUID(n.StoryID),
-		BeatIntent:     n.BeatIntent,
-		CharacterRefs:  refs,
-		LocationRef:    locRef,
-		POV:            n.Pov,
-		Tone:           n.Tone,
-		TargetWords:    int(n.TargetWords),
-		Status:         graph.NodeStatus(n.Status),
-		SceneStructure: ss,
-		CreatedAt:      n.CreatedAt.Time,
-		UpdatedAt:      n.UpdatedAt.Time,
+		ID:               db.FromUUID(n.ID),
+		StoryID:          db.FromUUID(n.StoryID),
+		ChapterID:        db.FromUUID(n.ChapterID),
+		Title:            n.Title,
+		BeatIntent:       n.BeatIntent,
+		CharacterRefs:    refs,
+		LocationRef:      locRef,
+		POV:              n.Pov,
+		Tone:             n.Tone,
+		TargetWords:      int(n.TargetWords),
+		Status:           graph.NodeStatus(n.Status),
+		SceneStructure:   ss,
+		ParentSceneID:    parentSceneID,
+		TimelinePosition: n.TimelinePosition,
+		FlowType:         graph.FlowType(n.FlowType),
+		MaxTurns:         int(n.MaxTurns),
+		CreatedAt:        n.CreatedAt.Time,
+		UpdatedAt:        n.UpdatedAt.Time,
 	}
 }
 
 func getNode(ctx context.Context, q *db.Queries, id uuid.UUID) (*graph.Node, error) {
-	n, err := q.GetNode(ctx, db.ToUUID(id))
+	n, err := q.GetScene(ctx, db.ToUUID(id))
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("node %s not found", id)
@@ -169,7 +192,7 @@ func getNode(ctx context.Context, q *db.Queries, id uuid.UUID) (*graph.Node, err
 }
 
 func listNodes(ctx context.Context, q *db.Queries, storyID uuid.UUID) ([]graph.Node, error) {
-	nodes, err := q.ListNodes(ctx, db.ToUUID(storyID))
+	nodes, err := q.ListScenes(ctx, db.ToUUID(storyID))
 	if err != nil {
 		return nil, err
 	}
@@ -179,4 +202,3 @@ func listNodes(ctx context.Context, q *db.Queries, storyID uuid.UUID) ([]graph.N
 	}
 	return result, nil
 }
-

@@ -28,6 +28,14 @@ type Actor struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
+type ActorTrait struct {
+	ID         pgtype.UUID        `json:"id"`
+	ActorID    pgtype.UUID        `json:"actor_id"`
+	TraitKey   string             `json:"trait_key"`
+	TraitValue string             `json:"trait_value"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
 type Casting struct {
 	ID          pgtype.UUID        `json:"id"`
 	StoryID     pgtype.UUID        `json:"story_id"`
@@ -35,6 +43,18 @@ type Casting struct {
 	CharacterID pgtype.UUID        `json:"character_id"`
 	RoleType    string             `json:"role_type"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type Chapter struct {
+	ID         pgtype.UUID        `json:"id"`
+	StoryID    pgtype.UUID        `json:"story_id"`
+	Title      string             `json:"title"`
+	Goal       string             `json:"goal"`
+	OrderIndex int32              `json:"order_index"`
+	Summary    string             `json:"summary"`
+	Status     string             `json:"status"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Character struct {
@@ -57,7 +77,7 @@ type Character struct {
 type CharacterState struct {
 	StoryID     pgtype.UUID        `json:"story_id"`
 	CharacterID pgtype.UUID        `json:"character_id"`
-	AsOfNode    pgtype.UUID        `json:"as_of_node"`
+	AsOfScene   pgtype.UUID        `json:"as_of_scene"`
 	State       []byte             `json:"state"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
@@ -77,22 +97,16 @@ type CharacterTraitAssignment struct {
 	Note        string      `json:"note"`
 }
 
-type Edge struct {
-	StoryID  pgtype.UUID `json:"story_id"`
-	FromNode pgtype.UUID `json:"from_node"`
-	ToNode   pgtype.UUID `json:"to_node"`
-	EdgeType string      `json:"edge_type"`
-}
-
 type Generation struct {
-	ID             pgtype.UUID        `json:"id"`
-	NodeID         pgtype.UUID        `json:"node_id"`
-	ContextHash    string             `json:"context_hash"`
-	PromptSnapshot string             `json:"prompt_snapshot"`
-	Output         string             `json:"output"`
-	Model          string             `json:"model"`
-	Accepted       bool               `json:"accepted"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	ID               pgtype.UUID        `json:"id"`
+	SceneID          pgtype.UUID        `json:"scene_id"`
+	ContextHash      string             `json:"context_hash"`
+	PromptSnapshot   string             `json:"prompt_snapshot"`
+	Output           string             `json:"output"`
+	Model            string             `json:"model"`
+	Accepted         bool               `json:"accepted"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	ValidationResult []byte             `json:"validation_result"`
 }
 
 type LatestCharacter struct {
@@ -138,24 +152,38 @@ type Lore struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
-type Node struct {
-	ID             pgtype.UUID        `json:"id"`
-	StoryID        pgtype.UUID        `json:"story_id"`
-	BeatIntent     string             `json:"beat_intent"`
-	CharacterRefs  []pgtype.UUID      `json:"character_refs"`
-	LocationRef    pgtype.UUID        `json:"location_ref"`
-	Pov            string             `json:"pov"`
-	Tone           string             `json:"tone"`
-	TargetWords    int32              `json:"target_words"`
-	Status         string             `json:"status"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-	SceneStructure []byte             `json:"scene_structure"`
+type Scene struct {
+	ID               pgtype.UUID        `json:"id"`
+	ChapterID        pgtype.UUID        `json:"chapter_id"`
+	StoryID          pgtype.UUID        `json:"story_id"`
+	Title            string             `json:"title"`
+	BeatIntent       string             `json:"beat_intent"`
+	CharacterRefs    []pgtype.UUID      `json:"character_refs"`
+	LocationRef      pgtype.UUID        `json:"location_ref"`
+	Pov              string             `json:"pov"`
+	Tone             string             `json:"tone"`
+	TargetWords      int32              `json:"target_words"`
+	SceneStructure   []byte             `json:"scene_structure"`
+	ParentSceneID    pgtype.UUID        `json:"parent_scene_id"`
+	TimelinePosition string             `json:"timeline_position"`
+	FlowType         string             `json:"flow_type"`
+	MaxTurns         int32              `json:"max_turns"`
+	Status           string             `json:"status"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
+type SceneEdge struct {
+	StoryID   pgtype.UUID `json:"story_id"`
+	FromScene pgtype.UUID `json:"from_scene"`
+	ToScene   pgtype.UUID `json:"to_scene"`
+	EdgeType  string      `json:"edge_type"`
+	Condition string      `json:"condition"`
 }
 
 type SceneTurn struct {
 	ID         pgtype.UUID        `json:"id"`
-	NodeID     pgtype.UUID        `json:"node_id"`
+	SceneID    pgtype.UUID        `json:"scene_id"`
 	TurnNumber int32              `json:"turn_number"`
 	ActorIds   []pgtype.UUID      `json:"actor_ids"`
 	Prompt     string             `json:"prompt"`
@@ -166,16 +194,20 @@ type SceneTurn struct {
 }
 
 type Story struct {
-	ID        pgtype.UUID        `json:"id"`
-	Title     string             `json:"title"`
-	CanonPins []byte             `json:"canon_pins"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ID            pgtype.UUID        `json:"id"`
+	Title         string             `json:"title"`
+	CanonPins     []byte             `json:"canon_pins"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	Genre         string             `json:"genre"`
+	Theme         string             `json:"theme"`
+	MainPrompt    string             `json:"main_prompt"`
+	GeneralPrompt string             `json:"general_prompt"`
 }
 
 type StorySummary struct {
 	ID        pgtype.UUID        `json:"id"`
 	StoryID   pgtype.UUID        `json:"story_id"`
-	NodeID    pgtype.UUID        `json:"node_id"`
+	SceneID   pgtype.UUID        `json:"scene_id"`
 	Level     string             `json:"level"`
 	Content   string             `json:"content"`
 	WordCount int32              `json:"word_count"`

@@ -24,6 +24,7 @@ import (
 	cachesvc "github.com/premchand/story-builder/internal/service/cache"
 	blueprintsvc "github.com/premchand/story-builder/internal/service/blueprint"
 	canonsvc "github.com/premchand/story-builder/internal/service/canon"
+	chaptersvc "github.com/premchand/story-builder/internal/service/chapter"
 	edgesvc "github.com/premchand/story-builder/internal/service/edge"
 	gensvc "github.com/premchand/story-builder/internal/service/generation"
 	nodesvc "github.com/premchand/story-builder/internal/service/node"
@@ -86,6 +87,7 @@ func main() {
 	var locHandler *api.LocationHandler
 	var loreHandler *api.LoreHandler
 	var storyHandler *api.StoryHandler
+	var chapterHandler *api.ChapterHandler
 	var nodeHandler *api.NodeHandler
 	var genHandler *api.GenerationHandler
 	var sceneHandler *api.SceneHandler
@@ -164,6 +166,7 @@ func main() {
 		castingHandler = &api.CastingHandler{Service: canonsvc.NewDBCastingService(q)}
 		locHandler = &api.LocationHandler{Service: canonsvc.NewDBLocationService(q)}
 		loreHandler = &api.LoreHandler{Service: canonsvc.NewDBLoreService(q)}
+		chapterHandler = &api.ChapterHandler{Service: chaptersvc.NewDBService(q)}
 		storyHandler = &api.StoryHandler{
 			StorySvc:         storySvc,
 			EdgeSvc:          edgeSvc,
@@ -194,6 +197,7 @@ func main() {
 		castingHandler = &api.CastingHandler{Service: canonsvc.NewMemoryCastingService()}
 		locHandler = &api.LocationHandler{Service: canonsvc.NewMemoryLocationService()}
 		loreHandler = &api.LoreHandler{Service: canonsvc.NewMemoryLoreService()}
+		chapterHandler = &api.ChapterHandler{Service: chaptersvc.NewMemoryService(gs)}
 		storyHandler = &api.StoryHandler{
 			StorySvc:         storySvc,
 			EdgeSvc:          edgeSvc,
@@ -213,7 +217,7 @@ func main() {
 	if redisCache != nil {
 		rateLimiter = redisCache.RateLimiter
 	}
-	srv := api.NewServer(charHandler, actorHandler, traitHandler, castingHandler, locHandler, loreHandler, storyHandler, nodeHandler, genHandler, sceneHandler, summaryHandler, storyGenHandler, titleHandler, rateLimiter)
+	srv := api.NewServer(charHandler, actorHandler, traitHandler, castingHandler, locHandler, loreHandler, storyHandler, chapterHandler, nodeHandler, genHandler, sceneHandler, summaryHandler, storyGenHandler, titleHandler, rateLimiter)
 
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%s", cfg.Port),

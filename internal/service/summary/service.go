@@ -21,10 +21,10 @@ func NewDBService(q *db.Queries) *DBSummaryService {
 	return &DBSummaryService{q: q}
 }
 
-func (s *DBSummaryService) UpsertSceneSummary(ctx context.Context, storyID, nodeID uuid.UUID, content string) error {
+func (s *DBSummaryService) UpsertSceneSummary(ctx context.Context, storyID, sceneID uuid.UUID, content string) error {
 	return s.q.UpsertSceneSummary(ctx, db.UpsertSceneSummaryParams{
 		StoryID:   db.ToUUID(storyID),
-		NodeID:    db.ToUUID(nodeID),
+		SceneID:   db.ToUUID(sceneID),
 		Content:   content,
 		WordCount: int32(len(strings.Fields(content))),
 	})
@@ -46,10 +46,10 @@ func (s *DBSummaryService) UpsertStorySummary(ctx context.Context, storyID uuid.
 	})
 }
 
-func (s *DBSummaryService) GetSceneSummary(ctx context.Context, storyID, nodeID uuid.UUID) (*compiler.StorySummary, error) {
+func (s *DBSummaryService) GetSceneSummary(ctx context.Context, storyID, sceneID uuid.UUID) (*compiler.StorySummary, error) {
 	row, err := s.q.GetSceneSummary(ctx, db.GetSceneSummaryParams{
 		StoryID: db.ToUUID(storyID),
-		NodeID:  db.ToUUID(nodeID),
+		SceneID: db.ToUUID(sceneID),
 	})
 	if err != nil {
 		return nil, err
@@ -214,15 +214,15 @@ func (s *MemorySummaryService) ShouldElevate(ctx context.Context, storyID uuid.U
 // ── Helpers ──────────────────────────────────────────────────────
 
 func toDomainSummary(row db.StorySummary) *compiler.StorySummary {
-	var nodeID *uuid.UUID
-	if row.NodeID.Valid {
-		n := db.FromUUID(row.NodeID)
-		nodeID = &n
+	var sceneID *uuid.UUID
+	if row.SceneID.Valid {
+		n := db.FromUUID(row.SceneID)
+		sceneID = &n
 	}
 	return &compiler.StorySummary{
 		ID:        db.FromUUID(row.ID),
 		StoryID:   db.FromUUID(row.StoryID),
-		NodeID:    nodeID,
+		NodeID:    sceneID,
 		Level:     compiler.SummaryLevel(row.Level),
 		Content:   row.Content,
 		WordCount: int(row.WordCount),

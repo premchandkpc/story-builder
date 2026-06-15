@@ -131,8 +131,12 @@ LIMIT $2;
 -- name: ListLore :many
 SELECT * FROM lore ORDER BY created_at DESC;
 
+-- ── Stories ──────────────────────────────────────────────────────────
+
 -- name: CreateStory :one
-INSERT INTO stories (title) VALUES ($1) RETURNING *;
+INSERT INTO stories (title, genre, theme, main_prompt, general_prompt)
+VALUES ($1, '', '', '', '')
+RETURNING *;
 
 -- name: GetStory :one
 SELECT * FROM stories WHERE id = $1;
@@ -143,55 +147,100 @@ SELECT * FROM stories ORDER BY created_at DESC;
 -- name: UpdateStoryCanonPins :exec
 UPDATE stories SET canon_pins = $2 WHERE id = $1;
 
--- name: CreateNode :one
-INSERT INTO nodes (story_id, beat_intent, character_refs, location_ref, pov, tone, target_words)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING *;
-
--- name: GetNode :one
-SELECT * FROM nodes WHERE id = $1;
-
--- name: UpdateNode :one
-UPDATE nodes SET
-    beat_intent = $2, character_refs = $3, location_ref = $4,
-    pov = $5, tone = $6, target_words = $7,
-    scene_structure = $8, updated_at = now()
+-- name: UpdateStory :one
+UPDATE stories SET
+    title = $2, genre = $3, theme = $4,
+    main_prompt = $5, general_prompt = $6
 WHERE id = $1
 RETURNING *;
 
--- name: SetNodeStatus :exec
-UPDATE nodes SET status = $2, updated_at = now() WHERE id = $1;
+-- ── Chapters ─────────────────────────────────────────────────────────
 
--- name: ListNodes :many
-SELECT * FROM nodes WHERE story_id = $1 ORDER BY created_at;
+-- name: CreateChapter :one
+INSERT INTO chapters (story_id, title, goal, order_index)
+VALUES ($1, $2, $3, $4)
+RETURNING *;
 
--- name: CreateEdge :exec
-INSERT INTO edges (story_id, from_node, to_node, edge_type)
+-- name: GetChapter :one
+SELECT * FROM chapters WHERE id = $1;
+
+-- name: UpdateChapter :one
+UPDATE chapters SET
+    title = $2, goal = $3, order_index = $4, summary = $5, status = $6,
+    updated_at = now()
+WHERE id = $1
+RETURNING *;
+
+-- name: DeleteChapter :exec
+DELETE FROM chapters WHERE id = $1;
+
+-- name: ListChapters :many
+SELECT * FROM chapters WHERE story_id = $1 ORDER BY order_index;
+
+-- ── Scenes ───────────────────────────────────────────────────────────
+
+-- name: CreateScene :one
+INSERT INTO scenes (chapter_id, story_id, beat_intent, character_refs, location_ref, pov, tone, target_words)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING *;
+
+-- name: GetScene :one
+SELECT * FROM scenes WHERE id = $1;
+
+-- name: UpdateScene :one
+UPDATE scenes SET
+    beat_intent = $2, character_refs = $3, location_ref = $4,
+    pov = $5, tone = $6, target_words = $7,
+    scene_structure = $8, title = $9, timeline_position = $10,
+    flow_type = $11, max_turns = $12, updated_at = now()
+WHERE id = $1
+RETURNING *;
+
+-- name: SetSceneStatus :exec
+UPDATE scenes SET status = $2, updated_at = now() WHERE id = $1;
+
+-- name: ListScenes :many
+SELECT * FROM scenes WHERE story_id = $1 ORDER BY created_at;
+
+-- name: ListScenesByChapter :many
+SELECT * FROM scenes WHERE chapter_id = $1 ORDER BY created_at;
+
+-- name: DeleteScene :exec
+DELETE FROM scenes WHERE id = $1;
+
+-- name: UpdateSceneStructure :exec
+UPDATE scenes SET scene_structure = $2, updated_at = now() WHERE id = $1;
+
+-- ── Scene Edges ──────────────────────────────────────────────────────
+
+-- name: CreateSceneEdge :exec
+INSERT INTO scene_edges (story_id, from_scene, to_scene, edge_type)
 VALUES ($1, $2, $3, $4)
 ON CONFLICT DO NOTHING;
 
--- name: ListEdges :many
-SELECT * FROM edges WHERE story_id = $1;
+-- name: ListSceneEdges :many
+SELECT * FROM scene_edges WHERE story_id = $1;
 
--- name: GetOutgoingEdges :many
-SELECT * FROM edges WHERE from_node = $1;
+-- name: GetOutgoingSceneEdges :many
+SELECT * FROM scene_edges WHERE from_scene = $1;
 
--- name: GetIncomingEdges :many
-SELECT * FROM edges WHERE to_node = $1;
+-- name: GetIncomingSceneEdges :many
+SELECT * FROM scene_edges WHERE to_scene = $1;
 
--- name: UpdateNodeSceneStructure :exec
-UPDATE nodes SET scene_structure = $2, updated_at = now() WHERE id = $1;
+-- ── Scene Turns ──────────────────────────────────────────────────────
 
 -- name: CreateSceneTurn :one
-INSERT INTO scene_turns (node_id, turn_number, actor_ids, prompt, output, model, status)
+INSERT INTO scene_turns (scene_id, turn_number, actor_ids, prompt, output, model, status)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: ListSceneTurns :many
-SELECT * FROM scene_turns WHERE node_id = $1 ORDER BY turn_number;
+SELECT * FROM scene_turns WHERE scene_id = $1 ORDER BY turn_number;
+
+-- ── Generations ──────────────────────────────────────────────────────
 
 -- name: CreateGeneration :one
-INSERT INTO generations (node_id, context_hash, prompt_snapshot, output, model)
+INSERT INTO generations (scene_id, context_hash, prompt_snapshot, output, model)
 VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
@@ -200,59 +249,63 @@ UPDATE generations SET accepted = true WHERE id = $1;
 
 -- name: RejectOtherGenerations :exec
 UPDATE generations SET accepted = false
-WHERE node_id = $1 AND id != $2;
+WHERE scene_id = $1 AND id != $2;
 
--- name: ListGenerationsForNode :many
-SELECT * FROM generations WHERE node_id = $1 ORDER BY created_at DESC;
+-- name: ListGenerationsForScene :many
+SELECT * FROM generations WHERE scene_id = $1 ORDER BY created_at DESC;
 
--- name: GetAcceptedGenerationForNode :one
-SELECT * FROM generations WHERE node_id = $1 AND accepted = true LIMIT 1;
+-- name: GetAcceptedGenerationForScene :one
+SELECT * FROM generations WHERE scene_id = $1 AND accepted = true LIMIT 1;
 
 -- name: IsGenerationStale :one
 SELECT COUNT(*) > 0 FROM generations
-WHERE node_id = $1 AND context_hash != $2;
+WHERE scene_id = $1 AND context_hash != $2;
+
+-- ── Character State ──────────────────────────────────────────────────
 
 -- name: UpsertCharacterState :exec
-INSERT INTO character_state (story_id, character_id, as_of_node, state)
+INSERT INTO character_state (story_id, character_id, as_of_scene, state)
 VALUES ($1, $2, $3, $4)
-ON CONFLICT (story_id, character_id, as_of_node)
+ON CONFLICT (story_id, character_id, as_of_scene)
 DO UPDATE SET state = $4, updated_at = now();
 
 -- name: GetCharacterState :one
 SELECT * FROM character_state
-WHERE story_id = $1 AND character_id = $2 AND as_of_node = $3;
+WHERE story_id = $1 AND character_id = $2 AND as_of_scene = $3;
 
--- name: GetStatesForNode :many
+-- name: GetStatesForScene :many
 SELECT * FROM character_state
-WHERE story_id = $1 AND as_of_node = $2;
+WHERE story_id = $1 AND as_of_scene = $2;
 
 -- name: GetStatesAtBranch :many
 SELECT DISTINCT ON (cs.character_id) cs.*
 FROM character_state cs
-WHERE cs.story_id = $1 AND cs.as_of_node = $2
-ORDER BY cs.character_id, cs.as_of_node DESC;
+WHERE cs.story_id = $1 AND cs.as_of_scene = $2
+ORDER BY cs.character_id, cs.as_of_scene DESC;
+
+-- ── Summaries ────────────────────────────────────────────────────────
 
 -- name: UpsertSceneSummary :exec
-INSERT INTO story_summaries (story_id, node_id, level, content, word_count)
+INSERT INTO story_summaries (story_id, scene_id, level, content, word_count)
 VALUES ($1, $2, 'scene', $3, $4)
-ON CONFLICT (story_id, node_id) WHERE level = 'scene' AND node_id IS NOT NULL
+ON CONFLICT (story_id, scene_id) WHERE level = 'scene' AND scene_id IS NOT NULL
 DO UPDATE SET content = $3, word_count = $4;
 
 -- name: UpsertActSummary :exec
-INSERT INTO story_summaries (story_id, node_id, level, content, word_count)
+INSERT INTO story_summaries (story_id, scene_id, level, content, word_count)
 VALUES ($1, NULL, 'act', $2, $3)
-ON CONFLICT (story_id, level) WHERE level = 'act' AND node_id IS NULL
+ON CONFLICT (story_id, level) WHERE level = 'act' AND scene_id IS NULL
 DO UPDATE SET content = $2, word_count = $3;
 
 -- name: UpsertStorySummary :exec
-INSERT INTO story_summaries (story_id, node_id, level, content, word_count)
+INSERT INTO story_summaries (story_id, scene_id, level, content, word_count)
 VALUES ($1, NULL, 'story', $2, $3)
-ON CONFLICT (story_id, level) WHERE level = 'story' AND node_id IS NULL
+ON CONFLICT (story_id, level) WHERE level = 'story' AND scene_id IS NULL
 DO UPDATE SET content = $2, word_count = $3;
 
 -- name: GetSceneSummary :one
 SELECT * FROM story_summaries
-WHERE story_id = $1 AND node_id = $2 AND level = 'scene';
+WHERE story_id = $1 AND scene_id = $2 AND level = 'scene';
 
 -- name: GetSummaryByLevel :one
 SELECT * FROM story_summaries

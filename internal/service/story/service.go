@@ -14,6 +14,7 @@ import (
 type StoryService interface {
 	Create(ctx context.Context, title string) (*graph.Story, error)
 	Get(ctx context.Context, id uuid.UUID) (*graph.Story, error)
+	Update(ctx context.Context, id uuid.UUID, title string) (*graph.Story, error)
 	List(ctx context.Context) ([]graph.Story, error)
 	CreateEdge(ctx context.Context, storyID, fromNode, toNode uuid.UUID, edgeType string) error
 	ListEdges(ctx context.Context, storyID uuid.UUID) ([]graph.Edge, error)
@@ -36,6 +37,15 @@ func (s *memoryService) Create(ctx context.Context, title string) (*graph.Story,
 
 func (s *memoryService) Get(ctx context.Context, id uuid.UUID) (*graph.Story, error) {
 	return s.graph.GetStory(id)
+}
+
+func (s *memoryService) Update(ctx context.Context, id uuid.UUID, title string) (*graph.Story, error) {
+	st, err := s.graph.GetStory(id)
+	if err != nil {
+		return nil, err
+	}
+	st.Title = title
+	return st, nil
 }
 
 func (s *memoryService) List(ctx context.Context) ([]graph.Story, error) {
@@ -82,6 +92,10 @@ func (s *dbService) Create(ctx context.Context, title string) (*graph.Story, err
 	return &graph.Story{
 		ID:        db.FromUUID(st.ID),
 		Title:     st.Title,
+		Genre:     st.Genre,
+		Theme:     st.Theme,
+		MainPrompt: st.MainPrompt,
+		GeneralPrompt: st.GeneralPrompt,
 		CanonPins: make(map[string]interface{}),
 		CreatedAt: st.CreatedAt.Time,
 	}, nil
@@ -100,8 +114,45 @@ func (s *dbService) Get(ctx context.Context, id uuid.UUID) (*graph.Story, error)
 	return &graph.Story{
 		ID:        db.FromUUID(st.ID),
 		Title:     st.Title,
+		Genre:     st.Genre,
+		Theme:     st.Theme,
+		MainPrompt: st.MainPrompt,
+		GeneralPrompt: st.GeneralPrompt,
 		CanonPins: pins,
 		CreatedAt: st.CreatedAt.Time,
+	}, nil
+}
+
+func (s *dbService) Update(ctx context.Context, id uuid.UUID, title string) (*graph.Story, error) {
+	existing, err := s.q.GetStory(ctx, db.ToUUID(id))
+	if err != nil {
+		return nil, err
+	}
+	st, err := s.q.UpdateStory(ctx, db.UpdateStoryParams{
+		ID:            db.ToUUID(id),
+		Title:         title,
+		Genre:         existing.Genre,
+		Theme:         existing.Theme,
+		MainPrompt:    existing.MainPrompt,
+		GeneralPrompt: existing.GeneralPrompt,
+	})
+	if err != nil {
+		return nil, err
+	}
+	var pins map[string]interface{}
+	json.Unmarshal(st.CanonPins, &pins)
+	if pins == nil {
+		pins = make(map[string]interface{})
+	}
+	return &graph.Story{
+		ID:            db.FromUUID(st.ID),
+		Title:         st.Title,
+		Genre:         st.Genre,
+		Theme:         st.Theme,
+		MainPrompt:    st.MainPrompt,
+		GeneralPrompt: st.GeneralPrompt,
+		CanonPins:     pins,
+		CreatedAt:     st.CreatedAt.Time,
 	}, nil
 }
 
@@ -123,26 +174,27 @@ func (s *dbService) List(ctx context.Context) ([]graph.Story, error) {
 }
 
 func (s *dbService) CreateEdge(ctx context.Context, storyID, fromNode, toNode uuid.UUID, edgeType string) error {
-	return s.q.CreateEdge(ctx, db.CreateEdgeParams{
-		StoryID:  db.ToUUID(storyID),
-		FromNode: db.ToUUID(fromNode),
-		ToNode:   db.ToUUID(toNode),
-		EdgeType: edgeType,
+	return s.q.CreateSceneEdge(ctx, db.CreateSceneEdgeParams{
+		StoryID:   db.ToUUID(storyID),
+		FromScene: db.ToUUID(fromNode),
+		ToScene:   db.ToUUID(toNode),
+		EdgeType:  edgeType,
 	})
 }
 
 func (s *dbService) ListEdges(ctx context.Context, storyID uuid.UUID) ([]graph.Edge, error) {
-	edges, err := s.q.ListEdges(ctx, db.ToUUID(storyID))
+	edges, err := s.q.ListSceneEdges(ctx, db.ToUUID(storyID))
 	if err != nil {
 		return nil, err
 	}
 	result := make([]graph.Edge, len(edges))
 	for i, e := range edges {
 		result[i] = graph.Edge{
-			StoryID:  db.FromUUID(e.StoryID),
-			FromNode: db.FromUUID(e.FromNode),
-			ToNode:   db.FromUUID(e.ToNode),
-			EdgeType: graph.EdgeType(e.EdgeType),
+			StoryID:   db.FromUUID(e.StoryID),
+			FromNode:  db.FromUUID(e.FromScene),
+			ToNode:    db.FromUUID(e.ToScene),
+			EdgeType:  graph.EdgeType(e.EdgeType),
+			Condition: e.Condition,
 		}
 	}
 	return result, nil
@@ -168,7 +220,7 @@ func (s *dbService) TopologicalSort(ctx context.Context, storyID uuid.UUID) ([]g
 	return graph.TopologicalSort(nodes, edges)
 }
 
-func toDomainNode(n db.Node) *graph.Node {
+func toDomainNode(n db.Scene) *graph.Node {
 	refs := make([]uuid.UUID, len(n.CharacterRefs))
 	for i, r := range n.CharacterRefs {
 		refs[i] = db.FromUUID(r)
@@ -185,24 +237,35 @@ func toDomainNode(n db.Node) *graph.Node {
 			ss = &s
 		}
 	}
+	var parentSceneID *uuid.UUID
+	if n.ParentSceneID.Valid {
+		p := db.FromUUID(n.ParentSceneID)
+		parentSceneID = &p
+	}
 	return &graph.Node{
-		ID:             db.FromUUID(n.ID),
-		StoryID:        db.FromUUID(n.StoryID),
-		BeatIntent:     n.BeatIntent,
-		CharacterRefs:  refs,
-		LocationRef:    locRef,
-		POV:            n.Pov,
-		Tone:           n.Tone,
-		TargetWords:    int(n.TargetWords),
-		Status:         graph.NodeStatus(n.Status),
-		SceneStructure: ss,
-		CreatedAt:      n.CreatedAt.Time,
-		UpdatedAt:      n.UpdatedAt.Time,
+		ID:               db.FromUUID(n.ID),
+		StoryID:          db.FromUUID(n.StoryID),
+		ChapterID:        db.FromUUID(n.ChapterID),
+		Title:            n.Title,
+		BeatIntent:       n.BeatIntent,
+		CharacterRefs:    refs,
+		LocationRef:      locRef,
+		POV:              n.Pov,
+		Tone:             n.Tone,
+		TargetWords:      int(n.TargetWords),
+		Status:           graph.NodeStatus(n.Status),
+		SceneStructure:   ss,
+		ParentSceneID:    parentSceneID,
+		TimelinePosition: n.TimelinePosition,
+		FlowType:         graph.FlowType(n.FlowType),
+		MaxTurns:         int(n.MaxTurns),
+		CreatedAt:        n.CreatedAt.Time,
+		UpdatedAt:        n.UpdatedAt.Time,
 	}
 }
 
 func getNode(ctx context.Context, q *db.Queries, id uuid.UUID) (*graph.Node, error) {
-	n, err := q.GetNode(ctx, db.ToUUID(id))
+	n, err := q.GetScene(ctx, db.ToUUID(id))
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("node %s not found", id)
@@ -213,7 +276,7 @@ func getNode(ctx context.Context, q *db.Queries, id uuid.UUID) (*graph.Node, err
 }
 
 func listNodes(ctx context.Context, q *db.Queries, storyID uuid.UUID) ([]graph.Node, error) {
-	nodes, err := q.ListNodes(ctx, db.ToUUID(storyID))
+	nodes, err := q.ListScenes(ctx, db.ToUUID(storyID))
 	if err != nil {
 		return nil, err
 	}
@@ -223,4 +286,3 @@ func listNodes(ctx context.Context, q *db.Queries, storyID uuid.UUID) ([]graph.N
 	}
 	return result, nil
 }
-

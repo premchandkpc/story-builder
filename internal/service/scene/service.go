@@ -11,7 +11,6 @@ import (
 	"github.com/premchand/story-builder/internal/scene"
 )
 
-// DBSceneService implements scene.SceneService backed by Postgres via db.Queries.
 type DBSceneService struct {
 	q *db.Queries
 }
@@ -20,20 +19,20 @@ func NewDBService(q *db.Queries) *DBSceneService {
 	return &DBSceneService{q: q}
 }
 
-func (s *DBSceneService) StartScene(ctx context.Context, nodeID uuid.UUID) (*scene.SceneTurn, error) {
+func (s *DBSceneService) StartScene(ctx context.Context, sceneID uuid.UUID) (*scene.SceneTurn, error) {
 	return nil, fmt.Errorf("multi-agent scene requires LLM integration -- not implemented")
 }
 
-func (s *DBSceneService) NextTurn(ctx context.Context, nodeID uuid.UUID) (*scene.SceneTurn, error) {
+func (s *DBSceneService) NextTurn(ctx context.Context, sceneID uuid.UUID) (*scene.SceneTurn, error) {
 	return nil, fmt.Errorf("multi-agent scene requires LLM integration -- not implemented")
 }
 
-func (s *DBSceneService) FinishScene(ctx context.Context, nodeID uuid.UUID) (string, error) {
+func (s *DBSceneService) FinishScene(ctx context.Context, sceneID uuid.UUID) (string, error) {
 	return "", fmt.Errorf("multi-agent scene requires LLM integration -- not implemented")
 }
 
-func (s *DBSceneService) GetTurns(ctx context.Context, nodeID uuid.UUID) ([]scene.SceneTurn, error) {
-	turns, err := s.q.ListSceneTurns(ctx, db.ToUUID(nodeID))
+func (s *DBSceneService) GetTurns(ctx context.Context, sceneID uuid.UUID) ([]scene.SceneTurn, error) {
+	turns, err := s.q.ListSceneTurns(ctx, db.ToUUID(sceneID))
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +44,7 @@ func (s *DBSceneService) GetTurns(ctx context.Context, nodeID uuid.UUID) ([]scen
 		}
 		result[i] = scene.SceneTurn{
 			ID:         db.FromUUID(t.ID),
-			NodeID:     db.FromUUID(t.NodeID),
+			NodeID:     db.FromUUID(t.SceneID),
 			TurnNumber: int(t.TurnNumber),
 			ActorIDs:   actorIDs,
 			Prompt:     t.Prompt,
@@ -58,15 +57,15 @@ func (s *DBSceneService) GetTurns(ctx context.Context, nodeID uuid.UUID) ([]scen
 	return result, nil
 }
 
-func (s *DBSceneService) SetSceneStructure(ctx context.Context, nodeID uuid.UUID, ss graph.SceneStructure) error {
-	return s.q.UpdateNodeSceneStructure(ctx, db.UpdateNodeSceneStructureParams{
-		ID:             db.ToUUID(nodeID),
+func (s *DBSceneService) SetSceneStructure(ctx context.Context, sceneID uuid.UUID, ss graph.SceneStructure) error {
+	return s.q.UpdateSceneStructure(ctx, db.UpdateSceneStructureParams{
+		ID:             db.ToUUID(sceneID),
 		SceneStructure: db.JSONBytes(ss),
 	})
 }
 
-func (s *DBSceneService) GetSceneStructure(ctx context.Context, nodeID uuid.UUID) (*graph.SceneStructure, error) {
-	n, err := s.q.GetNode(ctx, db.ToUUID(nodeID))
+func (s *DBSceneService) GetSceneStructure(ctx context.Context, sceneID uuid.UUID) (*graph.SceneStructure, error) {
+	n, err := s.q.GetScene(ctx, db.ToUUID(sceneID))
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +79,6 @@ func (s *DBSceneService) GetSceneStructure(ctx context.Context, nodeID uuid.UUID
 	return &ss, nil
 }
 
-// MemorySceneService implements scene.SceneService backed by in-memory maps.
 type MemorySceneService struct {
 	turns map[uuid.UUID][]scene.SceneTurn
 }
@@ -89,31 +87,29 @@ func NewMemoryService() *MemorySceneService {
 	return &MemorySceneService{turns: make(map[uuid.UUID][]scene.SceneTurn)}
 }
 
-func (s *MemorySceneService) StartScene(ctx context.Context, nodeID uuid.UUID) (*scene.SceneTurn, error) {
+func (s *MemorySceneService) StartScene(ctx context.Context, sceneID uuid.UUID) (*scene.SceneTurn, error) {
 	return nil, fmt.Errorf("multi-agent scene requires LLM integration -- not implemented in memory mode")
 }
 
-func (s *MemorySceneService) NextTurn(ctx context.Context, nodeID uuid.UUID) (*scene.SceneTurn, error) {
+func (s *MemorySceneService) NextTurn(ctx context.Context, sceneID uuid.UUID) (*scene.SceneTurn, error) {
 	return nil, fmt.Errorf("multi-agent scene requires LLM integration -- not implemented in memory mode")
 }
 
-func (s *MemorySceneService) FinishScene(ctx context.Context, nodeID uuid.UUID) (string, error) {
+func (s *MemorySceneService) FinishScene(ctx context.Context, sceneID uuid.UUID) (string, error) {
 	return "", fmt.Errorf("multi-agent scene requires LLM integration -- not implemented in memory mode")
 }
 
-func (s *MemorySceneService) GetTurns(ctx context.Context, nodeID uuid.UUID) ([]scene.SceneTurn, error) {
-	turns := s.turns[nodeID]
+func (s *MemorySceneService) GetTurns(ctx context.Context, sceneID uuid.UUID) ([]scene.SceneTurn, error) {
+	turns := s.turns[sceneID]
 	r := make([]scene.SceneTurn, len(turns))
 	copy(r, turns)
 	return r, nil
 }
 
-func (s *MemorySceneService) SetSceneStructure(ctx context.Context, nodeID uuid.UUID, ss graph.SceneStructure) error {
+func (s *MemorySceneService) SetSceneStructure(ctx context.Context, sceneID uuid.UUID, ss graph.SceneStructure) error {
 	return nil
 }
 
-func (s *MemorySceneService) GetSceneStructure(ctx context.Context, nodeID uuid.UUID) (*graph.SceneStructure, error) {
+func (s *MemorySceneService) GetSceneStructure(ctx context.Context, sceneID uuid.UUID) (*graph.SceneStructure, error) {
 	return nil, nil
 }
-
-

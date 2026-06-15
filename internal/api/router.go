@@ -20,6 +20,7 @@ type Server struct {
 	locationHandler  *LocationHandler
 	loreHandler      *LoreHandler
 	storyHandler     *StoryHandler
+	chapterHandler   *ChapterHandler
 	nodeHandler      *NodeHandler
 	genHandler       *GenerationHandler
 	sceneHandler     *SceneHandler
@@ -37,6 +38,7 @@ func NewServer(
 	locH *LocationHandler,
 	loreH *LoreHandler,
 	storyH *StoryHandler,
+	chapterH *ChapterHandler,
 	nodeH *NodeHandler,
 	genH *GenerationHandler,
 	sceneH *SceneHandler,
@@ -54,6 +56,7 @@ func NewServer(
 		locationHandler:  locH,
 		loreHandler:      loreH,
 		storyHandler:     storyH,
+		chapterHandler:   chapterH,
 		nodeHandler:      nodeH,
 		genHandler:       genH,
 		sceneHandler:     sceneH,
@@ -135,6 +138,14 @@ func (s *Server) routes() {
 			r.Post("/", s.storyHandler.Create)
 			r.Get("/", s.storyHandler.List)
 			r.Get("/{id}", s.storyHandler.Get)
+			r.Put("/{id}", s.storyHandler.Update)
+			r.Route("/{storyID}/chapters", func(r chi.Router) {
+				r.Post("/", s.chapterHandler.Create)
+				r.Get("/", s.chapterHandler.List)
+				r.Get("/{id}", s.chapterHandler.Get)
+				r.Put("/{id}", s.chapterHandler.Update)
+				r.Delete("/{id}", s.chapterHandler.Delete)
+			})
 			r.Route("/{storyID}/casting", func(r chi.Router) {
 				r.Post("/", s.castingHandler.Create)
 				r.Get("/", s.castingHandler.ListForStory)

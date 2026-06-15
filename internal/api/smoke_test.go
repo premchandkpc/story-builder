@@ -11,6 +11,7 @@ import (
 	"github.com/premchand/story-builder/internal/graph"
 	blueprintsvc "github.com/premchand/story-builder/internal/service/blueprint"
 	canonsvc "github.com/premchand/story-builder/internal/service/canon"
+	chaptersvc "github.com/premchand/story-builder/internal/service/chapter"
 	"github.com/premchand/story-builder/internal/service/edge"
 	gentsvc "github.com/premchand/story-builder/internal/service/generation"
 	nodesvc "github.com/premchand/story-builder/internal/service/node"
@@ -29,6 +30,7 @@ func TestSmoke_CriticalFlows(t *testing.T) {
 	locSvc := canonsvc.NewMemoryLocationService()
 	loreSvc := canonsvc.NewMemoryLoreService()
 	storySvc := storysvc.NewMemoryService(mem)
+	chapterSvc := chaptersvc.NewMemoryService(mem)
 	nodeSvc := nodesvc.NewMemoryService(mem)
 	sceneSvc := scenesvc.NewMemoryService()
 	genSvc := gentsvc.NewMemoryGenerationService()
@@ -45,12 +47,13 @@ func TestSmoke_CriticalFlows(t *testing.T) {
 		&LocationHandler{Service: locSvc},
 		&LoreHandler{Service: loreSvc},
 		&StoryHandler{StorySvc: storySvc, EdgeSvc: edge.NewMemoryService(mem), NodeSvc: nodeSvc, BlueprintService: blueprintSvc, TimelineService: timelinesvc.NewMemoryService()},
+		&ChapterHandler{Service: chapterSvc},
 		&NodeHandler{Service: nodeSvc},
 		&GenerationHandler{Service: genSvc},
 		&SceneHandler{SceneService: sceneSvc},
 		&SummaryHandler{Service: summarySvc},
 		&StoryGeneratorHandler{Service: storyGenSvc},
-		nil,
+		&TitleHandler{},
 	)
 
 	ts := httptest.NewServer(srv)

@@ -42,28 +42,28 @@ func NewDBService(q *db.Queries) *dbService {
 }
 
 func (s *dbService) Create(ctx context.Context, storyID, fromNode, toNode uuid.UUID, edgeType string) error {
-	return s.q.CreateEdge(ctx, db.CreateEdgeParams{
-		StoryID:  db.ToUUID(storyID),
-		FromNode: db.ToUUID(fromNode),
-		ToNode:   db.ToUUID(toNode),
-		EdgeType: edgeType,
+	return s.q.CreateSceneEdge(ctx, db.CreateSceneEdgeParams{
+		StoryID:   db.ToUUID(storyID),
+		FromScene: db.ToUUID(fromNode),
+		ToScene:   db.ToUUID(toNode),
+		EdgeType:  edgeType,
 	})
 }
 
 func (s *dbService) List(ctx context.Context, storyID uuid.UUID) ([]graph.Edge, error) {
-	edges, err := s.q.ListEdges(ctx, db.ToUUID(storyID))
+	edges, err := s.q.ListSceneEdges(ctx, db.ToUUID(storyID))
 	if err != nil {
 		return nil, err
 	}
 	result := make([]graph.Edge, len(edges))
 	for i, e := range edges {
 		result[i] = graph.Edge{
-			StoryID:  db.FromUUID(e.StoryID),
-			FromNode: db.FromUUID(e.FromNode),
-			ToNode:   db.FromUUID(e.ToNode),
-			EdgeType: graph.EdgeType(e.EdgeType),
+			StoryID:   db.FromUUID(e.StoryID),
+			FromNode:  db.FromUUID(e.FromScene),
+			ToNode:    db.FromUUID(e.ToScene),
+			EdgeType:  graph.EdgeType(e.EdgeType),
+			Condition: e.Condition,
 		}
 	}
 	return result, nil
 }
-

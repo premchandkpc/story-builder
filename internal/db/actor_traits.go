@@ -6,14 +6,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type ActorTrait struct {
-	ID         pgtype.UUID        `json:"id"`
-	ActorID    pgtype.UUID        `json:"actor_id"`
-	TraitKey   string             `json:"trait_key"`
-	TraitValue string             `json:"trait_value"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
-}
-
 type CreateActorTraitParams struct {
 	ActorID    pgtype.UUID `json:"actor_id"`
 	TraitKey   string      `json:"trait_key"`

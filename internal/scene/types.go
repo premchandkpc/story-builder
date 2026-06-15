@@ -13,6 +13,8 @@ type SceneTurn struct {
 	NodeID     uuid.UUID   `json:"node_id"`
 	TurnNumber int         `json:"turn_number"`
 	ActorIDs   []uuid.UUID `json:"actor_ids"`
+	Intent     string      `json:"intent,omitempty"`
+	Action     string      `json:"action,omitempty"`
 	Prompt     string      `json:"prompt"`
 	Output     string      `json:"output"`
 	Model      string      `json:"model"`
@@ -42,4 +44,7 @@ type AgentPromptInput struct {
 	BeatIntent    string
 	SceneSetting  string
 	PreviousTurns string
+	Goals         []Goal
+	Beliefs       []Belief
+	DirectorNote  string
 }

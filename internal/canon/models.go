@@ -6,6 +6,49 @@ import (
 	"github.com/google/uuid"
 )
 
+type Character struct {
+	ID             uuid.UUID         `json:"id"`
+	Version        int               `json:"version"`
+	Name           string            `json:"name"`
+	Persona        string            `json:"persona,omitempty"`
+	Backstory      string            `json:"backstory,omitempty"`
+	MoralAlignment string            `json:"moral_alignment,omitempty"`
+	Personality    []string          `json:"personality,omitempty"`
+	Flaws          []string          `json:"flaws,omitempty"`
+	Goals          []string          `json:"goals,omitempty"`
+	Traits         []string          `json:"traits"`
+	VoiceSamples   []string          `json:"voice_samples"`
+	ParentID       *uuid.UUID        `json:"parent_id,omitempty"`
+	Relationships  map[string]string `json:"relationships"`
+	CreatedAt      time.Time         `json:"created_at"`
+}
+
+type Location struct {
+	ID          uuid.UUID `json:"id"`
+	Version     int       `json:"version"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Props       []string  `json:"props,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+type Lore struct {
+	ID        uuid.UUID `json:"id"`
+	Tags      []string  `json:"tags"`
+	Content   string    `json:"content"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type Card struct {
+	Name          string            `json:"name"`
+	Description   string            `json:"description"`
+	Type          string            `json:"type"`
+	Traits        []string          `json:"traits,omitempty"`
+	VoiceSamples  []string          `json:"voice_samples,omitempty"`
+	Props         []string          `json:"props,omitempty"`
+	Relationships map[string]string `json:"relationships,omitempty"`
+}
+
 type Actor struct {
 	ID          uuid.UUID              `json:"id"`
 	Name        string                 `json:"name"`
@@ -23,23 +66,6 @@ type Actor struct {
 	Nationality string                 `json:"nationality"`
 	Traits      map[string]interface{} `json:"traits"`
 	CreatedAt   time.Time              `json:"created_at"`
-}
-
-type Character struct {
-	ID              uuid.UUID      `json:"id"`
-	Version         int            `json:"version"`
-	Name            string         `json:"name"`
-	Persona         string         `json:"persona"`
-	Backstory       string         `json:"backstory"`
-	MoralAlignment  string         `json:"moral_alignment"`
-	Personality     []string       `json:"personality"`
-	Flaws           []string       `json:"flaws"`
-	Goals           []string       `json:"goals"`
-	VoiceSamples    []string       `json:"voice_samples"`
-	ParentID        *uuid.UUID     `json:"parent_id,omitempty"`
-	Traits          []string       `json:"traits"`
-	Relationships   map[string]string `json:"relationships"`
-	CreatedAt       time.Time      `json:"created_at"`
 }
 
 type CharacterTrait struct {
@@ -66,42 +92,136 @@ type Casting struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-type Location struct {
-	ID          uuid.UUID `json:"id"`
-	Version     int       `json:"version"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	Props       []string  `json:"props"`
-	CreatedAt   time.Time `json:"created_at"`
+type StoryBible struct {
+	StoryID        uuid.UUID        `json:"story_id"`
+	WorldRules     map[string]string `json:"world_rules"`
+	CanonRules     map[string]string `json:"canon_rules"`
+	ForbiddenRules []string          `json:"forbidden_rules"`
+	Technology     map[string]string `json:"technology_rules"`
+	Magic          map[string]string `json:"magic_rules"`
+	Geography      map[string]string `json:"geography,omitempty"`
+	UpdatedAt      time.Time         `json:"updated_at"`
 }
 
-type Lore struct {
-	ID        uuid.UUID `json:"id"`
-	Tags      []string  `json:"tags"`
-	Content   string    `json:"content"`
-	Embedding []float32 `json:"embedding,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+type ValidationResult struct {
+	Valid      bool              `json:"valid"`
+	Violations []Violation       `json:"violations,omitempty"`
+	Warnings   []string          `json:"warnings,omitempty"`
 }
 
-type CanonPin struct {
-	EntityType string    `json:"entity_type"`
-	EntityID   uuid.UUID `json:"entity_id"`
-	Version    int       `json:"version"`
+type Violation struct {
+	Rule    string `json:"rule"`
+	Type    string `json:"type"`
+	Detail  string `json:"detail"`
+	Severity string `json:"severity"`
 }
 
-type StoryCanonPins struct {
-	StoryID   uuid.UUID            `json:"story_id"`
-	Pins      map[string]CanonPin  `json:"pins"`
+type ValidatorService interface {
+	ValidateScene(storyID, sceneID uuid.UUID, sceneText string, charIDs []uuid.UUID) (*ValidationResult, error)
+	ValidateDialogue(storyID uuid.UUID, speaker, target uuid.UUID, dialogue string) (*ValidationResult, error)
+	ValidateTimeline(storyID uuid.UUID) (*ValidationResult, error)
+	ValidateCharacterAction(storyID, charID uuid.UUID, action string) (*ValidationResult, error)
+	GetBible(storyID uuid.UUID) (*StoryBible, error)
+	UpsertBible(bible *StoryBible) error
 }
 
-type Card struct {
-	Type         string            `json:"type"`
-	Name         string            `json:"name"`
-	Traits       []string          `json:"traits,omitempty"`
-	Description  string            `json:"description,omitempty"`
-	VoiceSamples []string          `json:"voice_samples,omitempty"`
-	Relationships map[string]string `json:"relationships,omitempty"`
-	Props        []string          `json:"props,omitempty"`
+type Validator struct {
+	bibles map[uuid.UUID]*StoryBible
 }
 
+func NewValidator() *Validator {
+	return &Validator{
+		bibles: make(map[uuid.UUID]*StoryBible),
+	}
+}
 
+func (v *Validator) ValidateScene(storyID, sceneID uuid.UUID, sceneText string, charIDs []uuid.UUID) (*ValidationResult, error) {
+	result := &ValidationResult{Valid: true}
+	bible, ok := v.bibles[storyID]
+	if !ok {
+		return result, nil
+	}
+	for _, forbidden := range bible.ForbiddenRules {
+		if contains(sceneText, forbidden) {
+			result.Violations = append(result.Violations, Violation{
+				Rule:     "forbidden_content",
+				Type:     "canon",
+				Detail:   forbidden,
+				Severity: "error",
+			})
+		}
+	}
+	for rule, desc := range bible.CanonRules {
+		if !contains(sceneText, desc) && !contains(desc, rule) {
+			result.Warnings = append(result.Warnings, "canon rule '"+rule+"' may not be satisfied")
+		}
+	}
+	if len(result.Violations) > 0 {
+		result.Valid = false
+	}
+	return result, nil
+}
+
+func (v *Validator) ValidateDialogue(storyID uuid.UUID, speaker, target uuid.UUID, dialogue string) (*ValidationResult, error) {
+	return &ValidationResult{Valid: true}, nil
+}
+
+func (v *Validator) ValidateTimeline(storyID uuid.UUID) (*ValidationResult, error) {
+	return &ValidationResult{Valid: true}, nil
+}
+
+func (v *Validator) ValidateCharacterAction(storyID, charID uuid.UUID, action string) (*ValidationResult, error) {
+	return &ValidationResult{Valid: true}, nil
+}
+
+func (v *Validator) GetBible(storyID uuid.UUID) (*StoryBible, error) {
+	b, ok := v.bibles[storyID]
+	if !ok {
+		return &StoryBible{StoryID: storyID, WorldRules: make(map[string]string)}, nil
+	}
+	return b, nil
+}
+
+func (v *Validator) UpsertBible(bible *StoryBible) error {
+	bible.UpdatedAt = time.Now()
+	if bible.WorldRules == nil {
+		bible.WorldRules = make(map[string]string)
+	}
+	if bible.CanonRules == nil {
+		bible.CanonRules = make(map[string]string)
+	}
+	if bible.Technology == nil {
+		bible.Technology = make(map[string]string)
+	}
+	if bible.Magic == nil {
+		bible.Magic = make(map[string]string)
+	}
+	v.bibles[bible.StoryID] = bible
+	return nil
+}
+
+func contains(s, substr string) bool {
+	return len(substr) > 0 && s != "" && findCaseInsensitive(s, substr)
+}
+
+func findCaseInsensitive(s, substr string) bool {
+	s, substr = toLower(s), toLower(substr)
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
+func toLower(s string) string {
+	b := make([]byte, 0, len(s))
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if 'A' <= c && c <= 'Z' {
+			c += 32
+		}
+		b = append(b, c)
+	}
+	return string(b)
+}

@@ -9,10 +9,11 @@ import (
 )
 
 type MemoryStore struct {
-	mu      sync.RWMutex
-	stories []Story
-	nodes   []Node
-	edges   []Edge
+	mu       sync.RWMutex
+	stories  []Story
+	chapters []Chapter
+	nodes    []Node
+	edges    []Edge
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -51,6 +52,49 @@ func (s *MemoryStore) ListStories() ([]Story, error) {
 	return r, nil
 }
 
+// ── Chapters ──────────────────────────────────────────────────────────
+
+func (s *MemoryStore) CreateChapter(storyID uuid.UUID, title string, orderIndex int) (*Chapter, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ch := Chapter{
+		ID:         uuid.New(),
+		StoryID:    storyID,
+		Title:      title,
+		OrderIndex: orderIndex,
+		Status:     ChapterStatusDraft,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+	s.chapters = append(s.chapters, ch)
+	return &ch, nil
+}
+
+func (s *MemoryStore) GetChapter(id uuid.UUID) (*Chapter, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for i := range s.chapters {
+		if s.chapters[i].ID == id {
+			return &s.chapters[i], nil
+		}
+	}
+	return nil, fmt.Errorf("chapter %s not found", id)
+}
+
+func (s *MemoryStore) ListChapters(storyID uuid.UUID) ([]Chapter, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var result []Chapter
+	for _, ch := range s.chapters {
+		if ch.StoryID == storyID {
+			result = append(result, ch)
+		}
+	}
+	return result, nil
+}
+
+// ── Nodes ─────────────────────────────────────────────────────────────
+
 func (s *MemoryStore) CreateNode(storyID uuid.UUID, beatIntent string, characterRefs []uuid.UUID, locationRef *uuid.UUID, pov, tone string, targetWords int) (*Node, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -64,6 +108,8 @@ func (s *MemoryStore) CreateNode(storyID uuid.UUID, beatIntent string, character
 		Tone:          tone,
 		TargetWords:   targetWords,
 		Status:        NodeStatusDraft,
+		FlowType:      FlowDialogue,
+		MaxTurns:      5,
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
 	}
@@ -141,6 +187,8 @@ func (s *MemoryStore) ListNodes(storyID uuid.UUID) ([]Node, error) {
 	return result, nil
 }
 
+// ── Edges ─────────────────────────────────────────────────────────────
+
 func (s *MemoryStore) CreateEdge(storyID, fromNode, toNode uuid.UUID, edgeType EdgeType) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -189,6 +237,8 @@ func (s *MemoryStore) GetIncomingEdges(nodeID uuid.UUID) ([]Edge, error) {
 	}
 	return result, nil
 }
+
+// ── DAG Traversal ─────────────────────────────────────────────────────
 
 func (s *MemoryStore) TopologicalSort(storyID uuid.UUID) ([]Node, error) {
 	nodes, err := s.ListNodes(storyID)
