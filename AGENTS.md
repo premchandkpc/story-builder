@@ -19,6 +19,7 @@ Go server (chi) + React Flow frontend + Postgres + pgvector + River async jobs.
 - `docs/schema.md` — DB schema
 - `docs/llm.md` — LLM pipeline (5 prompts)
 - `docs/rules.md` — migration conventions
+- `docs/architecture-audit-prompt.md` — 16-phase master audit checklist for full architecture review
 
 ## Key types
 
