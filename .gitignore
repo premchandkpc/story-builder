@@ -32,3 +32,22 @@ Thumbs.db
 /coverage/
 # Added by code-review-graph
 .code-review-graph/
+
+### AI config (single source: AGENTS.md)
+.cursorrules
+.windsurfrules
+CLAUDE.md
+GEMINI.md
+QODER.md
+.gemini/
+.kiro/
+.qoder/
+
+### Stale root docs (see docs/)
+/ARCHITECTURE.md
+/ARCHITECTURE_REDESIGN.md
+
+### Build artifacts
+/server
+/out/
+*.out
