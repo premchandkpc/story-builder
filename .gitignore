@@ -51,3 +51,7 @@ QODER.md
 /server
 /out/
 *.out
+
+### Dead config / simulation
+/config/
+/cmd/simulate/

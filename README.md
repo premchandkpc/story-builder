@@ -5,9 +5,11 @@ Full-stack story graph editor with DAG-based plot structure and LLM-generated pr
 ## Quick start
 
 ```bash
-docker compose up -d          # postgres + pgvector + redis
-go run ./cmd/server/          # :8080
-cd web && npm run dev         # :5173, proxies /api → :8080
+docker compose up -d          # postgres + pgvector + redis + mongo + qdrant + kafka + ollama + server + web
+# Or just the essential infra:
+docker compose up -d db redis ollama
+# Server + web are also containerized:
+docker compose up -d --build  # builds and starts everything
 ```
 
 ## Project structure

@@ -24,14 +24,14 @@ Same applies to `AGENTS.md` itself — it's the session anchor and must reflect 
 ## Quick start
 
 ```bash
-docker compose up -d     # postgres + pgvector
-go run ./cmd/server/     # :8080
-cd web && npm run dev    # :5173, proxies /api to :8080
+docker compose up -d          # all services (db, redis, mongo, qdrant, kafka, ollama, server, web)
+docker compose up -d db redis # minimal infra only
+docker compose up -d --build  # rebuild and start everything
 ```
 
 ## Architecture
 
-Go server (chi) + React Flow frontend + Postgres + pgvector + River async jobs.
+Go server (chi) + React Flow frontend + Postgres + pgvector + Redis + Mongo + Qdrant + Kafka + Ollama + River async jobs.
 
 - `docs/architecture.md` — system overview + package deps
 - `docs/api.md` — HTTP endpoints
