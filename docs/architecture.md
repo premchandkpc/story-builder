@@ -147,9 +147,9 @@ cmd/server/main.go
     ├── internal/db            ─── sqlc-generated query layer
     │   ├── db.go              ─── DBTX + Queries
     │   ├── models.go          ─── Generated Go structs
-    │   ├── queries.sql.go     ─── 70 query methods
-    │   ├── extras.go          ─── 3 extra query methods
-    │   ├── actor_traits.go    ─── 3 actor trait query methods
+│   ├── queries.sql.go     ─── 70 query methods (70 + 3 extras + 3 actor_traits = 76 total)
+│   ├── extras.go          ─── 3 extra query methods
+│   ├── actor_traits.go    ─── 3 actor trait query methods
     │   └── helpers.go         ─── UUID conversion helpers
     │
     ├── internal/agent         ─── Agent-based processing

@@ -330,9 +330,9 @@ All workers in `internal/river/jobs.go`. 6 job types with 5 queues.
 ## Helper Utilities
 
 ### UUID Conversion (`internal/db/helpers.go`)
-- `toUUID(uuid.UUID) pgtype.UUID` — wraps UUID into pgtype for DB queries
-- `fromUUID(pgtype.UUID) uuid.UUID` — extracts UUID from pgtype
-- `uuidFromBytes([16]byte) uuid.UUID` — converts byte array to UUID
+- `ToUUID(uuid.UUID) pgtype.UUID` — wraps UUID into pgtype for DB queries
+- `FromUUID(pgtype.UUID) uuid.UUID` — extracts UUID from pgtype
+- `JSONBytes(v interface{}) []byte` — marshals value to JSON bytes
 
 ### Request Validation (`internal/api/request_validation.go`)
 - `parseUUID(s string) (uuid.UUID, error)` — trim+parse UUID

@@ -93,29 +93,55 @@ All interfaces defined in `internal/llm/types.go:53-79`, implementations in `int
 - Temperature: 0.5, MaxTokens: 64
 - Strips quotes and whitespace from output
 
-## Prompt Layering System (Future)
+## Prompt Compiler (Built, Not Yet Wired)
 
-The current prompt registry is flat. The target architecture uses hierarchical prompt layering:
+The Prompt Compiler (`internal/prompt/compiler.go`) is built but not yet wired into the River generation pipeline.
+
+### 10-Layer Hierarchy
 
 ```
-Global Prompt           Genre, rating, safety rules
-    │
-    ├── Story Prompt    Premise, theme, tone
-    │
-    ├── Culture Prompt  Region, language, social norms (Phase 3)
-    │
-    ├── Safety Prompt   Content filters, banned topics
-    │
-    ├── Scene Prompt    Beat intent, POV, location, emotion
-    │
-    ├── Character Prompt  Current mood, memory, relationships
-    │
-    └── Memory Prompt   Retrieved character/world memories (Phase 2)
+Safety Prompt         Content filters, banned topics (always last)
+Frame Prompt          Per-frame instructions
+Scene Prompt          Beat intent, POV, location, emotion
+Character Prompt      Current mood, memory, relationships
+Scenario Prompt       Scenario-level context
+Memory Prompt         Retrieved character/world memories
+Chapter Prompt        Chapter goals and progression
+Story Prompt          Premise, theme, tone
+Culture Prompt        Region, language, social norms
+Global Prompt         Genre, rating, safety rules
 ```
 
-Each layer supports: `override`, `merge`, `append`, `replace`, `disable`.
+Each layer supports 5 merge strategies: `override`, `merge`, `append`, `replace`, `disable`.
 
-The **Prompt Compiler Service** (future) assembles these layers into the final system prompt sent to the LLM. See `docs/vision.md` for the full architecture.
+### CompilerService
+
+```go
+type CompilerService struct {
+    store    *MemoryStore
+    eventBus event.Bus  // for consuming state/timeline events
+}
+```
+
+- `Compile(req CompileRequest, templateName PromptTemplate) *CompiledPrompt`
+- Compiles layers in order (Global → Culture → Story → Memory → Chapter → Scenario → Character → Scene → Frame → Safety)
+- Hardcoded templates are still used in `llm/` — migration to CompilerService is the next step
+- See `internal/prompt/` for the full implementation
+
+### Templates (4 built-in, stored in `internal/prompt/store.go`)
+
+| Name | Model | Temp | System |
+|---|---|---|---|
+| `scene_prose` | Sonnet | 0.8 | — |
+| `state_extract` | local-7b | 0 | — |
+| `summary_update` | local-7b | 0.2 | — |
+| `canon_validate` | Haiku | 0 | — |
+
+These overlap with the inline registry in `llm/types.go`. The Compiler's templates are the canonical source; the hardcoded prompt builders in `compiler/prompts.go` still handle actual prompt assembly.
+
+**Next step:** Replace `PromptRegistry` + `compiler.Build*SystemPrompt()` calls in `llm/services.go` with `CompilerService.Compile()`.
+
+See `docs/adr/0002-narrative-os-direction.md` (Phase 2 ✅ Built) and `docs/vision.md`.
 
 ## Pipeline Flow (per scene generation)
 
@@ -142,7 +168,7 @@ type CompiledContext struct {
     CharacterCards []canon.Card            // Character: name, traits, voice samples, relationships
     LocationCard   *canon.Card             // Location: name, description, props
     BranchSummary  string                  // Story branch summary so far
-    CharState      map[string]interface{}  // Per character: location, mood, knows, items
+    CharState      map[string]ledger.CharacterState  // Per character: location, mood, knows, items
     Lore           []string                // World rules from lore table
     BeatIntent     string                  // What happens in this scene
     POV            string                  // Point-of-view character
