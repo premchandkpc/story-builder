@@ -13,18 +13,11 @@ package "internal/api" as API {
   [handlers_stories.go]
   [handlers_characters.go]
   [handlers_generation.go]
+  [handlers_timeline.go]
+  [handlers_blueprints.go]
   [request_validation.go]
-  [dbservices_stories.go]
-  [dbservices_characters.go]
-  [dbservices_lore.go]
-  [dbservices_scene.go]
-  [dbservices_summaries.go]
-  [dbservices_helpers.go]
-  [services_scene.go]
-  [services_stories.go]
-  [services_lore.go]
-  [services_characters.go]
-  [services_summaries.go]
+  [middleware.go]
+  [mwlogger.go]
 }
 
 package "internal/graph" as GRAPH {
@@ -54,6 +47,7 @@ package "internal/llm" as LLM {
   [types.go]
   [services.go]
   [client.go]
+  [router.go]
 }
 
 package "internal/scene" as SCENE {
@@ -69,13 +63,54 @@ package "internal/river" as RIVER {
 package "internal/db" as DB {
   [db.go]
   [models.go]
-  [querier.go]
   [queries.sql.go]
   [extras.go]
+  [actor_traits.go]
 }
 
 package "internal/migrate" as MIGRATE {
   [runner.go]
+}
+
+package "internal/cache" as CACHE {
+  [cache.go]
+  [cached_llm.go]
+  [context_cache.go]
+  [prompt_cache.go]
+  [rate_limiter.go]
+  [dist_lock.go]
+  [redis_client.go]
+  [workflow.go]
+}
+
+package "internal/narrative" as NARRATIVE {
+  [models.go]
+  [types.go]
+}
+
+package "internal/timeline" as TL {
+  [models.go]
+}
+
+package "internal/agent" as AGENT {
+  [models.go]
+  [service.go]
+}
+
+package "internal/memory" as MEM {
+  [models.go]
+  [store.go]
+}
+
+package "internal/planner" as PLAN {
+  [models.go]
+  [store.go]
+}
+
+package "internal/workflow" as WF {
+  [models.go]
+  [store.go]
+  [saga.go]
 }
 
 CMD --> API : HTTP handlers
@@ -87,12 +122,14 @@ CMD --> GRAPH : memory store (fallback)
 CMD --> CANON : memory store (fallback)
 CMD --> LEDGER : memory store (fallback)
 CMD --> COMPILER : memory store (fallback)
+CMD --> CACHE : Redis client
 
 API --> DB : queries
 API --> GRAPH : domain types
 API --> CANON : domain types
 API --> COMPILER : generation types
 API --> SCENE : scene service
+API --> CACHE : rate limiter
 
 RIVER --> DB : queries
 RIVER --> LLM : service calls
@@ -104,5 +141,12 @@ COMPILER --> CANON : card types
 COMPILER --> LEDGER : state types
 
 GRAPH --> CANON : domain types (via API)
+
+CACHE --> LLM : cached wrapper
+
+AGENT --> LLM : agent prompts
+MEM --> DB : persistence
+PLAN --> DB : persistence
+WF --> DB : persistence
 
 @enduml

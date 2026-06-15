@@ -21,16 +21,17 @@
 │  │  - RequestID  │  │  Character/Actor │  │  GenerateScene    │  │
 │  │  - CORS       │  │  Location/Trait  │  │  ExtractState     │  │
 │  │  - RateLimit  │  │  Lore/Casting    │  │  UpdateSummary    │  │
-│  └──────────────┘  │  Story/Node/Edge │  │  MergeBranches    │  │
-│                    │  Generation      │  │  ValidateScene    │  │
-│                    │  Scene/Summary   │  │  GenerateStory    │  │
-│                    │  Blueprint       │  └───────────────────┘  │
-│                    │  Timeline/Title  │                         │
+│  └──────────────┘  │  Story/Chapter   │  │  MergeBranches    │  │
+│                    │  Scene/Edge       │  │  ValidateScene    │  │
+│                    │  Generation       │  │  GenerateStory    │  │
+│                    │  Scene/Summary    │  └───────────────────┘  │
+│                    │  Blueprint        │                         │
+│                    │  Timeline/Title   │                         │
 │                    └────────┬─────────┘                         │
 │                             │                                    │
 │                    ┌────────▼─────────┐                         │
 │                    │  Service Layer   │                         │
-│                    │  (internal/svc)  │                         │
+│                    │  (internal/service)│                        │
 │                    └────────┬─────────┘                         │
 │                             │ DB or Memory                      │
 │                    ┌────────▼─────────┐                         │
@@ -46,8 +47,9 @@
 │                    PostgreSQL + pgvector (5432)                  │
 │                                                                  │
 │  ┌───────────┐ ┌──────────┐ ┌───────┐ ┌─────────────────┐      │
-│  │  canon    │ │  graph   │ │ river │ │  ledgers        │      │
-│  │  tables   │ │  tables  │ │ jobs  │ │  character_state│      │
+│  │  canon    │ │  story   │ │ river │ │  ledgers        │      │
+│  │  tables   │ │  chapter │ │ jobs  │ │  character_state│      │
+│  │           │ │  scene   │ │       │ │                 │      │
 │  └───────────┘ └──────────┘ └───────┘ └─────────────────┘      │
 │                                                                  │
 │  Extensions: pgcrypto, vector                                    │
@@ -60,18 +62,30 @@
 cmd/server/main.go
     │
     ├── internal/api           ─── HTTP handlers + middleware
-    │   ├── handlers_*.go      ─── 14 handler groups
-    │   ├── router.go          ─── chi route definitions
-    │   ├── middleware.go      ─── RateLimit middleware
-    │   └── mwlogger.go        ─── Structured request logging
+    │   ├── handlers_characters.go ── Character, Actor, Trait, Casting, Location
+    │   ├── handlers_stories.go     ── Story, Chapter, Scene, Edge, StoryGenerator, Title
+    │   ├── handlers_generation.go  ── Lore, Generation, Scene (turns), Summary
+    │   ├── handlers_timeline.go    ── Timeline events
+    │   ├── handlers_blueprints.go  ── Story blueprints
+    │   ├── router.go               ─── chi route definitions
+    │   ├── middleware.go           ─── RateLimit middleware
+    │   ├── mwlogger.go             ─── Structured request logging
+    │   ├── request_validation.go   ─── UUID/title validation helpers
+    │   ├── request_validation_test.go
+    │   ├── handlers_test.go
+    │   └── smoke_test.go
     │
     ├── internal/service       ─── Service implementations
     │   ├── canon/             ─── Character, Actor, Trait, Casting, Location, Lore
-    │   ├── story/             ─── Story CRUD
-    │   ├── node/              ─── Node CRUD
-    │   ├── edge/              ─── Edge CRUD
+    │   ├── story/             ─── Story CRUD + graph traversal
+    │   ├── chapter/           ─── Chapter CRUD (story→chapter→scene hierarchy)
+    │   ├── node/              ─── Node CRUD (legacy, scenes preferred)
+    │   ├── edge/              ─── Edge CRUD (legacy, scene_edges preferred)
     │   ├── generation/        ─── Generation + StoryGenerator
-    │   ├── scene/             ─── Scene CRUD (multi-agent)
+    │   ├── scene/             ─── Scene CRUD (multi-agent turns)
+    │   ├── context/           ─── Context builder for LLM prompts
+    │   ├── memory/            ─── Character memory storage/retrieval
+    │   ├── planner/           ─── Scene/chapter planning
     │   ├── summary/           ─── Summary CRUD
     │   ├── blueprint/         ─── Story blueprint (memory-only)
     │   ├── timeline/          ─── Timeline events (memory-only)
@@ -83,7 +97,9 @@ cmd/server/main.go
     │   └── memory.go          ─── In-memory GraphService
     │
     ├── internal/canon         ─── Versioned domain types
-    │   ├── models.go          ─── Character, Location, Lore, Card
+    │   ├── models.go          ─── Character, Location, Lore, Actor, Card, Casting,
+    │   │                          CharacterTrait, TraitAssignment, StoryBible,
+    │   │                          ValidationResult, Violation, ValidatorService, Validator
     │   └── memory.go          ─── In-memory stores
     │
     ├── internal/narrative     ─── Narrative domain models
@@ -93,13 +109,15 @@ cmd/server/main.go
     ├── internal/timeline      ─── Timeline models
     │   └── models.go          ─── Event, MemoryStore
     │
-    ├── internal/ledger        ─── CharacterState per (story, char, node)
+    ├── internal/ledger        ─── CharacterState per (story, char, scene)
     │   ├── models.go          ─── CharacterState, StateDelta, StateDeltas
     │   └── memory.go          ─── In-memory LedgerService
     │
     ├── internal/compiler      ─── CompiledContext + prompts
     │   ├── compiler.go        ─── CompiledContext, Hash(), Generation types
-    │   └── prompts.go         ─── System prompt builders for all 7 prompts
+    │   ├── prompts.go         ─── System prompt builders for all 7 prompts
+    │   ├── summary.go         ─── Summary prompt builders
+    │   └── memory.go          ─── In-memory store
     │
     ├── internal/llm           ─── LLM clients + router + services
     │   ├── types.go           ─── ModelTier, 7 service interfaces, PromptRegistry
@@ -129,8 +147,76 @@ cmd/server/main.go
     ├── internal/db            ─── sqlc-generated query layer
     │   ├── db.go              ─── DBTX + Queries
     │   ├── models.go          ─── Generated Go structs
-    │   ├── queries.sql.go     ─── 38 query methods
+    │   ├── queries.sql.go     ─── 70 query methods
+    │   ├── extras.go          ─── 3 extra query methods
+    │   ├── actor_traits.go    ─── 3 actor trait query methods
     │   └── helpers.go         ─── UUID conversion helpers
+    │
+    ├── internal/agent         ─── Agent-based processing
+    │   ├── models.go
+    │   └── service.go
+    │
+    ├── internal/authoring     ─── Authoring models
+    │   └── models.go
+    │
+    ├── internal/context       ─── Context models
+    │   └── models.go
+    │
+    ├── internal/cost          ─── Cost tracking
+    │   ├── errors.go
+    │   ├── models.go
+    │   └── store.go
+    │
+    ├── internal/entity        ─── Entity models
+    │   └── models.go
+    │
+    ├── internal/event         ─── Event store
+    │   ├── models.go
+    │   └── store.go
+    │
+    ├── internal/memory        ─── Character memory system
+    │   ├── errors.go
+    │   ├── models.go
+    │   └── store.go
+    │
+    ├── internal/planner       ─── Scene/chapter planning
+    │   ├── errors.go
+    │   ├── models.go
+    │   └── store.go
+    │
+    ├── internal/prompt        ─── Prompt templates
+    │   ├── errors.go
+    │   ├── models.go
+    │   └── store.go
+    │
+    ├── internal/relationship  ─── Relationship tracking
+    │   ├── errors.go
+    │   ├── models.go
+    │   └── store.go
+    │
+    ├── internal/revision      ─── Revision history
+    │   ├── errors.go
+    │   ├── models.go
+    │   └── store.go
+    │
+    ├── internal/search        ─── Search functionality
+    │   └── models.go
+    │
+    ├── internal/storage       ─── Storage abstraction
+    │   └── factory.go
+    │
+    ├── internal/telemetry     ─── Telemetry/metrics
+    │   └── metrics.go
+    │
+    ├── internal/validation    ─── Validation subsystem
+    │   ├── models.go
+    │   └── store.go
+    │
+    ├── internal/workflow      ─── Workflow engine
+    │   ├── errors.go
+    │   ├── models.go
+    │   ├── store.go
+    │   └── saga.go
     │
     ├── internal/config        ─── Environment-based config
     │   └── config.go          ─── Config struct, FromEnv()
@@ -144,9 +230,15 @@ cmd/server/main.go
     ├── internal/grpc          ─── gRPC server
     │   └── server/services.go ─── Wraps service interfaces with pb
     │
-    └── internal/adapter       ─── Adapters
-        ├── cache/             ─── Cache adapters
-        └── repository/        ─── Repository adapters
+    ├── internal/adapter       ─── Adapters
+    │   ├── cache/             ─── Cache adapters
+    │   ├── kafka/             ─── Kafka message adapters
+    │   ├── mongo/             ─── MongoDB adapters
+    │   ├── qdrant/            ─── Qdrant vector DB adapters
+    │   ├── redis/             ─── Redis adapters
+    │   └── repository/        ─── Repository adapters
+    │
+    └── internal/platform      ─── Platform support (in progress)
 ```
 
 ## Data Flow: Scene Generation
@@ -157,7 +249,7 @@ User clicks "Generate" on a node
     ▼
 api.GenerationHandler.Generate()
     │
-    │ 1. Load node from DB
+    │ 1. Load scene from DB
     │ 2. Compile context (characters, location, lore, state)
     │ 3. Compute CompiledContext.Hash() = SHA256
     │ 4. Check ContextCache (Redis) for cached result
@@ -177,16 +269,17 @@ api.GenerationHandler.AcceptGeneration()
     │
     │ 1. Mark generation accepted
     │ 2. Reject other generations for this node
-    │ 3. Enqueue: ExtractStateWorker → UpdateSummaryWorker → MergeBranchesWorker
+    │ 3. Enqueue: ExtractStateWorker → UpdateSummaryWorker → ValidateSceneWorker
     │
     ▼
 river.ExtractStateWorker  →  LLM extracts state deltas (local-7b via Ollama)
-    │
+    │                        Persists to character_state table
     ▼
 river.UpdateSummaryWorker →  LLM updates scene summary (local-7b via Ollama)
-    │
+                              Upserts story_summaries (level='scene')
     ▼
-river.MergeBranchesWorker →  LLM merges branch summaries (claude-haiku via Anthropic)
+river.ValidateSceneWorker →  LLM validates draft against canon (Haiku via Anthropic)
+                              Stores result in generations.validation_result
 ```
 
 ## LLM Router
@@ -199,7 +292,7 @@ river.MergeBranchesWorker →  LLM merges branch summaries (claude-haiku via Ant
 | `claude-haiku` | Anthropic | `claude-haiku-3-5-20250224` |
 | `local-7b` | Ollama | `llama3.2:3b` |
 
-Both clients are always created. Router selects based on model tier. Retries: 2 attempts with exponential backoff (250ms, 500ms).
+Both clients are always created. Router selects based on model tier. Retries: 2 attempts (1 initial + 2 retries = 3 total) with exponential backoff (250ms, 500ms).
 
 ## Redis Cache Layer
 
@@ -273,10 +366,8 @@ When Postgres is unavailable:
 |---|---|---|
 | pgvector embeddings | `CreateLore` inserts empty vector. Embeddings are never computed. | `internal/service/canon/` |
 | Multi-agent scene | `StartScene`/`NextTurn`/`FinishScene` return `fmt.Errorf("not implemented")` in DB mode. | `internal/service/scene/` |
-| ExtractState persistence | `ExtractStateWorker` stores result in `StateDelta` but does not persist to `character_state`. | `internal/river/jobs.go` |
-| ValidateScene persistence | `ValidateSceneWorker` runs validation but result is not stored. | `internal/river/jobs.go` |
 | Blueprint + Timeline | Only memory-backed. No DB tables or sqlc queries exist. | `internal/service/blueprint/`, `internal/service/timeline/` |
-| Story generation story_id | `GenerateStoryWorker` returns empty `StoryID`. | `internal/river/jobs.go` |
+| Story→Chapter→Scene | `GenerateStoryWorker` creates scenes but chapter mapping is basic (single default chapter). | `internal/river/jobs.go` |
 
 ## gRPC
 

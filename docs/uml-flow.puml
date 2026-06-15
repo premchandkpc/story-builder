@@ -14,7 +14,7 @@ entity "LLM Service" as LLM
 
 User -> UI : Click "Generate"
 UI -> API : POST /nodes/{id}/generate
-API -> DB : GetNode(id)
+API -> DB : GetScene(id)
 API -> DB : compileContext (characters, location, lore)
 API -> API : Compute Hash()
 API -> DB : INSERT generation
@@ -26,8 +26,8 @@ RIVER -> GENWORKER : Process job
 GENWORKER -> DB : Load characters (GetCharacterLatest)
 GENWORKER -> DB : Load location (GetLocationLatest)
 GENWORKER -> DB : Load lore (SearchLoreByTags)
-GENWORKER -> DB : Load state (GetStatesForNode)
-GENWORKER -> DB : Load branch summary
+GENWORKER -> DB : Load state (GetStatesForScene)
+GENWORKER -> DB : Load scene summary
 GENWORKER -> LLM : GenerateScene(params)
 LLM -> LLM : Build system prompt + user message
 LLM -> LLM : Call Anthropic/Ollama API
@@ -38,7 +38,10 @@ GENWORKER -> RIVER : Done
 User -> UI : Click "Accept"
 UI -> API : POST /nodes/{id}/accept
 API -> DB : AcceptGeneration(id)
-API -> DB : RejectOtherGenerations(node_id, id)
+API -> DB : RejectOtherGenerations(scene_id, id)
+API -> RIVER : Insert ExtractStateArgs
+API -> RIVER : Insert UpdateSummaryArgs
+API -> RIVER : Insert ValidateSceneArgs
 API -> UI : 200 OK
 
 @enduml

@@ -21,11 +21,18 @@ package "Domain" {
   component Ledger
   component Compiler
   component LLM
+  component Narrative
+  component Timeline
+  component Agent
+  component Memory
+  component Planner
+  component Workflow
 }
 
 package "Data" {
   database Postgres
   database pgvector
+  database Redis
 }
 
 User --> React
@@ -37,10 +44,14 @@ Services --> Graph
 Services --> Ledger
 Services --> Compiler
 Services --> LLM
+Services --> Narrative
+Services --> Memory
+Services --> Planner
 Compiler --> Canon
 Compiler --> Ledger
 LLM --> Postgres
 Services --> Postgres
 Postgres --> pgvector
+Services --> Redis
 StoryGraph --> Router
 @enduml

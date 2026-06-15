@@ -126,8 +126,6 @@ List all timeline events for a story, sorted by order then creation date.
 
 ## Actors
 
-## Actors
-
 ### `POST /api/v1/actors`
 
 Create an actor (physical entity who plays a character role).
@@ -342,6 +340,45 @@ List all roles for an actor across stories (with character name + story title).
 
 List all actors who played a character across stories (with actor name + story title).
 
+### `GET /api/v1/casting/actor/{actorID}`
+
+List all roles for an actor across stories (with character name + story title).
+
+---
+
+## Chapters
+
+### `POST /api/v1/stories/{storyID}/chapters`
+
+Create a chapter within a story.
+
+**Request:**
+```json
+{
+  "title": "Chapter 1",
+  "goal": "Introduce the hero",
+  "order_index": 0
+}
+```
+
+**Response 201:** Full chapter object with `id`, `created_at`, `updated_at`.
+
+### `GET /api/v1/stories/{storyID}/chapters`
+
+List all chapters for a story, sorted by `order_index`.
+
+### `GET /api/v1/stories/{storyID}/chapters/{id}`
+
+Get chapter by ID.
+
+### `PUT /api/v1/stories/{storyID}/chapters/{id}`
+
+Update chapter. Same body as create plus `summary` and `status` fields.
+
+### `DELETE /api/v1/stories/{storyID}/chapters/{id}`
+
+Delete a chapter.
+
 ---
 
 ## Stories
@@ -362,6 +399,17 @@ List all stories.
 ### `GET /api/v1/stories/{id}`
 
 Get story by ID.
+
+### `PUT /api/v1/stories/{id}`
+
+Update story title.
+
+**Request:**
+```json
+{"title": "A New Hope"}
+```
+
+**Response 200:** Full story object.
 
 ### `GET /api/v1/stories/{storyID}/topology`
 

@@ -29,10 +29,10 @@ Go server (chi) + React Flow frontend + Postgres + pgvector + River async jobs.
 | Graph    | `graph`     | Story, Node, Edge — DAG with seq/fork/join/choice |
 | Ledger   | `ledger`    | CharacterState per (story, char, node), StateDelta |
 | Compiler | `compiler`  | CompiledContext + Hash() — resolved canon + state for prompting |
-| LLM      | `llm`       | ModelTier enum, 5 service interfaces, PromptRegistry |
-| River    | `river`     | 5 job types matching prompt pipeline |
+| LLM      | `llm`       | ModelTier enum, 7 service interfaces, PromptRegistry |
+| River    | `river`     | 6 job types matching prompt pipeline |
 | API      | `api`       | chi handlers + DB/in-memory service implementations |
-| DB       | `db`        | sqlc-generated query methods (38) |
+| DB       | `db`        | sqlc-generated query methods (76) |
 
 ## DB layer
 

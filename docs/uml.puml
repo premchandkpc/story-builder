@@ -9,42 +9,67 @@ entity stories {
   --
   * title: text
   * canon_pins: jsonb
+  genre: text
+  theme: text
+  main_prompt: text
+  general_prompt: text
   * created_at: timestamptz
 }
 
-entity nodes {
+entity chapters {
   * id: uuid <<PK>>
   --
   * story_id: uuid <<FK>>
+  * title: text
+  goal: text
+  * order_index: int
+  summary: text
+  status: text
+  * created_at: timestamptz
+  * updated_at: timestamptz
+}
+
+entity scenes {
+  * id: uuid <<PK>>
+  --
+  * chapter_id: uuid <<FK>>
+  * story_id: uuid <<FK>>
+  title: text
   * beat_intent: text
   character_refs: uuid[]
   location_ref: uuid
   pov: text
   tone: text
   target_words: int
-  status: text
   scene_structure: jsonb
+  parent_scene_id: uuid
+  timeline_position: text
+  flow_type: text
+  max_turns: int
+  status: text
   * created_at: timestamptz
   * updated_at: timestamptz
 }
 
-entity edges {
+entity scene_edges {
   * story_id: uuid <<FK>>
-  * from_node: uuid <<FK>>
-  * to_node: uuid <<FK>>
+  * from_scene: uuid <<FK>>
+  * to_scene: uuid <<FK>>
   --
   * edge_type: text
+  condition: text
 }
 
 entity generations {
   * id: uuid <<PK>>
   --
-  * node_id: uuid <<FK>>
+  * scene_id: uuid <<FK>>
   * context_hash: text
   * prompt_snapshot: text
   * output: text
   * model: text
   * accepted: bool
+  validation_result: jsonb
   * created_at: timestamptz
 }
 
@@ -88,7 +113,7 @@ entity lore {
 entity character_state {
   * story_id: uuid <<FK>>
   * character_id: uuid
-  * as_of_node: uuid <<FK>>
+  * as_of_scene: uuid <<FK>>
   --
   * state: jsonb
   * updated_at: timestamptz
@@ -111,6 +136,15 @@ entity actors {
   age: int
   nationality: text
   traits: jsonb
+  * created_at: timestamptz
+}
+
+entity actor_traits {
+  * id: uuid <<PK>>
+  --
+  * actor_id: uuid <<FK>>
+  * trait_key: text
+  * trait_value: text
   * created_at: timestamptz
 }
 
@@ -144,7 +178,7 @@ entity casting {
 entity scene_turns {
   * id: uuid <<PK>>
   --
-  * node_id: uuid <<FK>>
+  * scene_id: uuid <<FK>>
   * turn_number: int
   actor_ids: uuid[]
   prompt: text
@@ -158,7 +192,7 @@ entity story_summaries {
   * id: uuid <<PK>>
   --
   * story_id: uuid <<FK>>
-  node_id: uuid <<FK>>
+  scene_id: uuid <<FK>>
   * level: text
   * content: text
   word_count: int
@@ -167,24 +201,29 @@ entity story_summaries {
 
 ' --- Relationships ---
 
-stories ||--o{ nodes : "story_id"
-stories ||--o{ edges : "story_id"
+stories ||--o{ chapters : "story_id"
+stories ||--o{ scenes : "story_id"
+stories ||--o{ scene_edges : "story_id"
 stories ||--o{ character_state : "story_id"
 stories ||--o{ casting : "story_id"
 stories ||--o{ story_summaries : "story_id"
 
-nodes ||--o{ edges : "from_node"
-nodes ||--o{ edges : "to_node"
-nodes ||--o{ generations : "node_id"
-nodes ||--o{ scene_turns : "node_id"
-nodes ||--o{ character_state : "as_of_node"
-nodes ||--o{ story_summaries : "node_id"
+chapters ||--o{ scenes : "chapter_id"
+
+scenes ||--o{ scene_edges : "from_scene"
+scenes ||--o{ scene_edges : "to_scene"
+scenes ||--o{ generations : "scene_id"
+scenes ||--o{ scene_turns : "scene_id"
+scenes ||--o{ character_state : "as_of_scene"
+scenes ||--o{ story_summaries : "scene_id"
+scenes ?--? scenes : "parent_scene_id"
 
 characters ||--o{ character_state : "character_id"
 characters ||--o{ casting : "character_id"
 characters ||--o{ character_trait_assignments : "character_id"
 
 actors ||--o{ casting : "actor_id"
+actors ||--o{ actor_traits : "actor_id"
 character_traits ||--o{ character_trait_assignments : "trait_id"
 
 @enduml

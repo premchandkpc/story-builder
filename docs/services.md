@@ -2,16 +2,20 @@
 
 ## Overview
 
-All service interfaces live in `internal/service/` with clean package boundaries. Each service has **DB-backed** (Postgres via sqlc) and **In-memory** implementations. The server selects which to use at startup based on database connectivity (`cmd/server/main.go:72-210`).
+All service interfaces live in `internal/service/` with clean package boundaries. Each service has **DB-backed** (Postgres via sqlc) and **In-memory** implementations. The server selects which to use at startup based on database connectivity.
 
 ```
 internal/service/
   canon/       Character, Actor, Trait, Casting, Location, Lore
-  story/       Story CRUD
-  node/        Node CRUD
-  edge/        Edge CRUD
+  story/       Story CRUD + graph edge/node traversal
+  chapter/     Chapter CRUD (story→chapter→scene hierarchy)
+  node/        Node CRUD (legacy, scenes preferred)
+  edge/        Edge CRUD (legacy, scene_edges preferred)
   generation/  Generation + StoryGenerator
   scene/       Scene CRUD (multi-agent)
+  context/     Context builder for LLM prompts
+  memory/      Character memory storage/retrieval
+  planner/     Scene/chapter planning
   summary/     Summary CRUD
   blueprint/   Story blueprint (memory-only)
   timeline/    Timeline events (memory-only)
@@ -63,7 +67,7 @@ type CharacterHandler struct {
 | `Update(id, ...)` | `UPDATE actors SET ... WHERE id = $1` | Replace by ID |
 | `List()` | `SELECT * FROM actors ORDER BY name` | Slice copy |
 
-Actor traits are stored as individual rows in `actor_traits` table (separate from `character_traits`).
+Actor traits are stored as individual rows in `actor_traits` table (separate from `character_traits`), migrated from the JSONB `traits` column in migration 007.
 
 ### CharacterTrait Service
 
@@ -113,9 +117,25 @@ Actor traits are stored as individual rows in `actor_traits` table (separate fro
 |---|---|---|
 | `Create(title)` | `INSERT INTO stories ... RETURNING *` | `graph.NewMemoryStore()` |
 | `Get(id)` | `SELECT * FROM stories WHERE id = $1` | Linear scan |
+| `Update(id, title)` | `UPDATE stories SET title = $2 WHERE id = $1` | In-place update |
 | `List()` | `SELECT * FROM stories ORDER BY created_at DESC` | Slice copy |
+| `CreateEdge(storyID, fromNode, toNode, edgeType)` | Handles both `edges` (legacy) and `scene_edges` | Appends to store |
+| `ListEdges(storyID)` | `SELECT * FROM edges WHERE story_id = $1` | Filter by storyID |
+| `GetNode(id)` | `SELECT * FROM nodes WHERE id = $1` | Linear scan |
+| `ListNodes(storyID)` | `SELECT * FROM nodes WHERE story_id = $1` | Filter by storyID |
+| `TopologicalSort(storyID)` | Loads nodes+edges → Kahn's algorithm | In-memory graph traversal |
 
-### Node Service (`internal/service/node/`)
+### Chapter Service (`internal/service/chapter/`)
+
+| Method | DB Service | In-Memory |
+|---|---|---|
+| `Create(storyID, title, orderIndex)` | `INSERT INTO chapters ... RETURNING *` | Appends to store |
+| `Get(id)` | `SELECT * FROM chapters WHERE id = $1` | Linear scan |
+| `Update(id, title, goal, summary, status, orderIndex)` | `UPDATE chapters SET ... WHERE id = $1` | Replace by ID |
+| `Delete(id)` | `DELETE FROM chapters WHERE id = $1` | Remove from slice |
+| `List(storyID)` | `SELECT * FROM chapters WHERE story_id = $1 ORDER BY order_index` | Filter by storyID |
+
+### Node Service (`internal/service/node/`) — legacy
 
 | Method | DB Service | In-Memory |
 |---|---|---|
@@ -130,7 +150,7 @@ Domain conversion in `toDomainNode()`:
 - Unmarshals `SceneStructure` from JSONB
 - Handles nullable `LocationRef`
 
-### Edge Service (`internal/service/edge/`)
+### Edge Service (`internal/service/edge/`) — legacy
 
 | Method | DB Service | In-Memory |
 |---|---|---|
@@ -145,9 +165,9 @@ Domain conversion in `toDomainNode()`:
 
 | Method | DB Service | In-Memory |
 |---|---|---|
-| `Generate(nodeID)` | Loads node, compiles context, creates generation row, checks ContextCache, enqueues `GenerateSceneWorker` via River | Returns error (stub) |
-| `AcceptGeneration(nodeID, genID)` | Sets `accepted=true`, rejects others, enqueues ExtractState → UpdateSummary → MergeBranches → ValidateScene | Stub |
-| `ListGenerations(nodeID)` | `SELECT * FROM generations WHERE node_id = $1 ORDER BY created_at DESC` | Returns empty |
+| `Generate(sceneID)` | Loads scene, compiles context, creates generation row, checks ContextCache, enqueues `GenerateSceneWorker` via River | Returns error (stub) |
+| `AcceptGeneration(sceneID, genID)` | Sets `accepted=true`, rejects others, enqueues ExtractState → UpdateSummary → ValidateScene | Stub |
+| `ListGenerations(sceneID)` | `SELECT * FROM generations WHERE scene_id = $1 ORDER BY created_at DESC` | Returns empty |
 
 **`compileContext`** loads:
 1. Latest character for each `character_ref` → creates `canon.Card`
@@ -160,7 +180,7 @@ Domain conversion in `toDomainNode()`:
 
 | Method | DB Service | In-Memory |
 |---|---|---|
-| `GenerateStory(synopsis)` | Enqueues `GenerateStoryArgs` via River → returns `{story_id: "", status: "pending"}` | Returns error (stub) |
+| `GenerateStory(synopsis)` | Enqueues `GenerateStoryArgs` via River → creates story + characters + scenes + edges from LLM outline | Returns error (stub) |
 
 ---
 
@@ -168,14 +188,48 @@ Domain conversion in `toDomainNode()`:
 
 | Method | DB Service | In-Memory |
 |---|---|---|
-| `StartScene(nodeID)` | `fmt.Errorf("not implemented")` | Stub |
-| `NextTurn(nodeID)` | `fmt.Errorf("not implemented")` | Stub |
-| `FinishScene(nodeID)` | `fmt.Errorf("not implemented")` | Stub |
-| `GetTurns(nodeID)` | `SELECT * FROM scene_turns WHERE node_id = $1 ORDER BY turn_number` | Returns empty |
-| `SetSceneStructure(nodeID, structure)` | `UPDATE nodes SET scene_structure = $2 WHERE id = $1` | Inline update |
-| `GetSceneStructure(nodeID)` | `SELECT scene_structure FROM nodes WHERE id = $1` | Return from store |
+| `StartScene(sceneID)` | `fmt.Errorf("not implemented")` | Stub |
+| `NextTurn(sceneID)` | `fmt.Errorf("not implemented")` | Stub |
+| `FinishScene(sceneID)` | `fmt.Errorf("not implemented")` | Stub |
+| `GetTurns(sceneID)` | `SELECT * FROM scene_turns WHERE scene_id = $1 ORDER BY turn_number` | Returns empty |
+| `SetSceneStructure(sceneID, structure)` | `UPDATE scenes SET scene_structure = $2 WHERE id = $1` | Inline update |
+| `GetSceneStructure(sceneID)` | `SELECT scene_structure FROM scenes WHERE id = $1` | Return from store |
 
 Multi-agent scene feature is not yet wired to LLM.
+
+---
+
+## Context Builder Service (`internal/service/context/`)
+
+| Method | DB Service | In-Memory |
+|---|---|---|
+| `BuildSceneContext(sceneID)` | Loads characters, location, lore, state, summary → `CompiledContext` | Stub |
+| `BuildContextWithMemories(sceneID, memService)` | Same as above + character memory retrieval | Stub |
+
+Used by the generation service to assemble prompt context.
+
+---
+
+## Memory Service (`internal/service/memory/`)
+
+| Method | Implementation |
+|---|---|
+| `StoreMemory(storyID, characterID, sceneID, type, summary, importance)` | Persists to `memory.Store` |
+| `RetrieveMemories(storyID, characterID)` | Returns character memories from store |
+| `SearchMemories(query)` | Ranked memory retrieval from store |
+
+Wraps `internal/memory/` store interface.
+
+---
+
+## Planner Service (`internal/service/planner/`)
+
+| Method | Implementation |
+|---|---|
+| `PlanChapter(storyID, chapterID, goal, conflicts)` | Delegates to `planner.PlannerService` |
+| `PlanScene(storyID, chapterID, sceneID, sceneCtx)` | Delegates to `planner.PlannerService` |
+| `GetChapterPlan(chapterID)` | Retrieves from planner store |
+| `GetScenePlan(sceneID)` | Retrieves from planner store |
 
 ---
 
@@ -183,10 +237,10 @@ Multi-agent scene feature is not yet wired to LLM.
 
 | Method | DB Service | In-Memory |
 |---|---|---|
-| `UpsertSceneSummary(storyID, nodeID, content, wordCount)` | `INSERT ... ON CONFLICT (story_id, node_id) WHERE level='scene' DO UPDATE` | Map upsert |
+| `UpsertSceneSummary(storyID, sceneID, content, wordCount)` | `INSERT ... ON CONFLICT (story_id, scene_id) WHERE level='scene' DO UPDATE` | Map upsert |
 | `UpsertActSummary(storyID, content, wordCount)` | `INSERT ... ON CONFLICT (story_id, level) WHERE level='act' DO UPDATE` | Map upsert |
 | `UpsertStorySummary(storyID, content, wordCount)` | `INSERT ... ON CONFLICT (story_id, level) WHERE level='story' DO UPDATE` | Map upsert |
-| `GetSceneSummary(storyID, nodeID)` | `SELECT * FROM story_summaries WHERE level='scene' AND story_id=$1 AND node_id=$2` | Map lookup |
+| `GetSceneSummary(storyID, sceneID)` | `SELECT * FROM story_summaries WHERE level='scene' AND story_id=$1 AND scene_id=$2` | Map lookup |
 | `GetSummaryByLevel(storyID, level)` | `SELECT * FROM story_summaries WHERE story_id=$1 AND level=$2 ORDER BY created_at DESC LIMIT 1` | Filter by level |
 | `ListSummariesByLevel(storyID, level)` | `SELECT * FROM story_summaries WHERE story_id=$1 AND level=$2 ORDER BY created_at DESC` | Filter + sort |
 | `CountSummariesByLevel(storyID, level)` | `SELECT COUNT(*) FROM story_summaries WHERE story_id=$1 AND level=$2` | Count in map |
@@ -200,8 +254,6 @@ Memory-only (no DB backing). Wraps `narrative.MemoryStore`.
 
 | Method | Implementation |
 |---|---|
-
-|
 | `Save(storyID, blueprint)` | Validates + stores in memory map |
 | `Get(storyID)` | Returns clone from memory map |
 
@@ -215,8 +267,6 @@ Memory-only (no DB backing). Wraps `timeline.MemoryStore`.
 
 | Method | Implementation |
 |---|---|
-
-|
 | `Save(storyID, event)` | Validates + appends to memory slice |
 | `List(storyID)` | Returns sorted by Order → CreatedAt |
 
@@ -235,6 +285,8 @@ Wraps Redis primitives (`internal/cache/`). Optional — degrades gracefully.
 | `SlidingWindowRateLimiter` | `ratelimit:{prefix}` | Rate limits LLM API calls |
 | `DistLock` | `lock:{name}` | Distributed lock for coordination |
 
+Additional cache prefixes: `PrefixContextHash = "story:%s:context:hash"`, `PrefixPipeline = "pipeline:%s"`.
+
 `WrapLLMClient()` decorates the LLM client with:
 1. `CachedLLMClient` — checks cache before LLM call
 2. `RateLimitedLLMClient` — enforces rate limits per provider
@@ -243,7 +295,7 @@ Wraps Redis primitives (`internal/cache/`). Optional — degrades gracefully.
 
 ## River Workers
 
-All workers in `internal/river/jobs.go`.
+All workers in `internal/river/jobs.go`. 6 job types with 5 queues.
 
 ### GenerateSceneWorker (queue: `generate`)
 1. `compilePromptParams` — loads characters, location, lore, state, summary
@@ -252,7 +304,7 @@ All workers in `internal/river/jobs.go`.
 
 ### ExtractStateWorker (queue: `extract`)
 1. Calls `ExtractionService.ExtractState(sceneText, roster)`
-2. Result is not yet stored (stub — no DB upsert)
+2. Persists each delta via `UpsertCharacterState` (character_state table)
 
 ### UpdateSummaryWorker (queue: `default`)
 1. Calls `SummaryService.UpdateSummary(previousSummary, acceptedScene)`
@@ -265,12 +317,13 @@ All workers in `internal/river/jobs.go`.
 
 ### ValidateSceneWorker (queue: `validate`)
 1. Calls `ValidationService.ValidateAgainstCanon(canonXML, charState, sceneText)`
-2. Result is not yet stored (stub)
+2. Stores result via `UpdateGenerationValidation` (generations.validation_result column)
 
 ### GenerateStoryWorker (queue: `default`)
 1. Calls `OutlineService.GenerateOutline(synopsis)`
-2. Creates story + characters + nodes + edges from outline
-3. Maps character names to IDs, beat titles to IDs
+2. Creates story + characters + scenes + scene_edges from outline
+3. Maps character names to IDs, beat titles to scene IDs
+4. Handles case where StoryID is nil (creates new story)
 
 ---
 

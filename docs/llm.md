@@ -22,9 +22,11 @@ const (
 - `claude-sonnet` / `claude-haiku` → AnthropicClient
 - `local-7b` → OllamaClient
 
-Both clients are always created at startup. Router retries on failure (2 retries, exponential backoff 250ms/500ms).
+Both clients are always created at startup. Router retries on failure (1 initial + 2 retries = 3 total, exponential backoff 250ms/500ms).
 
 ## Prompt Registry
+
+All entries in `internal/llm/types.go:140-183`:
 
 | Template Key | Model | Temp | System Text |
 |---|---|---|---|
@@ -33,14 +35,14 @@ Both clients are always created at startup. Router retries on failure (2 retries
 | `summary_update` | local-7b | 0.2 | "You maintain a running plot summary for one storyline branch." |
 | `join_merge` | Haiku | 0.2 | "Two parallel storylines are converging. Merge their summaries." |
 | `canon_validate` | Haiku | 0 | "You are a strict continuity editor. Check this draft against canon." |
-| `outline_story` | local-7b | 0.7 | "You are a master story architect. Given a synopsis, generate a structured story outline..." |
-| `generate_title` | local-7b | 0.5 | "You are a creative title generator. Given a synopsis, generate a short, engaging story title..." |
+| `outline_story` | local-7b | 0.7 | "You are a master story architect. Given a synopsis, generate a structured story outline with characters, plot beats, and narrative flow." |
+| `generate_title` | local-7b | 0.5 | "You are a creative title generator. Given a synopsis, generate a short, engaging story title (3-8 words). Return ONLY the title, no quotes or punctuation." |
 
 ## Service Interfaces
 
-All services in `internal/llm/types.go` and implementations in `internal/llm/services.go`.
+All interfaces defined in `internal/llm/types.go:53-79`, implementations in `internal/llm/services.go`.
 
-### ProseService (`services.go:13`)
+### ProseService (`types.go:53`, `services.go:17`)
 - `GenerateScene(ctx, params PromptParams) (*CompletionResponse, error)`
 - Builds `CompiledContext` → `BuildSceneProseSystemPrompt()` → system prompt with canon XML + state
 - `BuildSceneProseUserMessage()` → user message with beat intent, POV, tone
@@ -48,28 +50,28 @@ All services in `internal/llm/types.go` and implementations in `internal/llm/ser
 - Hard rules: canon is law, no new characters, voice match, word count ±20%, prose only
 - Temperature: 0.8, MaxTokens: 4096
 
-### ExtractionService (`services.go:59`)
+### ExtractionService (`types.go:57`, `services.go:63`)
 - `ExtractState(ctx, sceneText string, roster map[string]string) (*ledger.StateDeltas, error)`
 - Extracts state deltas from generated scene text
 - Uses `BuildStateExtractSystemPrompt(roster)` for system prompt
 - Expects JSON response from LLM
 - Temperature: 0, MaxTokens: 1024
 
-### SummaryService (`services.go:90`)
+### SummaryService (`types.go:61`, `services.go:94`)
 - `UpdateSummary(ctx, previousSummary, newScene string) (string, error)`
 - Updates running plot summary for a branch
 - Uses `BuildSummaryUpdateSystemPrompt(previousSummary, newScene)`
 - Rules: max 200 words, preserve facts, chronological, present tense
 - Temperature: 0.2, MaxTokens: 1024
 
-### MergeService (`services.go:114`)
+### MergeService (`types.go:65`, `services.go:118`)
 - `MergeBranches(ctx, summaryA, summaryB, timelineNote string) (map[string]interface{}, error)`
 - Merges parallel branch summaries at join nodes
 - Uses `BuildJoinMergeSystemPrompt(summaryA, summaryB, timelineNote)`
 - Outputs JSON: `{"merged_summary": "...", "conflicts": [...]}`
 - Temperature: 0.2, MaxTokens: 1024
 
-### ValidationService (`services.go:142`)
+### ValidationService (`types.go:69`, `services.go:146`)
 - `ValidateAgainstCanon(ctx, canonXML, charState, draft string) (map[string]interface{}, error)`
 - Validates draft against canon for continuity violations
 - Uses `BuildCanonValidateSystemPrompt(canonXML, charState, draft)`
@@ -77,7 +79,7 @@ All services in `internal/llm/types.go` and implementations in `internal/llm/ser
 - Checks: knowledge, voice, traits, location, world rules
 - Temperature: 0, MaxTokens: 2048
 
-### OutlineService (`services.go:170`)
+### OutlineService (`types.go:73`, `services.go:174`)
 - `GenerateOutline(ctx, synopsis string) (*StoryOutline, error)`
 - Generates structured story outline from synopsis
 - Uses `BuildOutlineStorySystemPrompt(synopsis)`
@@ -85,30 +87,29 @@ All services in `internal/llm/types.go` and implementations in `internal/llm/ser
 - Schema: 5-12 beats, characters with goals/flaws, seq/fork/join edges, acts 1-3
 - Temperature: 0.7, MaxTokens: 4096
 
-### TitleService (`services.go:199`)
+### TitleService (`types.go:77`, `services.go:203`)
 - `GenerateTitle(ctx, synopsis string) (string, error)`
 - Generates a short story title (3-8 words) from synopsis
 - Temperature: 0.5, MaxTokens: 64
 - Strips quotes and whitespace from output
 
-## Pipeline Flow (per node generation)
+## Pipeline Flow (per scene generation)
 
 ```
 GenerateScene (Sonnet, 0.8 via Anthropic)
     │
     ▼
 ExtractState (local-7b, 0 via Ollama)
-    │  Extracts state deltas from generated text
+    │  Extracts state deltas → persists to character_state table
     ▼
 UpdateSummary (local-7b, 0.2 via Ollama)
     │  Updates scene-level summary → upserts story_summaries (level='scene')
     ▼
-MergeBranches (Haiku, 0.2 via Anthropic)
-    │  At join nodes: merges branch summaries → upserts story_summaries (level='story')
-    ▼
 ValidateScene (Haiku, 0 via Anthropic)
-    │  Checks draft against canon → reports violations (non-blocking)
+    │  Checks draft against canon → stores in generations.validation_result
 ```
+
+Note: `MergeBranches` is defined as a river worker but is **not enqueued** during the standard accept-generation pipeline. It is available for manual/branch-join use cases.
 
 ## CompiledContext
 
@@ -117,7 +118,7 @@ type CompiledContext struct {
     CharacterCards []canon.Card            // Character: name, traits, voice samples, relationships
     LocationCard   *canon.Card             // Location: name, description, props
     BranchSummary  string                  // Story branch summary so far
-    CharState      map[string]ledger.CharacterState  // Per character: location, mood, knows, items
+    CharState      map[string]interface{}  // Per character: location, mood, knows, items
     Lore           []string                // World rules from lore table
     BeatIntent     string                  // What happens in this scene
     POV            string                  // Point-of-view character
@@ -127,6 +128,8 @@ type CompiledContext struct {
 ```
 
 `CompiledContext.Hash()` — serializes to JSON → SHA256 → hex string. Used for generation staleness detection (optionally cached in Redis ContextCache).
+
+Also uses `PromptParams` (types.go:18-28) which is a flattened version of `CompiledContext` used in river job args.
 
 ## LLM Clients
 
@@ -145,7 +148,7 @@ type CompiledContext struct {
 ### Router (`router.go:10`)
 - Wraps both clients
 - Dispatches by model tier
-- Retry: 2 attempts, exponential backoff
+- Retry: 1 initial + 2 retries = 3 attempts total, exponential backoff 250ms/500ms
 - Fallback: if Anthropic unavailable for Sonnet/Haiku, returns error
 
 ### CachedLLMClient (`internal/cache/cached_llm.go`)

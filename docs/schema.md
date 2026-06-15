@@ -18,52 +18,81 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector
 | `id` | `uuid` | PK, `DEFAULT gen_random_uuid()` | |
 | `title` | `text` | NOT NULL | Story title |
 | `canon_pins` | `jsonb` | NOT NULL DEFAULT `'{}'` | Maps entity_type → `{id, version}` |
+| `genre` | `text` | NOT NULL DEFAULT `''` | Added in 009 |
+| `theme` | `text` | NOT NULL DEFAULT `''` | Added in 009 |
+| `main_prompt` | `text` | NOT NULL DEFAULT `''` | Added in 009 |
+| `general_prompt` | `text` | NOT NULL DEFAULT `''` | Added in 009 |
 | `created_at` | `timestamptz` | NOT NULL DEFAULT `now()` | |
 
-### `nodes`
+### `chapters` (added in 009)
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `uuid` | PK, `DEFAULT gen_random_uuid()` | |
 | `story_id` | `uuid` | NOT NULL, FK → `stories(id)` ON DELETE CASCADE | |
+| `title` | `text` | NOT NULL DEFAULT `''` | |
+| `goal` | `text` | NOT NULL DEFAULT `''` | |
+| `order_index` | `int` | NOT NULL DEFAULT `0` | Unique per story |
+| `summary` | `text` | NOT NULL DEFAULT `''` | |
+| `status` | `text` | NOT NULL DEFAULT `'draft'`, CHECK `IN ('draft','active','completed','archived')` | |
+| `created_at` | `timestamptz` | NOT NULL DEFAULT `now()` | |
+| `updated_at` | `timestamptz` | NOT NULL DEFAULT `now()` | |
+
+**Indexes:** `idx_chapters_story` on `(story_id)`, unique on `(story_id, order_index)`
+
+### `scenes` (replaces `nodes` in 009)
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `uuid` | PK, `DEFAULT gen_random_uuid()` | |
+| `chapter_id` | `uuid` | NOT NULL, FK → `chapters(id)` ON DELETE CASCADE | |
+| `story_id` | `uuid` | NOT NULL, FK → `stories(id)` ON DELETE CASCADE | |
+| `title` | `text` | NOT NULL DEFAULT `''` | |
 | `beat_intent` | `text` | NOT NULL DEFAULT `''` | What happens in this scene |
 | `character_refs` | `uuid[]` | NOT NULL DEFAULT `'{}'` | References to characters |
 | `location_ref` | `uuid` | nullable | FK target (no formal FK) |
 | `pov` | `text` | NOT NULL DEFAULT `''` | Point-of-view character |
 | `tone` | `text` | NOT NULL DEFAULT `''` | Mood/style of the scene |
 | `target_words` | `int` | NOT NULL DEFAULT `300` | Target word count |
+| `scene_structure` | `jsonb` | NOT NULL DEFAULT `'{}'` | Multi-agent structure |
+| `parent_scene_id` | `uuid` | nullable, self-ref FK | Sub-scene reference |
+| `timeline_position` | `text` | NOT NULL DEFAULT `''` | |
+| `flow_type` | `text` | NOT NULL DEFAULT `'dialogue'`, CHECK `IN ('monologue','dialogue','round_robin','parallel','action','silent','custom')` | |
+| `max_turns` | `int` | NOT NULL DEFAULT `5` | |
 | `status` | `text` | NOT NULL DEFAULT `'draft'`, CHECK `IN ('draft','generated','accepted','stale')` | |
-| `scene_structure` | `jsonb` | NOT NULL DEFAULT `'{"flow_type":"monologue","situation_flow":""}'` | Multi-agent structure |
 | `created_at` | `timestamptz` | NOT NULL DEFAULT `now()` | |
 | `updated_at` | `timestamptz` | NOT NULL DEFAULT `now()` | |
 
-**Indexes:** `idx_nodes_story` on `(story_id)`
+**Indexes:** `idx_scenes_chapter` on `(chapter_id)`, `idx_scenes_story` on `(story_id)`, `idx_scenes_parent` on `(parent_scene_id)`
 
-### `edges`
+### `scene_edges` (replaces `edges` in 009)
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `story_id` | `uuid` | NOT NULL, FK → `stories(id)` ON DELETE CASCADE | |
-| `from_node` | `uuid` | NOT NULL, FK → `nodes(id)` ON DELETE CASCADE | |
-| `to_node` | `uuid` | NOT NULL, FK → `nodes(id)` ON DELETE CASCADE | |
-| `edge_type` | `text` | NOT NULL DEFAULT `'seq'`, CHECK `IN ('seq','fork','join','choice')` | |
+| `from_scene` | `uuid` | NOT NULL, FK → `scenes(id)` ON DELETE CASCADE | |
+| `to_scene` | `uuid` | NOT NULL, FK → `scenes(id)` ON DELETE CASCADE | |
+| `edge_type` | `text` | NOT NULL DEFAULT `'seq'`, CHECK `IN ('seq','fork','join','choice','parallel')` | Added `parallel` in 009 |
+| `condition` | `text` | NOT NULL DEFAULT `''` | Added in 009 |
 
-**PK:** `(story_id, from_node, to_node)`
+**PK:** `(story_id, from_scene, to_scene)`
+**Indexes:** `idx_scene_edges_from` on `(from_scene)`, `idx_scene_edges_to` on `(to_scene)`
 
 ### `generations`
 
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `uuid` | PK, `DEFAULT gen_random_uuid()` | |
-| `node_id` | `uuid` | NOT NULL, FK → `nodes(id)` ON DELETE CASCADE | |
+| `scene_id` | `uuid` | NOT NULL, FK → `scenes(id)` ON DELETE CASCADE | Renamed from `node_id` in 009 |
 | `context_hash` | `text` | NOT NULL DEFAULT `''` | SHA256 of CompiledContext |
 | `prompt_snapshot` | `text` | NOT NULL DEFAULT `''` | Brief prompt summary |
 | `output` | `text` | NOT NULL DEFAULT `''` | LLM-generated prose |
 | `model` | `text` | NOT NULL DEFAULT `''` | Model tier string |
 | `accepted` | `bool` | NOT NULL DEFAULT `false` | User-accepted flag |
+| `validation_result` | `jsonb` | nullable | Added in 006 — ValidateScene output |
 | `created_at` | `timestamptz` | NOT NULL DEFAULT `now()` | |
 
-**Indexes:** `idx_generations_node` on `(node_id)`
+**Indexes:** `idx_generations_scene` on `(scene_id)`
 
 ### `characters`
 
@@ -72,16 +101,16 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector
 | `id` | `uuid` | NOT NULL, `DEFAULT gen_random_uuid()` | |
 | `version` | `int` | NOT NULL DEFAULT `1` | Auto-incrementing version |
 | `name` | `text` | NOT NULL | |
-| `persona` | `text` | NOT NULL DEFAULT `''` | Archetype/role (added in 004) |
-| `backstory` | `text` | NOT NULL DEFAULT `''` | (added in 004) |
-| `moral_alignment` | `text` | NOT NULL DEFAULT `''` | (added in 004) |
-| `personality` | `jsonb` | NOT NULL DEFAULT `'[]'` | (added in 004) |
-| `flaws` | `jsonb` | NOT NULL DEFAULT `'[]'` | (added in 004) |
-| `goals` | `jsonb` | NOT NULL DEFAULT `'[]'` | (added in 004) |
+| `persona` | `text` | NOT NULL DEFAULT `''` | Archetype/role |
+| `backstory` | `text` | NOT NULL DEFAULT `''` | |
+| `moral_alignment` | `text` | NOT NULL DEFAULT `''` | |
+| `personality` | `jsonb` | NOT NULL DEFAULT `'[]'` | |
+| `flaws` | `jsonb` | NOT NULL DEFAULT `'[]'` | |
+| `goals` | `jsonb` | NOT NULL DEFAULT `'[]'` | |
 | `traits` | `jsonb` | NOT NULL DEFAULT `'[]'` | Labels/tags like "jedi", "smuggler" |
 | `voice_samples` | `text[]` | NOT NULL DEFAULT `'{}'` | Example dialogue lines |
 | `relationships` | `jsonb` | NOT NULL DEFAULT `'{}'` | Map of relationship → character ID |
-| `parent_id` | `uuid` | nullable | (added in 004) |
+| `parent_id` | `uuid` | nullable | |
 | `created_at` | `timestamptz` | NOT NULL DEFAULT `now()` | |
 
 **PK:** `(id, version)` — append-only, each update creates new version row
@@ -119,12 +148,12 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector
 |---|---|---|---|
 | `story_id` | `uuid` | NOT NULL, FK → `stories(id)` ON DELETE CASCADE | |
 | `character_id` | `uuid` | NOT NULL | |
-| `as_of_node` | `uuid` | NOT NULL, FK → `nodes(id)` ON DELETE CASCADE | Snapshot point in DAG |
+| `as_of_scene` | `uuid` | NOT NULL, FK → `scenes(id)` ON DELETE CASCADE | Renamed from `as_of_node` in 009 |
 | `state` | `jsonb` | NOT NULL DEFAULT `'{}'` | Shape: `{location, knows[], mood, relationships{}, items[]}` |
 | `updated_at` | `timestamptz` | NOT NULL DEFAULT `now()` | |
 
-**PK:** `(story_id, character_id, as_of_node)`
-**Indexes:** `idx_char_state_story_node` on `(story_id, as_of_node)`
+**PK:** `(story_id, character_id, as_of_scene)`
+**Indexes:** `idx_char_state_story_scene` on `(story_id, as_of_scene)`
 
 ### `actors` (added in 004)
 
@@ -146,6 +175,19 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector
 | `nationality` | `text` | NOT NULL DEFAULT `''` | |
 | `traits` | `jsonb` | NOT NULL DEFAULT `'{}'` | Flexible actor attributes |
 | `created_at` | `timestamptz` | NOT NULL DEFAULT `now()` | |
+
+### `actor_traits` (added in 007)
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `uuid` | PK, `DEFAULT gen_random_uuid()` | |
+| `actor_id` | `uuid` | NOT NULL, FK → `actors(id)` ON DELETE CASCADE | |
+| `trait_key` | `text` | NOT NULL | |
+| `trait_value` | `text` | NOT NULL DEFAULT `''` | |
+| `created_at` | `timestamptz` | NOT NULL DEFAULT `now()` | |
+
+**Unique:** `(actor_id, trait_key)`
+**Index:** `idx_actor_traits_actor_id` on `(actor_id)`
 
 ### `character_traits` (added in 004)
 
@@ -190,7 +232,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `uuid` | PK, `DEFAULT gen_random_uuid()` | |
-| `node_id` | `uuid` | NOT NULL, FK → `nodes(id)` ON DELETE CASCADE | |
+| `scene_id` | `uuid` | NOT NULL, FK → `scenes(id)` ON DELETE CASCADE | Renamed from `node_id` in 009 |
 | `turn_number` | `int` | NOT NULL | Sequential turn index |
 | `actor_ids` | `uuid[]` | NOT NULL DEFAULT `'{}'` | Which characters act |
 | `prompt` | `text` | NOT NULL DEFAULT `''` | LLM prompt for this turn |
@@ -199,7 +241,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector
 | `status` | `text` | NOT NULL DEFAULT `'done'` | pending/done/accepted/rejected |
 | `created_at` | `timestamptz` | NOT NULL DEFAULT `now()` | |
 
-**Index:** `idx_scene_turns_node` on `(node_id)`
+**Index:** `idx_scene_turns_scene` on `(scene_id)`
 
 ### `story_summaries` (added in 005)
 
@@ -207,17 +249,17 @@ CREATE EXTENSION IF NOT EXISTS "vector";    -- pgvector
 |---|---|---|---|
 | `id` | `uuid` | PK, `DEFAULT gen_random_uuid()` | |
 | `story_id` | `uuid` | NOT NULL, FK → `stories(id)` ON DELETE CASCADE | |
-| `node_id` | `uuid` | nullable, FK → `nodes(id)` ON DELETE SET NULL | Null for act/story level |
+| `scene_id` | `uuid` | nullable, FK → `scenes(id)` ON DELETE SET NULL | Renamed from `node_id` in 009 |
 | `level` | `text` | NOT NULL, CHECK `IN ('scene','act','story')` | Hierarchical level |
 | `content` | `text` | NOT NULL | Summary text |
 | `word_count` | `int` | NOT NULL DEFAULT `0` | |
 | `created_at` | `timestamptz` | NOT NULL DEFAULT `now()` | |
 
 **Partial Unique Indexes:**
-- `idx_summaries_scene` — unique on `(story_id, node_id)` WHERE `level='scene'`
-- `idx_summaries_act` — unique on `(story_id, level)` WHERE `level='act'` AND `node_id IS NULL`
-- `idx_summaries_story_level` — unique on `(story_id, level)` WHERE `level='story'` AND `node_id IS NULL`
-- `idx_summaries_node` on `(node_id)`
+- `idx_summaries_scene` — unique on `(story_id, scene_id)` WHERE `level='scene'`
+- `idx_summaries_act` — unique on `(story_id, level)` WHERE `level='act'` AND `scene_id IS NULL`
+- `idx_summaries_story_level` — unique on `(story_id, level)` WHERE `level='story'` AND `scene_id IS NULL`
+- `idx_summaries_scene_id` on `(scene_id)`
 
 ---
 
@@ -266,18 +308,22 @@ ORDER BY id, version DESC;
 ## Entity Relationships
 
 ```
-stories 1──* nodes                    (story_id FK)
-stories 1──* edges                    (story_id FK)
-stories 1──* casting                  (story_id FK)
-stories 1──* character_state          (story_id FK)
-stories 1──* story_summaries          (story_id FK)
+stories 1──* chapters                   (story_id FK)
+stories 1──* scenes                     (story_id FK)
+stories 1──* scene_edges                (story_id FK)
+stories 1──* casting                    (story_id FK)
+stories 1──* character_state            (story_id FK)
+stories 1──* story_summaries            (story_id FK)
 
-nodes 1──* edges (from_node FK)       (from_node → nodes.id)
-nodes 1──* edges (to_node FK)         (to_node → nodes.id)
-nodes 1──* generations                (node_id FK)
-nodes 1──* scene_turns                (node_id FK)
-nodes 1──* character_state            (as_of_node FK)
-nodes 1──* story_summaries            (node_id FK, nullable)
+chapters 1──* scenes                    (chapter_id FK)
+
+scenes 1──* scene_edges (from_scene FK) (from_scene → scenes.id)
+scenes 1──* scene_edges (to_scene FK)   (to_scene → scenes.id)
+scenes 1──* generations                 (scene_id FK)
+scenes 1──* scene_turns                 (scene_id FK)
+scenes 1──* character_state             (as_of_scene FK)
+scenes 1──* story_summaries             (scene_id FK, nullable)
+scenes ?──? scenes (parent_scene_id)    (self-referencing)
 
 characters (id, version) ──* character_state  (character_id)
 characters (id, version) ──* casting          (character_id, no FK)
@@ -286,5 +332,6 @@ characters (id, version) ──* character_trait_assignments (character_id)
 characters.id ──? characters.parent_id        (self-referencing, no FK)
 
 actors 1──* casting                   (actor_id FK)
+actors 1──* actor_traits              (actor_id FK)
 character_traits 1──* character_trait_assignments (trait_id FK)
 ```
