@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,6 +22,7 @@ type CharacterService interface {
 	Get(ctx context.Context, id uuid.UUID, version int) (*canon.Character, error)
 	Update(ctx context.Context, id uuid.UUID, name, persona, backstory, moralAlignment string, personality, flaws, goals, traits, voiceSamples []string, parentID *uuid.UUID, relationships map[string]string) (*canon.Character, error)
 	List(ctx context.Context) ([]canon.Character, error)
+	Search(ctx context.Context, query string, limit int) ([]canon.Character, error)
 }
 
 type MemoryCharacterService struct {
@@ -96,6 +98,32 @@ func (s *MemoryCharacterService) Update(ctx context.Context, id uuid.UUID, name,
 	s.chars = append(s.chars, c)
 	s.version[id] = next + 1
 	return &c, nil
+}
+
+func (s *MemoryCharacterService) Search(ctx context.Context, query string, limit int) ([]canon.Character, error) {
+	all, err := s.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if query == "" {
+		if limit > 0 && limit < len(all) {
+			all = all[:limit]
+		}
+		return all, nil
+	}
+	q := strings.ToLower(query)
+	var result []canon.Character
+	for _, c := range all {
+		if strings.Contains(strings.ToLower(c.Name), q) ||
+			strings.Contains(strings.ToLower(c.Persona), q) ||
+			strings.Contains(strings.ToLower(c.MoralAlignment), q) {
+			result = append(result, c)
+			if limit > 0 && len(result) >= limit {
+				break
+			}
+		}
+	}
+	return result, nil
 }
 
 func (s *MemoryCharacterService) List(ctx context.Context) ([]canon.Character, error) {
@@ -191,6 +219,24 @@ func (s *DBCharacterService) Update(ctx context.Context, id uuid.UUID, name, per
 		return nil, err
 	}
 	return toDomainChar(c), nil
+}
+
+func (s *DBCharacterService) Search(ctx context.Context, query string, limit int) ([]canon.Character, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	chars, err := s.q.SearchCharacters(ctx, db.SearchCharactersParams{
+		Column1: query,
+		Limit:   int32(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]canon.Character, len(chars))
+	for i, c := range chars {
+		result[i] = *toDomainCharFromLatest(c)
+	}
+	return result, nil
 }
 
 func (s *DBCharacterService) List(ctx context.Context) ([]canon.Character, error) {

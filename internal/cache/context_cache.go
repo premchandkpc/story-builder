@@ -21,8 +21,8 @@ func NewContextCache(client RedisClient) *ContextCache {
 	}
 }
 
-func (c *ContextCache) Get(ctx context.Context, storyID string) (*compiler.CompiledContext, error) {
-	key := fmt.Sprintf(string(PrefixContext), storyID)
+func (c *ContextCache) Get(ctx context.Context, storyID, sceneID string) (*compiler.CompiledContext, error) {
+	key := fmt.Sprintf(string(PrefixContext), storyID, sceneID)
 	data, err := c.client.Get(ctx, key)
 	if err != nil {
 		return nil, fmt.Errorf("cache get: %w", err)
@@ -34,8 +34,8 @@ func (c *ContextCache) Get(ctx context.Context, storyID string) (*compiler.Compi
 	return &cc, nil
 }
 
-func (c *ContextCache) Set(ctx context.Context, storyID string, cc *compiler.CompiledContext) error {
-	key := fmt.Sprintf(string(PrefixContext), storyID)
+func (c *ContextCache) Set(ctx context.Context, storyID, sceneID string, cc *compiler.CompiledContext) error {
+	key := fmt.Sprintf(string(PrefixContext), storyID, sceneID)
 	data, err := json.Marshal(cc)
 	if err != nil {
 		return fmt.Errorf("cache marshal: %w", err)
@@ -43,17 +43,17 @@ func (c *ContextCache) Set(ctx context.Context, storyID string, cc *compiler.Com
 	return c.client.Set(ctx, key, string(data), c.ttl)
 }
 
-func (c *ContextCache) Invalidate(ctx context.Context, storyID string) error {
-	key := fmt.Sprintf(string(PrefixContext), storyID)
+func (c *ContextCache) Invalidate(ctx context.Context, storyID, sceneID string) error {
+	key := fmt.Sprintf(string(PrefixContext), storyID, sceneID)
 	return c.client.Del(ctx, key)
 }
 
-func (c *ContextCache) GetHash(ctx context.Context, storyID string) (string, error) {
-	key := fmt.Sprintf(string(PrefixContextHash), storyID)
+func (c *ContextCache) GetHash(ctx context.Context, storyID, sceneID string) (string, error) {
+	key := fmt.Sprintf(string(PrefixContextHash), storyID, sceneID)
 	return c.client.Get(ctx, key)
 }
 
-func (c *ContextCache) SetHash(ctx context.Context, storyID, hash string) error {
-	key := fmt.Sprintf(string(PrefixContextHash), storyID)
+func (c *ContextCache) SetHash(ctx context.Context, storyID, sceneID, hash string) error {
+	key := fmt.Sprintf(string(PrefixContextHash), storyID, sceneID)
 	return c.client.Set(ctx, key, hash, c.ttl)
 }

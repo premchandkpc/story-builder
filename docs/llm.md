@@ -122,14 +122,14 @@ type CompilerService struct {
 ### Templates (7 built-in, stored in `internal/prompt/store.go`)
 
 | Name | Model | Temp | System |
-|---|---|---|---|
-| `scene_prose` | sonnet | 0.8 | "You generate story prose" |
-| `state_extract` | haiku | 0 | "You extract character state deltas" |
-| `summary_update` | haiku | 0.2 | "You maintain a running plot summary" |
-| `canon_validate` | haiku | 0 | "You check continuity violations" |
-| `join_merge` | haiku | 0.2 | "You merge parallel branch summaries" |
-| `outline_story` | sonnet | 0.7 | "You generate structured story outlines" |
-| `generate_title` | haiku | 0.5 | "You generate short story titles" |
+|---|---|---|---|---|
+| `scene_prose` | claude-sonnet | 0.8 | "You generate story prose" |
+| `state_extract` | local-7b | 0.0 | "You extract character state deltas" |
+| `summary_update` | local-7b | 0.2 | "You maintain a running plot summary" |
+| `canon_validate` | claude-haiku | 0.0 | "You check continuity violations" |
+| `join_merge` | claude-haiku | 0.2 | "You merge parallel branch summaries" |
+| `outline_story` | local-7b | 0.7 | "You generate structured story outlines" |
+| `generate_title` | local-7b | 0.5 | "You generate short story titles" |
 
 Templates use string model tier keys (no circular import with `llm`). The `CompileRequest` carries all dynamic content: `CanonXML`, `CharStateXML`, `BranchSummary`, `TargetWords`, `RosterJSON`, `CompiledCanon`, `Synopsis`.
 

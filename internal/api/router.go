@@ -108,6 +108,7 @@ func (s *Server) routes() {
 		r.Route("/characters", func(r chi.Router) {
 			r.Post("/", s.characterHandler.Create)
 			r.Get("/", s.characterHandler.List)
+			r.Get("/search", s.characterHandler.Search)
 			r.Get("/{id}", s.characterHandler.Get)
 			r.Put("/{id}", s.characterHandler.Update)
 			r.Route("/{characterID}/traits", func(r chi.Router) {

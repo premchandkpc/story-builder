@@ -1664,6 +1664,55 @@ func (q *Queries) RejectOtherGenerations(ctx context.Context, arg RejectOtherGen
 	return err
 }
 
+const searchCharacters = `-- name: SearchCharacters :many
+SELECT id, version, name, persona, backstory, moral_alignment, personality, flaws, goals, traits, voice_samples, relationships, parent_id, created_at FROM latest_characters
+WHERE
+	to_tsvector('english', coalesce(name, '') || ' ' || coalesce(persona, '') || ' ' || coalesce(moral_alignment, '')) @@ plainto_tsquery('english', $1::text)
+	OR $1 = ''
+ORDER BY name
+LIMIT $2
+`
+
+type SearchCharactersParams struct {
+	Column1 string `json:"column_1"`
+	Limit   int32  `json:"limit"`
+}
+
+func (q *Queries) SearchCharacters(ctx context.Context, arg SearchCharactersParams) ([]LatestCharacter, error) {
+	rows, err := q.db.Query(ctx, searchCharacters, arg.Column1, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LatestCharacter{}
+	for rows.Next() {
+		var i LatestCharacter
+		if err := rows.Scan(
+			&i.ID,
+			&i.Version,
+			&i.Name,
+			&i.Persona,
+			&i.Backstory,
+			&i.MoralAlignment,
+			&i.Personality,
+			&i.Flaws,
+			&i.Goals,
+			&i.Traits,
+			&i.VoiceSamples,
+			&i.Relationships,
+			&i.ParentID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchLoreByTags = `-- name: SearchLoreByTags :many
 SELECT id, tags, content, embedding, created_at FROM lore WHERE tags && $1::text[] ORDER BY created_at DESC
 `

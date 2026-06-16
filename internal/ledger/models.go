@@ -9,7 +9,7 @@ import (
 type CharacterState struct {
 	StoryID     uuid.UUID `json:"story_id"`
 	CharacterID uuid.UUID `json:"character_id"`
-	AsOfNode    uuid.UUID `json:"as_of_node"`
+	AsOfScene   uuid.UUID `json:"as_of_scene"`
 	Location    string    `json:"location"`
 	Knows       []string  `json:"knows"`
 	DoesNotKnow []string  `json:"does_not_know"`

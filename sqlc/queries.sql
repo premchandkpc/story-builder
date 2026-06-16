@@ -19,6 +19,14 @@ RETURNING *;
 -- name: ListCharacters :many
 SELECT * FROM latest_characters ORDER BY name;
 
+-- name: SearchCharacters :many
+SELECT * FROM latest_characters
+WHERE
+	to_tsvector('english', coalesce(name, '') || ' ' || coalesce(persona, '') || ' ' || coalesce(moral_alignment, '')) @@ plainto_tsquery('english', $1::text)
+	OR $1 = ''
+ORDER BY name
+LIMIT $2;
+
 -- name: CreateActor :one
 INSERT INTO actors (name, gender, ethnicity, race, skin_tone, eye_color, hair_color, hair_style, build, height_cm, weight_kg, age, nationality, traits)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)

@@ -308,7 +308,7 @@ func stateFromLedger(cs *ledger.CharacterState) *State {
 	return &State{
 		StoryID:       cs.StoryID,
 		CharacterID:   cs.CharacterID,
-		AsOfScene:     cs.AsOfNode,
+		AsOfScene:     cs.AsOfScene,
 		Location:      cs.Location,
 		Knows:         cs.Knows,
 		DoesNotKnow:   cs.DoesNotKnow,

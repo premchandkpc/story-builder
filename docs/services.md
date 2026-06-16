@@ -62,7 +62,8 @@ type CharacterHandler struct {
 | `Create(name, persona, backstory, ...)` | `INSERT INTO characters ... RETURNING *` | Appends with `version=1` |
 | `Get(id, version)` | `GetCharacterLatest` or `GetCharacterAtVersion` | Linear scan, select by version |
 | `Update(id, ...)` | `INSERT ... SELECT MAX(version)+1` (append-only) | Appends new version row |
-| `List()` | `SELECT * FROM latest_characters` | Deduplicates by max version |
+| `List()` | `SELECT * FROM latest_characters ORDER BY name` | Deduplicates by max version |
+| `Search(query, limit)` | `to_tsvector(name + persona + alignment) @@ plainto_tsquery(query)` | Linear scan by substring |
 
 ### Actor Service
 
@@ -180,7 +181,7 @@ Domain conversion in `toDomainNode()`:
 2. Latest location if `location_ref` is set → location card
 3. Lore searched by character name tags
 
-**Redis ContextCache:** When available, checks for cached compilation results before enqueuing River jobs.
+**Redis ContextCache:** When available, checks for cached compilation results before enqueuing River jobs. Cache keys are scoped by `storyID:sceneID` to prevent cross-scene collision.
 
 ### Story Generator Service
 
@@ -194,14 +195,14 @@ Domain conversion in `toDomainNode()`:
 
 | Method | DB Service | In-Memory |
 |---|---|---|
-| `StartScene(sceneID)` | `fmt.Errorf("not implemented")` | Stub |
-| `NextTurn(sceneID)` | `fmt.Errorf("not implemented")` | Stub |
-| `FinishScene(sceneID)` | `fmt.Errorf("not implemented")` | Stub |
-| `GetTurns(sceneID)` | `SELECT * FROM scene_turns WHERE scene_id = $1 ORDER BY turn_number` | Returns empty |
+| `StartScene(sceneID)` | `INSERT INTO scene_turns (turn_number=1, status='in_progress')` | Creates in-memory turn |
+| `NextTurn(sceneID)` | `INSERT INTO scene_turns (turn_number=N+1, status='in_progress')` | Creates next in-memory turn |
+| `FinishScene(sceneID)` | `UPDATE scenes SET status='completed' WHERE id = $1` | Sets all turns to `completed` |
+| `GetTurns(sceneID)` | `SELECT * FROM scene_turns WHERE scene_id = $1 ORDER BY turn_number` | Returns slice copy |
 | `SetSceneStructure(sceneID, structure)` | `UPDATE scenes SET scene_structure = $2 WHERE id = $1` | Inline update |
 | `GetSceneStructure(sceneID)` | `SELECT scene_structure FROM scenes WHERE id = $1` | Return from store |
 
-Multi-agent scene feature is not yet wired to LLM.
+Turns are tracked in the `scene_turns` table. The multi-agent LLM integration (AI-driven narrative turn-taking) is not yet wired — this service provides the turn scaffolding only.
 
 ---
 
@@ -286,12 +287,12 @@ Wraps Redis primitives (`internal/cache/`). Optional — degrades gracefully.
 
 | Component | Redis Key Prefix | Purpose |
 |---|---|---|
-| `ContextCache` | `story:{id}:context*` | Caches CompiledContext hash for staleness |
+| `ContextCache` | `story:{id}:scene:{id}:context*` | Caches CompiledContext hash for staleness (scoped per scene) |
 | `PromptCache` | `prompt:{hash}` | Caches LLM responses for identical prompts |
 | `SlidingWindowRateLimiter` | `ratelimit:{prefix}` | Rate limits LLM API calls |
 | `DistLock` | `lock:{name}` | Distributed lock for coordination |
 
-Additional cache prefixes: `PrefixContextHash = "story:%s:context:hash"`, `PrefixPipeline = "pipeline:%s"`.
+Additional cache prefixes: `PrefixContextHash = "story:%s:scene:%s:context:hash"`, `PrefixPipeline = "pipeline:%s"`.
 
 `WrapLLMClient()` decorates the LLM client with:
 1. `CachedLLMClient` — checks cache before LLM call

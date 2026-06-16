@@ -11,8 +11,8 @@ var ErrCacheMiss = errors.New("cache: miss")
 type KeyPrefix string
 
 const (
-	PrefixContext    KeyPrefix = "story:%s:context"
-	PrefixContextHash KeyPrefix = "story:%s:context:hash"
+	PrefixContext    KeyPrefix = "story:%s:scene:%s:context"
+	PrefixContextHash KeyPrefix = "story:%s:scene:%s:context:hash"
 	PrefixPrompt     KeyPrefix = "prompt:%s"
 	PrefixPipeline   KeyPrefix = "pipeline:%s"
 	PrefixLock       KeyPrefix = "lock:%s"

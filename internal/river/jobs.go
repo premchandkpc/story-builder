@@ -186,7 +186,7 @@ func (w *ExtractStateWorker) Work(ctx context.Context, job *river.Job[ExtractSta
 		cs := ledger.CharacterState{
 			StoryID:     args.StoryID,
 			CharacterID: d.Character,
-			AsOfNode:    args.NodeID,
+			AsOfScene:    args.NodeID,
 			Location:    d.NewLocation,
 			Knows:       d.Learned,
 			Mood:        d.Mood,
@@ -312,12 +312,13 @@ func (w *MergeBranchesWorker) Work(ctx context.Context, job *river.Job[MergeBran
 // ── Validate Scene ────────────────────────────────────────────
 
 type ValidateSceneArgs struct {
-	StoryID       uuid.UUID `json:"story_id"`
-	NodeID        uuid.UUID `json:"node_id"`
-	GenerationID  uuid.UUID `json:"generation_id"`
-	CompiledCanon string    `json:"compiled_canon"`
-	CharState     string    `json:"char_state"`
-	SceneText     string    `json:"scene_text"`
+	StoryID       uuid.UUID   `json:"story_id"`
+	NodeID        uuid.UUID   `json:"node_id"`
+	GenerationID  uuid.UUID   `json:"generation_id"`
+	CompiledCanon string      `json:"compiled_canon"`
+	CharState     string      `json:"char_state"`
+	SceneText     string      `json:"scene_text"`
+	CharacterRefs []uuid.UUID `json:"character_refs"`
 }
 
 func (ValidateSceneArgs) Kind() string { return "validate_scene" }
@@ -342,8 +343,10 @@ func (w *ValidateSceneWorker) Work(ctx context.Context, job *river.Job[ValidateS
 	defer span.End()
 
 	if w.Validator != nil {
-		w.Validator.ValidateAgainstCanon(args.StoryID, args.NodeID, args.SceneText, nil)
-		w.Validator.ValidateCharacterBehavior(uuid.Nil, args.SceneText, nil)
+		w.Validator.ValidateAgainstCanon(args.StoryID, args.NodeID, args.SceneText, args.CharacterRefs)
+		for _, charID := range args.CharacterRefs {
+			w.Validator.ValidateCharacterBehavior(charID, args.SceneText, nil)
+		}
 	}
 
 	result, err := w.Validate.ValidateAgainstCanon(ctx, args.CompiledCanon, args.CharState, args.SceneText)

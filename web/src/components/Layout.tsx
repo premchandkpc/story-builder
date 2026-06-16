@@ -30,7 +30,7 @@ export default function Layout() {
               onChange={(e) => setNewTitle(e.target.value)}
               placeholder="New story title..."
               style={{ ...inputStyle, fontSize: 13, flex: 1 }}
-              onKeyDown={(e) => e.key === "Enter" && createStoryMut.mutate(newTitle.trim())}
+              onKeyDown={(e) => e.key === "Enter" && newTitle.trim() && createStoryMut.mutate(newTitle.trim())}
             />
             <button onClick={() => createStoryMut.mutate(newTitle.trim())} style={btnStyle("#3b82f6", !newTitle.trim())} disabled={!newTitle.trim()}>+</button>
           </div>

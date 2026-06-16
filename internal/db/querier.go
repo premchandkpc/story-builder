@@ -71,6 +71,7 @@ type Querier interface {
 	ListStories(ctx context.Context) ([]Story, error)
 	ListSummariesByLevel(ctx context.Context, arg ListSummariesByLevelParams) ([]StorySummary, error)
 	RejectOtherGenerations(ctx context.Context, arg RejectOtherGenerationsParams) error
+	SearchCharacters(ctx context.Context, arg SearchCharactersParams) ([]LatestCharacter, error)
 	SearchLoreByTags(ctx context.Context, dollar_1 []string) ([]Lore, error)
 	SearchLoreSimilar(ctx context.Context, arg SearchLoreSimilarParams) ([]Lore, error)
 	SetSceneStatus(ctx context.Context, arg SetSceneStatusParams) error

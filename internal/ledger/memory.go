@@ -54,7 +54,7 @@ func (s *MemoryStore) GetState(storyID, characterID, asOfNode uuid.UUID) (*Chara
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, cs := range s.states {
-		if cs.StoryID == storyID && cs.CharacterID == characterID && cs.AsOfNode == asOfNode {
+		if cs.StoryID == storyID && cs.CharacterID == characterID && cs.AsOfScene == asOfNode {
 			return &cs, nil
 		}
 	}
@@ -66,7 +66,7 @@ func (s *MemoryStore) GetAllStates(storyID, asOfNode uuid.UUID) (map[uuid.UUID]*
 	defer s.mu.RUnlock()
 	result := make(map[uuid.UUID]*CharacterState)
 	for _, cs := range s.states {
-		if cs.StoryID == storyID && cs.AsOfNode == asOfNode {
+		if cs.StoryID == storyID && cs.AsOfScene == asOfNode {
 			c := cs
 			result[cs.CharacterID] = &c
 		}
@@ -133,7 +133,7 @@ func (s *MemoryStore) applyEventLocked(evt *event.Event) error {
 	}
 
 	for i, cs := range s.states {
-		if cs.StoryID == storyID && cs.CharacterID == charID && cs.AsOfNode == sceneID {
+		if cs.StoryID == storyID && cs.CharacterID == charID && cs.AsOfScene == sceneID {
 			if delta.NewLocation != "" {
 				cs.Location = delta.NewLocation
 			}
@@ -153,7 +153,7 @@ func (s *MemoryStore) applyEventLocked(evt *event.Event) error {
 	cs := CharacterState{
 		StoryID:       storyID,
 		CharacterID:   charID,
-		AsOfNode:      sceneID,
+		AsOfScene:      sceneID,
 		Location:      delta.NewLocation,
 		Mood:          delta.Mood,
 		Knows:         delta.Learned,

@@ -57,7 +57,7 @@ Go server (chi) + React Flow frontend + Postgres + pgvector + Redis + Mongo + Qd
 | Telemetry | `telemetry` | Span, Counter, Histogram, TracedLLMClient, HTTPTracing middleware |
 | Validation | `validation` | 4 validators (Character/Timeline/Lore/Dialogue), ValidationReport |
 | API       | `api`       | chi handlers + DB/in-memory service implementations |
-| DB        | `db`        | sqlc-generated query methods (76) |
+| DB        | `db`        | sqlc-generated query methods (77) |
 
 ## DB layer
 

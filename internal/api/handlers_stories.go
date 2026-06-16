@@ -270,11 +270,6 @@ func (h *NodeHandler) List(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, nodes)
 }
 
-type StoryGenerateResult struct {
-	StoryID string `json:"story_id"`
-	Status  string `json:"status"`
-}
-
 type StoryGeneratorHandler struct {
 	Service generation.StoryGeneratorService
 }

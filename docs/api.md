@@ -195,6 +195,18 @@ Create a versioned character.
 
 List all characters (latest version each).
 
+### `GET /api/v1/characters/search`
+
+Search characters by name, persona, or moral alignment.
+
+**Query params:**
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `q` | string | `""` | Full-text search query (Postgres `to_tsvector` on name + persona + moral_alignment) |
+| `limit` | int | `20` | Max results (capped at 100) |
+
+**Response 200:** Array of character objects (latest version each).
+
 ### `GET /api/v1/characters/{id}`
 
 Get latest version of character. Query param `?version=N` for specific version.

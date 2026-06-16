@@ -84,6 +84,22 @@ func (h *CharacterHandler) Update(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, char)
 }
 
+func (h *CharacterHandler) Search(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query().Get("q")
+	lim := 20
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if v, err := parseInt(l); err == nil && v > 0 {
+			lim = v
+		}
+	}
+	chars, err := h.Service.Search(r.Context(), q, lim)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, chars)
+}
+
 func (h *CharacterHandler) List(w http.ResponseWriter, r *http.Request) {
 	chars, err := h.Service.List(r.Context())
 	if err != nil {

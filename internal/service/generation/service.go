@@ -112,10 +112,11 @@ func (s *dbGenerationService) Generate(ctx context.Context, sceneID uuid.UUID) (
 	storyID := db.FromUUID(scene.StoryID)
 
 	if s.contextCache != nil {
-		if cached, err := s.contextCache.Get(ctx, storyID.String()); err == nil {
+		sceneIDStr := sceneID.String()
+		if cached, err := s.contextCache.Get(ctx, storyID.String(), sceneIDStr); err == nil {
 			hash, err := cached.Hash()
 			if err == nil {
-				_ = s.contextCache.SetHash(ctx, storyID.String(), hash)
+				_ = s.contextCache.SetHash(ctx, storyID.String(), sceneIDStr, hash)
 				return s.createGenerationRecord(ctx, sceneID, storyID, scene, cached, hash)
 			}
 		}
@@ -149,7 +150,7 @@ func (s *dbGenerationService) Generate(ctx context.Context, sceneID uuid.UUID) (
 	}
 
 	if s.contextCache != nil {
-		_ = s.contextCache.Set(ctx, storyID.String(), compiled)
+		_ = s.contextCache.Set(ctx, storyID.String(), sceneID.String(), compiled)
 	}
 
 	hash, err := compiled.Hash()
@@ -158,7 +159,7 @@ func (s *dbGenerationService) Generate(ctx context.Context, sceneID uuid.UUID) (
 	}
 
 	if s.contextCache != nil {
-		_ = s.contextCache.SetHash(ctx, storyID.String(), hash)
+		_ = s.contextCache.SetHash(ctx, storyID.String(), sceneID.String(), hash)
 	}
 
 	return s.createGenerationRecord(ctx, sceneID, storyID, scene, compiled, hash)
@@ -293,7 +294,7 @@ func (s *dbGenerationService) AcceptGeneration(ctx context.Context, sceneID, gen
 	storyID := db.FromUUID(scene.StoryID)
 
 	if s.contextCache != nil {
-		_ = s.contextCache.Invalidate(ctx, storyID.String())
+		_ = s.contextCache.Invalidate(ctx, storyID.String(), sceneID.String())
 	}
 	if err := s.q.RejectOtherGenerations(ctx, db.RejectOtherGenerationsParams{
 		SceneID: db.ToUUID(sceneID),
@@ -368,6 +369,7 @@ func (s *dbGenerationService) AcceptGeneration(ctx context.Context, sceneID, gen
 			CompiledCanon: compiled.BuildCanonXML(),
 			CharState:     compiled.BuildCharStateXML(),
 			SceneText:     acceptedGeneration.Output,
+			CharacterRefs: charRefs,
 		}, &riv.InsertOpts{Queue: river.QueueValidate})
 		if err != nil {
 			return fmt.Errorf("enqueue validation: %w", err)
