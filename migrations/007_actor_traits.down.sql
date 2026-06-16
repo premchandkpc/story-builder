@@ -1,1 +1,0 @@
-DROP TABLE IF EXISTS actor_traits CASCADE;

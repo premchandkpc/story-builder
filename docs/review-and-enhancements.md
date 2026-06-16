@@ -1,5 +1,7 @@
 # Repository review and enhancement plan
 
+> **Historical — from the Postgres + River era. See ADR 0003 for current architecture.
+
 ## Overview
 This project already has a solid domain-oriented structure with a Go API layer, a React/Vite frontend, and a graph-first storytelling model. The main opportunity was to improve robustness around request handling and reduce repeated validation logic so the server layer becomes easier to extend.
 

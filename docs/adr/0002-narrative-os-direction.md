@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+**Superseded by ADR 0003** (Simplify Stack — MongoDB Only, No Message Queue). The domain design concepts (prompt compiler, timeline engine, character state split, 4 validators) remain valid. The infrastructure decisions (Postgres, Kafka, Qdrant, Neo4j, River, gRPC) are replaced by MongoDB + Redis only.
 
 ## Context
 

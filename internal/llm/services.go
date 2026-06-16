@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/premchand/story-builder/internal/compiler"
-	"github.com/premchand/story-builder/internal/ledger"
 	"github.com/premchand/story-builder/internal/prompt"
 )
 
@@ -21,7 +19,7 @@ type ProseServiceImpl struct {
 }
 
 func (s *ProseServiceImpl) GenerateScene(ctx context.Context, params PromptParams) (*CompletionResponse, error) {
-	cc := &compiler.CompiledContext{
+	cc := &CompiledContext{
 		CharacterCards: params.CharacterCards,
 		LocationCard:   params.LocationCard,
 		Lore:           params.Lore,
@@ -32,10 +30,10 @@ func (s *ProseServiceImpl) GenerateScene(ctx context.Context, params PromptParam
 		TargetWords:    params.TargetWords,
 	}
 	if params.CharState != nil {
-		cc.CharState = make(map[string]ledger.CharacterState)
+		cc.CharState = make(map[string]CharacterState)
 		for k, v := range params.CharState {
 			b, _ := json.Marshal(v)
-			var cs ledger.CharacterState
+			var cs CharacterState
 			if json.Unmarshal(b, &cs) == nil {
 				cc.CharState[k] = cs
 			}
@@ -72,7 +70,7 @@ type ExtractionServiceImpl struct {
 	compiler *prompt.CompilerService
 }
 
-func (s *ExtractionServiceImpl) ExtractState(ctx context.Context, sceneText string, roster map[string]string) (*ledger.StateDeltas, error) {
+func (s *ExtractionServiceImpl) ExtractState(ctx context.Context, sceneText string, roster map[string]string) (*StateDeltas, error) {
 	rosterJSON, _ := json.Marshal(roster)
 	compiled, err := s.compiler.Compile(&prompt.CompileRequest{
 		ScenePrompt: sceneText,
@@ -92,12 +90,12 @@ func (s *ExtractionServiceImpl) ExtractState(ctx context.Context, sceneText stri
 	if err != nil {
 		return nil, err
 	}
-	var result ledger.StateDeltas
+	var result StateDeltas
 	if err := parseJSONPayload(res.Content, &result); err != nil {
 		return nil, fmt.Errorf("extract state: %w", err)
 	}
 	if result.Deltas == nil {
-		result.Deltas = []ledger.StateDelta{}
+		result.Deltas = []StateDelta{}
 	}
 	return &result, nil
 }
@@ -112,7 +110,7 @@ type SummaryServiceImpl struct {
 }
 
 func (s *SummaryServiceImpl) UpdateSummary(ctx context.Context, previousSummary, newScene string) (string, error) {
-	userMsg := compiler.BuildSummaryUpdateSystemPrompt(previousSummary, newScene)
+	userMsg := BuildSummaryUpdateSystemPrompt(previousSummary, newScene)
 	compiled, err := s.compiler.Compile(&prompt.CompileRequest{
 		ScenePrompt: userMsg,
 	}, "summary_update")
@@ -143,7 +141,7 @@ type MergeServiceImpl struct {
 }
 
 func (s *MergeServiceImpl) MergeBranches(ctx context.Context, summaryA, summaryB, timelineNote string) (map[string]interface{}, error) {
-	userMsg := compiler.BuildJoinMergeSystemPrompt(summaryA, summaryB, timelineNote)
+	userMsg := BuildJoinMergeSystemPrompt(summaryA, summaryB, timelineNote)
 	compiled, err := s.compiler.Compile(&prompt.CompileRequest{
 		ScenePrompt: userMsg,
 	}, "join_merge")
@@ -178,7 +176,7 @@ type ValidationServiceImpl struct {
 }
 
 func (s *ValidationServiceImpl) ValidateAgainstCanon(ctx context.Context, canonXML, charState, draft string) (map[string]interface{}, error) {
-	userMsg := compiler.BuildCanonValidateSystemPrompt(canonXML, charState, draft)
+	userMsg := BuildCanonValidateSystemPrompt(canonXML, charState, draft)
 	compiled, err := s.compiler.Compile(&prompt.CompileRequest{
 		ScenePrompt:   userMsg,
 		CompiledCanon: canonXML,

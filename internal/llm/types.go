@@ -2,9 +2,6 @@ package llm
 
 import (
 	"context"
-
-	"github.com/premchand/story-builder/internal/canon"
-	"github.com/premchand/story-builder/internal/ledger"
 )
 
 type ModelTier string
@@ -16,8 +13,8 @@ const (
 )
 
 type PromptParams struct {
-	CharacterCards []canon.Card
-	LocationCard   *canon.Card
+	CharacterCards []CharacterCard
+	LocationCard   *CharacterCard
 	Lore           []string
 	CharState      map[string]interface{}
 	BranchSummary  string
@@ -55,7 +52,7 @@ type ProseService interface {
 }
 
 type ExtractionService interface {
-	ExtractState(ctx context.Context, sceneText string, roster map[string]string) (*ledger.StateDeltas, error)
+	ExtractState(ctx context.Context, sceneText string, roster map[string]string) (*StateDeltas, error)
 }
 
 type SummaryService interface {

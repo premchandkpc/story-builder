@@ -16,383 +16,6 @@ Response 200: {"status": "ok"}
 
 ---
 
-## Story Generator
-
-### `POST /api/v1/stories/generate`
-
-Enqueues an LLM story generation job from a synopsis.
-
-**Request:**
-```json
-{"synopsis": "A young hero discovers their destiny..."}
-```
-
-**Response 202:**
-```json
-{"story_id": "", "status": "pending"}
-```
-
----
-
-## Title Generation
-
-### `POST /api/v1/stories/generate-title`
-
-Generate a story title from a synopsis using LLM.
-
-**Request:**
-```json
-{"synopsis": "A young hero discovers their destiny..."}
-```
-
-**Response 200:**
-```json
-{"title": "The Hero's Awakening"}
-```
-
----
-
-## Blueprint
-
-### `POST /api/v1/stories/{storyID}/blueprint`
-
-Upsert a story blueprint (narrative plan).
-
-**Request:**
-```json
-{
-  "premise": "A young hero discovers their destiny...",
-  "theme": "redemption",
-  "main_conflict": "good vs evil",
-  "stakes": "the fate of the galaxy",
-  "end_state": "peace restored",
-  "acts": [
-    {"number": 1, "title": "The Call", "goal": "Introduce the hero", "tone": "hopeful"},
-    {"number": 2, "title": "The Ordeal", "goal": "Hero faces trials", "tone": "dark"},
-    {"number": 3, "title": "The Resolution", "goal": "Final confrontation", "tone": "epic"}
-  ],
-  "plot_threads": [
-    {"name": "Rebellion", "description": "The fight against tyranny", "status": "active"}
-  ],
-  "character_arcs": [
-    {
-      "character_id": "...",
-      "arc_type": "hero_journey",
-      "starting_state": "naive farm boy",
-      "want": "adventure",
-      "need": "discipline",
-      "growth_stage": "stasis"
-    }
-  ]
-}
-```
-
-**Response 201:** Full blueprint object with `id`, `created_at`, `updated_at`.
-
-### `GET /api/v1/stories/{storyID}/blueprint`
-
-Get the story blueprint.
-
-**Response 200:** Full blueprint object or 404 if not set.
-
----
-
-## Timeline
-
-### `POST /api/v1/stories/{storyID}/timeline`
-
-Create a timeline event for a story.
-
-**Request:**
-```json
-{
-  "title": "Luke meets Obi-Wan",
-  "description": "Luke Skywalker encounters Obi-Wan Kenobi for the first time",
-  "order": 1,
-  "timestamp": "0 BBY",
-  "location": "Tatooine"
-}
-```
-
-**Response 201:** Full event object with `id`.
-
-### `GET /api/v1/stories/{storyID}/timeline`
-
-List all timeline events for a story, sorted by order then creation date.
-
-**Response 200:** Array of event objects.
-
----
-
-## Actors
-
-### `POST /api/v1/actors`
-
-Create an actor (physical entity who plays a character role).
-
-**Request:**
-```json
-{
-  "name": "Mark Hamill",
-  "gender": "male",
-  "ethnicity": "American",
-  "race": "white",
-  "skin_tone": "fair",
-  "eye_color": "blue",
-  "hair_color": "brown",
-  "hair_style": "short",
-  "build": "slim",
-  "height_cm": 175,
-  "weight_kg": 77,
-  "age": 25,
-  "nationality": "American",
-  "traits": {"voice_range": "tenor", "specialty": "voice_acting"}
-}
-```
-
-**Response 201:** Full actor object.
-
-### `GET /api/v1/actors`
-
-List all actors.
-
-### `GET /api/v1/actors/{id}`
-
-Get actor by UUID.
-
-### `PUT /api/v1/actors/{id}`
-
-Update actor. Same body as create. Returns updated actor.
-
----
-
-## Characters
-
-### `POST /api/v1/characters`
-
-Create a versioned character.
-
-**Request:**
-```json
-{
-  "name": "Darth Vader",
-  "persona": "antagonist",
-  "backstory": "Once a Jedi Knight, Anakin Skywalker fell to the dark side...",
-  "moral_alignment": "chaotic evil",
-  "personality": ["brooding", "ruthless"],
-  "flaws": ["arrogance", "attachment"],
-  "goals": ["crush the rebellion"],
-  "traits": ["dark side", "Sith Lord"],
-  "voice_samples": ["I am your father.", "The Force is strong with this one."],
-  "relationships": {"son": "...", "master": "Palpatine"},
-  "parent_id": null
-}
-```
-
-**Response 201:** Full character object with `id`, `version=1`.
-
-### `GET /api/v1/characters`
-
-List all characters (latest version each).
-
-### `GET /api/v1/characters/search`
-
-Search characters by name, persona, or moral alignment.
-
-**Query params:**
-| Param | Type | Default | Description |
-|---|---|---|---|
-| `q` | string | `""` | Full-text search query (Postgres `to_tsvector` on name + persona + moral_alignment) |
-| `limit` | int | `20` | Max results (capped at 100) |
-
-**Response 200:** Array of character objects (latest version each).
-
-### `GET /api/v1/characters/{id}`
-
-Get latest version of character. Query param `?version=N` for specific version.
-
-### `PUT /api/v1/characters/{id}`
-
-Create new version of character. Same body as create. Response returns incremented `version`.
-
----
-
-## Character Traits
-
-### `POST /api/v1/character-traits`
-
-**Request:**
-```json
-{
-  "name": "brave",
-  "category": "personality",
-  "description": "Willing to face danger without hesitation"
-}
-```
-
-### `GET /api/v1/character-traits`
-
-List all traits.
-
-### `GET /api/v1/character-traits/{id}`
-
-Get trait by ID.
-
-### `POST /api/v1/characters/{characterID}/traits/assign`
-
-Assign a trait to a character with intensity (1-10).
-
-**Request:**
-```json
-{"trait_id": "...", "intensity": 8, "note": "Shown during battle scenes"}
-```
-
-### `DELETE /api/v1/characters/{characterID}/traits/{traitID}`
-
-Unassign a trait from a character.
-
-### `GET /api/v1/characters/{characterID}/traits`
-
-Get all trait assignments for a character with trait details.
-
----
-
-## Locations
-
-### `POST /api/v1/locations`
-
-**Request:**
-```json
-{
-  "name": "Death Star",
-  "description": "An armored space station...",
-  "props": ["throne room", "detention block", "trash compactor"]
-}
-```
-
-**Response 201:** Full location with `id`, `version=1`.
-
-### `GET /api/v1/locations`
-
-List all locations (latest version).
-
-### `GET /api/v1/locations/{id}`
-
-Get latest version. Query param `?version=N` for specific version.
-
-### `PUT /api/v1/locations/{id}`
-
-Create new version. Returns incremented `version`.
-
----
-
-## Lore
-
-### `POST /api/v1/lore`
-
-**Request:**
-```json
-{
-  "tags": ["force", "jedi"],
-  "content": "The Force is a mystical energy field..."
-}
-```
-
-**Response 201:** Full lore object.
-
-### `GET /api/v1/lore`
-
-List all lore entries.
-
-### `POST /api/v1/lore/search`
-
-Search lore by tags or vector similarity.
-
-**Request (tag search):**
-```json
-{"tags": ["jedi", "force"], "limit": 10}
-```
-
-**Request (vector similarity search):**
-```json
-{
-  "embedding": [0.1, -0.05, ...],
-  "limit": 5
-}
-```
-
----
-
-## Casting
-
-### `POST /api/v1/stories/{storyID}/casting`
-
-Cast an actor to play a character in a story.
-
-**Request:**
-```json
-{
-  "actor_id": "...",
-  "character_id": "...",
-  "role_type": "lead"
-}
-```
-
-**Response 201:** Casting object.
-
-### `GET /api/v1/stories/{storyID}/casting`
-
-List casting for a story (with actor + character names).
-
-### `GET /api/v1/casting/actor/{actorID}`
-
-List all roles for an actor across stories (with character name + story title).
-
-### `GET /api/v1/casting/character/{characterID}`
-
-List all actors who played a character across stories (with actor name + story title).
-
-### `GET /api/v1/casting/actor/{actorID}`
-
-List all roles for an actor across stories (with character name + story title).
-
----
-
-## Chapters
-
-### `POST /api/v1/stories/{storyID}/chapters`
-
-Create a chapter within a story.
-
-**Request:**
-```json
-{
-  "title": "Chapter 1",
-  "goal": "Introduce the hero",
-  "order_index": 0
-}
-```
-
-**Response 201:** Full chapter object with `id`, `created_at`, `updated_at`.
-
-### `GET /api/v1/stories/{storyID}/chapters`
-
-List all chapters for a story, sorted by `order_index`.
-
-### `GET /api/v1/stories/{storyID}/chapters/{id}`
-
-Get chapter by ID.
-
-### `PUT /api/v1/stories/{storyID}/chapters/{id}`
-
-Update chapter. Same body as create plus `summary` and `status` fields.
-
-### `DELETE /api/v1/stories/{storyID}/chapters/{id}`
-
-Delete a chapter.
-
----
-
 ## Stories
 
 ### `POST /api/v1/stories`
@@ -402,7 +25,7 @@ Delete a chapter.
 {"title": "A New Hope"}
 ```
 
-**Response 201:** Full story object with empty `canon_pins`.
+**Response 201:** Full story object.
 
 ### `GET /api/v1/stories`
 
@@ -421,11 +44,13 @@ Update story title.
 {"title": "A New Hope"}
 ```
 
-**Response 200:** Full story object.
+### `DELETE /api/v1/stories/{id}`
+
+Delete story and all associated data (scenes, edges, characters, memories, etc.).
 
 ### `GET /api/v1/stories/{storyID}/topology`
 
-Get full graph topology (nodes + edges) for a story.
+Get full graph topology (scenes + edges) for a story.
 
 **Response 200:**
 ```json
@@ -437,137 +62,249 @@ Get full graph topology (nodes + edges) for a story.
 
 ---
 
-## Edges
+## Scenes
 
-### `POST /api/v1/stories/{storyID}/edges`
-
-Create a directed edge between two nodes.
+### `POST /api/v1/stories/{storyID}/scenes`
 
 **Request:**
 ```json
 {
-  "from_node": "...",
-  "to_node": "...",
-  "edge_type": "seq"
+  "title": "Arrival",
+  "beat_intent": "Hero arrives at the castle",
+  "participants": ["char_1", "char_2"],
+  "location_ref": "loc_1",
+  "pov": "hero",
+  "tone": "mysterious",
+  "target_words": 500,
+  "flow_type": "dialogue"
 }
 ```
 
-Valid `edge_type` values: `seq`, `fork`, `join`, `choice`.
+**Response 201:** Full scene object.
+
+### `GET /api/v1/stories/{storyID}/scenes`
+
+List all scenes for a story.
+
+### `GET /api/v1/stories/{storyID}/scenes/{id}`
+
+Get scene by ID.
+
+### `PUT /api/v1/stories/{storyID}/scenes/{id}`
+
+Update scene. Same body as create.
+
+### `DELETE /api/v1/stories/{storyID}/scenes/{id}`
+
+Delete scene and its edges.
+
+---
+
+## Edges
+
+### `POST /api/v1/stories/{storyID}/edges`
+
+Create a directed edge between two scenes.
+
+**Request:**
+```json
+{
+  "from_scene": "scene_a",
+  "to_scene": "scene_b",
+  "type": "seq",
+  "condition": ""
+}
+```
+
+Valid `type` values: `seq`, `fork`, `join`, `choice`, `parallel`
 
 ### `GET /api/v1/stories/{storyID}/edges`
 
 List all edges for a story.
 
----
+### `DELETE /api/v1/stories/{storyID}/edges`
 
-## Nodes (Scenes)
-
-### `POST /api/v1/stories/{storyID}/nodes`
+Delete an edge.
 
 **Request:**
 ```json
 {
-  "beat_intent": "Luke meets Obi-Wan for the first time",
-  "character_refs": ["char-uuid-1", "char-uuid-2"],
-  "location_ref": "loc-uuid-1",
-  "pov": "Luke",
-  "tone": "mysterious",
-  "target_words": 500,
-  "scene_structure": {
-    "flow_type": "dialogue",
-    "character_order": ["uuid1", "uuid2"],
-    "situation_flow": "A young farm boy meets an old wizard...",
-    "max_turns": 10
-  }
+  "from_scene": "scene_a",
+  "to_scene": "scene_b"
 }
 ```
 
-**Response 201:** Full node with `status: "draft"`.
+---
 
-### `GET /api/v1/stories/{storyID}/nodes`
+## Characters
 
-List all nodes for a story.
+### `POST /api/v1/stories/{storyID}/characters`
 
-### `GET /api/v1/stories/{storyID}/nodes/{id}`
+**Request:**
+```json
+{
+  "name": "Arya",
+  "persona": "rogue",
+  "backstory": "Orphaned young, raised by the guild",
+  "personality": {"courage": 8, "kindness": 4},
+  "moral_alignment": "chaotic neutral",
+  "goals": ["find family"],
+  "flaws": ["reckless"],
+  "traits": ["sneaky"],
+  "voice_samples": ["I don't need your help."],
+  "relationships": {}
+}
+```
 
-Get node by ID.
+**Response 201:** Full character object.
 
-### `PUT /api/v1/stories/{storyID}/nodes/{id}`
+### `GET /api/v1/stories/{storyID}/characters`
 
-Update node. Same body as create.
+List all characters in a story.
+
+### `GET /api/v1/characters/{id}`
+
+Get character by ID (across stories).
+
+### `PUT /api/v1/characters/{id}`
+
+**Note:** Character definitions are immutable. Update creates a new document. The old ID is preserved — previous scenes reference the original version.
 
 ---
 
-## Scene Generation
+## Generation
 
-### `POST /api/v1/stories/{storyID}/nodes/{id}/generate`
+### `POST /api/v1/stories/{storyID}/scenes/{id}/generate`
 
-Enqueue an LLM generation for this node.
+Enqueue generation for a scene.
 
 **Response 202:**
 ```json
 {
-  "id": "gen-uuid",
-  "node_id": "node-uuid",
+  "id": "gen_uuid",
+  "scene_id": "scene_uuid",
   "context_hash": "sha256hex...",
-  "prompt_snapshot": "POV: Luke | Tone: mysterious | Beat: ...",
+  "prompt_snapshot": "POV: Arya | Tone: mysterious",
   "output": "",
-  "model": "claude-sonnet"
+  "model": "claude-sonnet",
+  "status": "pending"
 }
 ```
 
-### `GET /api/v1/stories/{storyID}/nodes/{id}/generations`
+### `GET /api/v1/stories/{storyID}/scenes/{id}/generations`
 
-List all generations for a node (newest first).
+List all generations for a scene (newest first).
 
-### `POST /api/v1/stories/{storyID}/nodes/{id}/accept`
+### `POST /api/v1/stories/{storyID}/scenes/{id}/accept`
 
-Accept a generation and reject others.
+Accept a generation and trigger pipeline (state extraction, memories, timeline, summary, validation).
 
 **Request:**
 ```json
-{"generation_id": "gen-uuid"}
+{"generation_id": "gen_uuid"}
+```
+
+**Response 200:**
+```json
+{
+  "generation_id": "gen_uuid",
+  "status": "processing",
+  "pipeline": ["extract", "memory", "timeline", "summary", "validate"]
+}
+```
+
+### `GET /api/v1/stories/{storyID}/scenes/{id}/generations/{genID}/status`
+
+Get pipeline status for a generation.
+
+**Response 200:**
+```json
+{
+  "generation_id": "gen_uuid",
+  "extract": "done",
+  "memory": "done",
+  "timeline": "done",
+  "summary": "done",
+  "validate": "done",
+  "validation": {"violations": []}
+}
 ```
 
 ---
 
-## Scene Structure (Multi-Agent)
+## Story Generator
 
-### `PUT /api/v1/stories/{storyID}/nodes/{id}/scene/structure`
+### `POST /api/v1/stories/generate`
 
-Set the scene structure for a node.
+Enqueue an LLM story generation from a synopsis.
+
+**Request:**
+```json
+{"synopsis": "A young hero discovers their destiny..."}
+```
+
+**Response 202:**
+```json
+{"story_id": "", "status": "pending"}
+```
+
+### `POST /api/v1/stories/generate-title`
+
+**Request:**
+```json
+{"synopsis": "A young hero discovers their destiny..."}
+```
+
+**Response 200:**
+```json
+{"title": "The Hero's Awakening"}
+```
+
+---
+
+## Memories
+
+### `GET /api/v1/characters/{charID}/memories`
+
+List memories for a character.
+
+### `POST /api/v1/characters/{charID}/memories/search`
+
+Search memories by semantic similarity.
 
 **Request:**
 ```json
 {
-  "scene_structure": {
-    "flow_type": "dialogue",
-    "character_order": ["uuid1", "uuid2"],
-    "situation_flow": "scene description",
-    "max_turns": 10
-  }
+  "query": "betrayal at the castle",
+  "limit": 10
 }
 ```
 
-### `GET /api/v1/stories/{storyID}/nodes/{id}/scene/structure`
+**Response 200:** Array of memory objects ranked by relevance.
 
-Get the scene structure.
+---
 
-### `POST /api/v1/stories/{storyID}/nodes/{id}/scene/start`
+## Timeline
 
-Start a multi-agent scene. Returns first turn.
+### `POST /api/v1/stories/{storyID}/timeline`
 
-### `POST /api/v1/stories/{storyID}/nodes/{id}/scene/next`
+Create a timeline event.
 
-Generate next turn in the scene.
+**Request:**
+```json
+{
+  "title": "Arrival at Castle",
+  "description": "Hero arrives at the castle",
+  "order": 12,
+  "scene_id": "scene_uuid"
+}
+```
 
-### `POST /api/v1/stories/{storyID}/nodes/{id}/scene/finish`
+**Response 201:** Full event object.
 
-Finish the scene. Assembles turns into a generation.
+### `GET /api/v1/stories/{storyID}/timeline`
 
-### `GET /api/v1/stories/{storyID}/nodes/{id}/scene/turns`
-
-List all turns for the scene.
+List all timeline events, sorted by order.
 
 ---
 
@@ -579,22 +316,14 @@ Get latest summary by level.
 
 Query: `?level=act` or `?level=story` (default: `act`)
 
+### `GET /api/v1/stories/{storyID}/summaries/scenes/{sceneID}`
+
+Get scene-level summary.
+
 ### `GET /api/v1/stories/{storyID}/summaries/count`
 
 Count summaries by level.
 
-Query: `?level=scene` or `?level=act` or `?level=story` (default: `scene`)
+Query: `?level=scene` (default)
 
 Response: `{"count": 42}`
-
-### `GET /api/v1/stories/{storyID}/summaries/elevate`
-
-Check if summaries should be elevated (consolidated) to the next level.
-
-Query: `?level=scene&threshold=10` (default threshold: 10)
-
-Response: `{"should_elevate": true, "level": "scene", "threshold": 10}`
-
-### `GET /api/v1/stories/{storyID}/summaries/nodes/{nodeID}`
-
-Get scene-level summary for a specific node.

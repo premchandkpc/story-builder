@@ -1,1 +1,0 @@
-DROP TABLE IF EXISTS scene_turns CASCADE;

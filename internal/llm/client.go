@@ -99,7 +99,7 @@ type OllamaClient struct {
 func (c *OllamaClient) Complete(ctx context.Context, req CompletionRequest) (*CompletionResponse, error) {
 	model := string(req.Model)
 	if model == "" || model == "local-7b" {
-		model = "llama3.2:3b"
+		model = "qwen2.5:7b"
 	}
 
 	messages := []map[string]string{}

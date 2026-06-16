@@ -1,66 +1,79 @@
-# Migration Rules
+# Code Rules
 
-Tracking table: `_migrations` (Flyway-compatible)
+## Architecture
 
-Schema (`_migrations`):
+1. **MongoDB is the single source of truth.** Redis is never a source of truth (cache, rate limits, locks only).
+2. **No PostgreSQL, Kafka, Qdrant, or additional infrastructure** unless a measured bottleneck proves necessary.
+3. **Business logic only in services.** Data access only in repositories. Handlers remain thin.
+4. **Use dependency injection.** Wire everything in `main.go`.
+5. **Use `context.Context` everywhere.** No global state.
+6. **Depend on interfaces, not implementations.** All repositories defined as interfaces; MongoDB is an implementation detail.
 
-| Column          | Type      | Notes                    |
-|-----------------|-----------|--------------------------|
-| `version`       | `int` PK  | Migration number         |
-| `filename`      | `text`    | `.sql` file name         |
-| `description`   | `text`    | Human-readable summary   |
-| `migration_type`| `text`    | `sql` (default)          |
-| `checksum`      | `text`    | MD5 hash of file content |
-| `installed_by`  | `text`    | `current_user` (default) |
-| `installed_on`  | `timestamptz` | `now()` (default)     |
-| `execution_time`| `int`     | Seconds (default 0)      |
-| `success`       | `bool`    | `true` (default)         |
+## Schema
 
-## File naming
+1. **No schema migrations.** MongoDB is schemaless. Add fields to documents freely.
+2. **Indexes are code.** Define indexes in `internal/repository/mongo/indexes.go`. Created on startup.
+3. **Append-only for state.** Never overwrite character state. Always append a new document.
+4. **Character definitions are immutable.** Create a new document if the character concept evolves (rare).
+5. **Embed when co-accessed.** Store `participants` in scenes. Don't store DAG children in scenes (use `scene_edges` collection).
+
+## Code Structure
 
 ```
-{VERSION}_{DESCRIPTION}.sql
+internal/
+  api/               HTTP handlers (thin)
+  domain/            Domain models (no infra imports)
+  service/           Business logic
+  repository/        Interfaces + mongo/ implementation
+  worker/            Async pipeline workers (goroutines)
+  graph/             DAG traversal + validation
+  llm/               LLM clients + router
+  prompt/            Prompt compiler (10 layers)
+  cache/             Redis cache + rate limiter
+  telemetry/         Prometheus metrics + structured logging
+  config/            Environment config
 ```
 
-- `VERSION` = zero-padded integer, e.g. `001`, `002`, `010`, `101`
-- `DESCRIPTION` = snake_case summary, e.g. `add_character_voice_samples`
+## Go Conventions
 
-Examples: `002_add_prop_table.sql`, `015_fix_character_state_index.sql`
+1. **One file per major type** in domain packages (e.g., `story.go`, `scene.go`, `edge.go`).
+2. **Repository interfaces** in `internal/repository/`; MongoDB implementations in `internal/repository/mongo/`.
+3. **No `common`, `utils`, `shared`, `helpers` packages.** Each concern gets its own package.
+4. **No global variables** except `main()` wiring and package-level constants.
+5. **Errors are values.** Define domain-specific error types. Wrap errors with context.
 
-## Rules
+## DAG Rules
 
-1. **Append-only.** Never modify an existing migration file. Write a new migration to:
-   - Add/alter/drop columns
-   - Add/remove indexes
-   - Seed or transform data
-   - Fix past mistakes
+1. **Validate before generation.** Every generation request must pass `ValidateDAG()` first.
+2. **Detect cycles.** `TopologicalSort()` returns error on cycle — block the operation.
+3. **No orphan scenes.** Every scene (except root) must have at least one incoming edge.
+4. **No dead ends** for main path (optional for choice branches).
 
-2. **One transaction per file.** The runner wraps each file in a transaction automatically. If your migration needs to run outside a transaction (e.g. `CREATE INDEX CONCURRENTLY`, `ALTER TYPE`), split it into its own file and note it.
+## LLM Pipeline
 
-3. **Idempotent where possible.** Use `IF NOT EXISTS` / `IF EXISTS` / `CREATE OR REPLACE` so re-runs don't error.
+1. **Canon is law.** The scene text, character cards, and world rules are immutable within a generation context.
+2. **State before generation.** Always compile character state + memories before calling the LLM.
+3. **Validate after generation.** Every generated scene passes through the 4 validators (Character, Timeline, Lore, Dialogue).
+4. **Cache aggressively.** Identical prompts hit Redis cache. Only unique context hits the LLM.
 
-4. **Checksum enforced.** The runner stores an MD5 of each applied file. If a file changes after being applied, the runner will fail on next startup. To change a past migration, write a new file that reverts + reapplies.
+## Workers
 
-5. **No editing applied files.** The `001_init.sql` file is the baseline and must never change. All schema changes go in new numbered files.
+1. **Simple goroutines.** No River, no Kafka, no message queue. Workers are structs with a `Work(ctx, arg)` method.
+2. **Context cancellation.** All worker goroutines respect context cancellation.
+3. **Error isolation.** One worker failure doesn't stop the pipeline. Errors are logged and stored in the generation document.
 
-6. **Test down?** We don't do rollback migrations. If a migration breaks things, write a new migration that reverses it. Production data recovery is a separate process.
+## Testing Priority
 
-## Workflow
+| Area | What to test |
+|---|---|
+| Graph | Topological sort, cycle detection, branch detection |
+| Memory | State changes, memory retrieval, importance ranking |
+| Generation | Pipeline execution, context compilation |
+| Validation | All 4 validators |
+| API | Minimal — business logic belongs in services |
 
-```bash
-# Create a new migration
-touch migrations/003_add_prop_table.sql
-# Edit it, then restart the server (runner auto-applies on startup)
+## Making Changes
 
-# Check pending migrations
-# Run the server — it logs each applied migration
-```
-
-## Migration runner
-
-The Go runner in `internal/migrate/runner.go`:
-- Runs on server startup (only if DB is connected)
-- Creates `_migrations` tracking table
-- Scans `migrations/*.sql` files sorted by version prefix
-- Applies any unapplied files in a transaction
-- Records version + checksum in `_migrations`
+1. **Update docs first** (or in the same PR). Every structural change updates the relevant `.md` files.
+2. **No test suite yet.** Run the server and curl endpoints to verify.
+3. **Docker Compose for local dev.** `docker compose up -d mongo redis ollama` for minimal infra.

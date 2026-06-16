@@ -1,5 +1,7 @@
 # MASTER ARCHITECTURE AUDIT & RESTRUCTURING PROMPT
 
+> **Historical — references the old Postgres + Kafka + Qdrant stack. See ADR 0003 for current architecture (MongoDB + Redis only).
+
 Act as:
 
 * Principal Software Architect
