@@ -276,6 +276,15 @@ func (f *dbStoryFactory) ListChapters(ctx context.Context, storyID uuid.UUID) ([
 	return result, nil
 }
 
+func (f *dbStoryFactory) CreateChapter(ctx context.Context, storyID uuid.UUID, title string, orderIndex int) error {
+	_, err := f.q.CreateChapter(ctx, db.CreateChapterParams{
+		StoryID:    db.ToUUID(storyID),
+		Title:      title,
+		OrderIndex: int32(orderIndex),
+	})
+	return err
+}
+
 func (f *dbStoryFactory) CreateScene(ctx context.Context, chapterID, storyID uuid.UUID, beatIntent, pov, tone string, targetWords int, charRefs []uuid.UUID) (uuid.UUID, error) {
 	refs := make([]pgtype.UUID, len(charRefs))
 	for i, ref := range charRefs {

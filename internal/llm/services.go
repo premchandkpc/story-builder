@@ -284,7 +284,56 @@ func parseJSONPayload[T any](content string, out *T) error {
 		}
 	}
 	if !json.Valid([]byte(payload)) {
+		payload = fixJSONQuotes(payload)
+	}
+	if !json.Valid([]byte(payload)) {
 		return fmt.Errorf("invalid JSON: %s", payload)
 	}
 	return json.Unmarshal([]byte(payload), out)
+}
+
+func fixJSONQuotes(s string) string {
+	var b strings.Builder
+	b.Grow(len(s) + 64)
+	i := 0
+	inStr := false
+	for i < len(s) {
+		c := s[i]
+		if c == '"' && (i == 0 || s[i-1] != '\\') {
+			inStr = !inStr
+		}
+		if !inStr && c == ':' {
+			b.WriteByte(':')
+			i++
+			ws := i
+			for i < len(s) && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r') {
+				i++
+			}
+			if i < len(s) && s[i] != '"' && s[i] != '{' && s[i] != '[' &&
+				s[i] != 't' && s[i] != 'f' && s[i] != 'n' &&
+				!('0' <= s[i] && s[i] <= '9') && s[i] != '-' {
+				startVal := i
+				for i < len(s) {
+					if s[i] == '"' && (i == 0 || s[i-1] != '\\') {
+						endQuote := i
+						b.WriteString(s[ws:startVal])
+						b.WriteByte('"')
+						b.WriteString(s[startVal:i])
+						b.WriteByte('"')
+						i = endQuote
+						goto next
+					}
+					i++
+				}
+				b.WriteString(s[ws:])
+				return b.String()
+			}
+			b.WriteString(s[ws:i])
+			continue
+		next:
+		}
+		b.WriteByte(c)
+		i++
+	}
+	return b.String()
 }

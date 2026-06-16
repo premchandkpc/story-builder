@@ -415,8 +415,17 @@ func (w *GenerateStoryWorker) Work(ctx context.Context, job *river.Job[GenerateS
 	}
 
 	chapters, err := w.Factory.ListChapters(ctx, storyID)
-	if err != nil || len(chapters) == 0 {
-		return fmt.Errorf("no chapters for story %s", storyID)
+	if err != nil {
+		return fmt.Errorf("list chapters: %w", err)
+	}
+	if len(chapters) == 0 {
+		if err := w.Factory.CreateChapter(ctx, storyID, "Chapter 1", 1); err != nil {
+			return fmt.Errorf("create default chapter: %w", err)
+		}
+		chapters, err = w.Factory.ListChapters(ctx, storyID)
+		if err != nil || len(chapters) == 0 {
+			return fmt.Errorf("no chapters after create for story %s", storyID)
+		}
 	}
 	chapterID := chapters[0].ID
 

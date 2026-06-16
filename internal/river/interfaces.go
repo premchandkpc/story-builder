@@ -53,6 +53,7 @@ type StoryFactory interface {
 	UpdateTitle(ctx context.Context, storyID uuid.UUID, title string) error
 	CreateCharacter(ctx context.Context, name, persona, backstory, alignment string, personality, flaws, goals, traits, voiceSamples []string, relationships map[string]string) (*canon.Character, error)
 	ListChapters(ctx context.Context, storyID uuid.UUID) ([]graph.Chapter, error)
+	CreateChapter(ctx context.Context, storyID uuid.UUID, title string, orderIndex int) error
 	CreateScene(ctx context.Context, chapterID, storyID uuid.UUID, beatIntent, pov, tone string, targetWords int, charRefs []uuid.UUID) (uuid.UUID, error)
 	CreateEdge(ctx context.Context, storyID, fromScene, toScene uuid.UUID, edgeType string) error
 }

@@ -115,8 +115,51 @@ func DefaultTemplates() []*PromptTemplate {
 			MaxTokens:   4096,
 			Layers: []PromptLayer{
 				{ID: LayerGlobal, Strategy: MergeOverride, System: "You are a master story architect. Given a synopsis, generate a structured story outline with characters, plot beats, and narrative flow.", Priority: 1},
-				{ID: LayerFrame, Strategy: MergeOverride, Priority: 2},
-				{ID: LayerScene, Strategy: MergeOverride, System: "Output VALID JSON only — no markdown, no code fences, no commentary. Schema:\n{\n  \"title\": \"...\",\n  \"synopsis\": \"...\",\n  \"characters\": [...],\n  \"beats\": [...],\n  \"edges\": [...]\n}\n\nRULES:\n1. 5-12 beats. First beat = inciting incident. Last beat = climax + resolution.\n2. Each character has at least one goal and one flaw.\n3. Character names must exactly match across beats, edges, and characters array.\n4. Edge types: seq (scene follows previous), fork (branch point), join (convergence).\n5. Assign acts (1-3) so each act has 2-5 beats.\n6. target_words per beat: 400-1000.\n7. Provide voice_samples (2 per character) that reveal personality.", Priority: 3},
+				{ID: LayerFrame, Strategy: MergeAppend, Priority: 2},
+				{ID: LayerScene, Strategy: MergeAppend, System: `Output ONLY valid JSON. No markdown. No code fences. No commentary. Every string value must have opening AND closing double quotes.
+
+EXAMPLE of the EXACT JSON structure required:
+{
+  "title": "The Lighthouse Keeper",
+  "synopsis": "A retired sailor tends a lighthouse on a remote island...",
+  "characters": [
+    {
+      "name": "Captain Elias Vance",
+      "persona": "The Grizzled Veteran",
+      "backstory": "Served 30 years at sea, lost his crew in a storm",
+      "moral_alignment": "neutral",
+      "personality": ["stoic", "observant", "lonely"],
+      "flaws": ["distrustful of others", "haunted by the past"],
+      "goals": ["find peace", "protect the lighthouse"],
+      "voice_samples": ["The sea never forgets.", "Some storms you weather, others weather you."]
+    }
+  ],
+  "beats": [
+    {
+      "title": "The Warning Light",
+      "beat_intent": "Introduce the isolated lighthouse and the keeper's routine",
+      "character_names": ["Captain Elias Vance"],
+      "pov": "Captain Elias Vance",
+      "tone": "melancholic",
+      "target_words": 600,
+      "act": 1
+    }
+  ],
+  "edges": [
+    {
+      "from": "The Warning Light",
+      "to": "The Distant Sail",
+      "type": "seq"
+    }
+  ]
+}
+
+RULES:
+1. 5-12 beats. First beat = inciting incident. Last beat = climax + resolution.
+2. Each character must have name, persona, backstory, moral_alignment, personality (array), flaws (array), goals (array), voice_samples (array of 2 strings).
+3. Each beat must have title, beat_intent, character_names (array of names matching characters array), pov, tone, target_words (400-1000), act (1-3).
+4. Edge types: seq (scene follows previous), fork (branch point), join (convergence).
+5. from and to in edges must exactly match beat titles.`, Priority: 3},
 			},
 		},
 		{
