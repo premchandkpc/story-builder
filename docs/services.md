@@ -313,7 +313,7 @@ All workers in `internal/river/jobs.go`. 6 job types with 5 queues.
 
 ### ExtractStateWorker (queue: `extract`)
 1. Calls `ExtractionService.ExtractState(sceneText, roster)` — roster built via `CharacterNamer` interface
-2. Persists each delta via `CharacterStateWriter.UpsertState` (character_state table)
+2. Persists each delta via `CharacterStateWriter.UpsertState` — Postgres (`character_state` table) or MongoDB (`character_scene_state` collection), selected at startup
 3. Publishes `EvStateDeltaApplied` to event bus
 
 ### UpdateSummaryWorker (queue: `default`)

@@ -145,6 +145,8 @@ Only after domains are stable. Move document-heavy entities:
 - Prompt templates, character profiles, scene templates, world definitions, culture definitions
 - Keep transactional data (stories, chapters, users) in Postgres
 
+⚠️ **Early adoption:** Character state (`character_scene_state` collection) moved to Mongo ahead of Phase 6 — it's document-shaped (no joins, no FK constraints) and reduces JSONB pressure on Postgres. Wired via `adapter/mongo/characterstate.go` as `MongoStateWriter` implementing `river.CharacterStateWriter`. Falls back to Postgres when Mongo is unavailable.
+
 ### Phase 7 — Redis Caching Layer
 Cache compiled prompts, character state, scene state, story context.
 Key pattern: `story:{id}`, `scene:{id}`, `character:{id}`.

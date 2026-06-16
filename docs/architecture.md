@@ -41,18 +41,25 @@
 │                    │  dist lock)      │                         │
 │                    └──────────────────┘                         │
 └─────────────────────────────┼───────────────────────────────────┘
-                              │ pgxpool
+                              │ pgxpool (opt.) + mongo driver (opt.)
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    PostgreSQL + pgvector (5432)                  │
 │                                                                  │
-│  ┌───────────┐ ┌──────────┐ ┌───────┐ ┌─────────────────┐      │
-│  │  canon    │ │  story   │ │ river │ │  ledgers        │      │
-│  │  tables   │ │  chapter │ │ jobs  │ │  character_state│      │
-│  │           │ │  scene   │ │       │ │                 │      │
-│  └───────────┘ └──────────┘ └───────┘ └─────────────────┘      │
+│  ┌───────────┐ ┌──────────┐ ┌───────┐                           │
+│  │  canon    │ │  story   │ │ river │                           │
+│  │  tables   │ │  chapter │ │ jobs  │                           │
+│  │           │ │  scene   │ │       │                           │
+│  └───────────┘ └──────────┘ └───────┘                           │
 │                                                                  │
 │  Extensions: pgcrypto, vector                                    │
+└─────────────────────────────────────────────────────────────────┘
+
+                        ─ OR ─
+
+┌─────────────────────────────────────────────────────────────────┐
+│                    MongoDB (27017)                                │
+│  character_scene_state — character state snapshots               │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -240,7 +247,7 @@ api.GenerationHandler.AcceptGeneration()
     │
     ▼
 river.ExtractStateWorker  →  LLM extracts state deltas (local-7b via Ollama)
-    │                        Persists to character_state table
+    │                        Persists to character_state (Postgres) or character_scene_state (Mongo)
     ▼
 river.UpdateSummaryWorker →  LLM updates scene summary (local-7b via Ollama)
                               Upserts story_summaries (level='scene')

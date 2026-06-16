@@ -1,53 +1,54 @@
 package main
 
-import (
-	"context"
-	"fmt"
-	"log/slog"
-	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
+	import (
+		"context"
+		"fmt"
+		"log/slog"
+		"net/http"
+		"os"
+		"os/signal"
+		"syscall"
+		"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/premchand/story-builder/internal/api"
-	"github.com/premchand/story-builder/internal/cache"
-	"github.com/premchand/story-builder/internal/canon"
-	"github.com/premchand/story-builder/internal/character"
-	"github.com/premchand/story-builder/internal/config"
-	"github.com/premchand/story-builder/internal/db"
-	"github.com/premchand/story-builder/internal/event"
-	"github.com/premchand/story-builder/internal/graph"
-	"github.com/premchand/story-builder/internal/memory"
-	"github.com/premchand/story-builder/internal/planner"
-	grpcserver "github.com/premchand/story-builder/internal/grpc/server"
-	"github.com/premchand/story-builder/internal/llm"
-	applog "github.com/premchand/story-builder/internal/log"
-	"github.com/premchand/story-builder/internal/migrate"
-	"github.com/premchand/story-builder/internal/prompt"
-	"github.com/premchand/story-builder/internal/river"
-	"github.com/premchand/story-builder/internal/storage"
-	"github.com/premchand/story-builder/internal/telemetry"
-	"github.com/premchand/story-builder/internal/validation"
-	cachesvc "github.com/premchand/story-builder/internal/service/cache"
-	blueprintsvc "github.com/premchand/story-builder/internal/service/blueprint"
-	canonsvc "github.com/premchand/story-builder/internal/service/canon"
-	chaptersvc "github.com/premchand/story-builder/internal/service/chapter"
-	contextsvc "github.com/premchand/story-builder/internal/service/context"
-	edgesvc "github.com/premchand/story-builder/internal/service/edge"
-	gensvc "github.com/premchand/story-builder/internal/service/generation"
-	memsvc "github.com/premchand/story-builder/internal/service/memory"
-	nodesvc "github.com/premchand/story-builder/internal/service/node"
-	plannersvc "github.com/premchand/story-builder/internal/service/planner"
-	scenesvc "github.com/premchand/story-builder/internal/service/scene"
-	storysvc "github.com/premchand/story-builder/internal/service/story"
-	summarysvc "github.com/premchand/story-builder/internal/service/summary"
-	timelinesvc "github.com/premchand/story-builder/internal/service/timeline"
-	riv "github.com/riverqueue/river"
-	"github.com/riverqueue/river/riverdriver/riverpgxv5"
-	"github.com/riverqueue/river/rivermigrate"
-)
+		"github.com/jackc/pgx/v5/pgxpool"
+		"github.com/premchand/story-builder/internal/adapter/mongo"
+		"github.com/premchand/story-builder/internal/api"
+		"github.com/premchand/story-builder/internal/cache"
+		"github.com/premchand/story-builder/internal/canon"
+		"github.com/premchand/story-builder/internal/character"
+		"github.com/premchand/story-builder/internal/config"
+		"github.com/premchand/story-builder/internal/db"
+		"github.com/premchand/story-builder/internal/event"
+		"github.com/premchand/story-builder/internal/graph"
+		"github.com/premchand/story-builder/internal/memory"
+		"github.com/premchand/story-builder/internal/planner"
+		grpcserver "github.com/premchand/story-builder/internal/grpc/server"
+		"github.com/premchand/story-builder/internal/llm"
+		applog "github.com/premchand/story-builder/internal/log"
+		"github.com/premchand/story-builder/internal/migrate"
+		"github.com/premchand/story-builder/internal/prompt"
+		"github.com/premchand/story-builder/internal/river"
+		"github.com/premchand/story-builder/internal/storage"
+		"github.com/premchand/story-builder/internal/telemetry"
+		"github.com/premchand/story-builder/internal/validation"
+		cachesvc "github.com/premchand/story-builder/internal/service/cache"
+		blueprintsvc "github.com/premchand/story-builder/internal/service/blueprint"
+		canonsvc "github.com/premchand/story-builder/internal/service/canon"
+		chaptersvc "github.com/premchand/story-builder/internal/service/chapter"
+		contextsvc "github.com/premchand/story-builder/internal/service/context"
+		edgesvc "github.com/premchand/story-builder/internal/service/edge"
+		gensvc "github.com/premchand/story-builder/internal/service/generation"
+		memsvc "github.com/premchand/story-builder/internal/service/memory"
+		nodesvc "github.com/premchand/story-builder/internal/service/node"
+		plannersvc "github.com/premchand/story-builder/internal/service/planner"
+		scenesvc "github.com/premchand/story-builder/internal/service/scene"
+		storysvc "github.com/premchand/story-builder/internal/service/story"
+		summarysvc "github.com/premchand/story-builder/internal/service/summary"
+		timelinesvc "github.com/premchand/story-builder/internal/service/timeline"
+		riv "github.com/riverqueue/river"
+		"github.com/riverqueue/river/riverdriver/riverpgxv5"
+		"github.com/riverqueue/river/rivermigrate"
+	)
 
 func main() {
 	applog.Init(applog.Config{
@@ -140,8 +141,12 @@ func main() {
 			llmClient = redisCache.WrapLLMClient(llmClient)
 		}
 
+		var stateWriter river.CharacterStateWriter
 		if adapters.Mongo != nil {
-			slog.Info("mongo available for runtime services")
+			stateWriter = mongo.NewMongoStateWriter(adapters.Mongo)
+			slog.Info("mongo available — using mongo character state writer")
+		} else {
+			stateWriter = river.NewCharacterStateWriter(q)
 		}
 
 		proseSvc := llm.NewProseService(llmClient, prompter)
@@ -165,7 +170,7 @@ func main() {
 			Provider:   river.NewSceneContextProvider(q),
 			GenStore:   river.NewGenerationWriter(q),
 			Namer:      river.NewCharacterNamer(q),
-			StateStore: river.NewCharacterStateWriter(q),
+			StateStore: stateWriter,
 			SumWriter:  river.NewSummaryWriter(q),
 			ValWriter:  river.NewValidationWriter(q),
 			StoryFac:   river.NewStoryFactory(q),

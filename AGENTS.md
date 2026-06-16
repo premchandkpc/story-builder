@@ -47,7 +47,7 @@ Go server (chi) + React Flow frontend + Postgres + pgvector + Redis + Mongo + Qd
 | Canon     | `canon`     | Character (versioned), Location (versioned), Lore (with pgvector) |
 | Character | `character` | Definition (immutable), State (per-scene), Memory (vector) — unified Service |
 | Graph     | `graph`     | Story, Node, Edge — DAG with seq/fork/join/choice |
-| Ledger    | `ledger`    | CharacterState per (story, char, node), StateDelta, EventSourcedStore |
+| Ledger    | `ledger`    | CharacterState per (story, char, scene), StateDelta, EventSourcedStore |
 | Compiler  | `compiler`  | CompiledContext + Hash() — resolved canon + state for prompting |
 | Prompt    | `prompt`    | CompilerService (10 layers, 5 merge strategies), PromptTemplate, MemoryStore |
 | LLM       | `llm`       | ModelTier enum, 7 service interfaces, PromptRegistry |
@@ -58,6 +58,7 @@ Go server (chi) + React Flow frontend + Postgres + pgvector + Redis + Mongo + Qd
 | Validation | `validation` | 4 validators (Character/Timeline/Lore/Dialogue), ValidationReport |
 | API       | `api`       | chi handlers + DB/in-memory service implementations |
 | DB        | `db`        | sqlc-generated query methods (77) |
+| Mongo    | `adapter/mongo` | CharacterStateDoc, StateRepo, MongoStateWriter (implements river.CharacterStateWriter) |
 
 ## DB layer
 
