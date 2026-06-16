@@ -156,24 +156,6 @@ cmd/server/main.go
 │   ├── actor_traits.go    ─── 3 actor trait query methods
     │   └── helpers.go         ─── UUID conversion helpers
     │
-    ├── internal/agent         ─── Agent-based processing
-    │   ├── models.go
-    │   └── service.go
-    │
-    ├── internal/authoring     ─── Authoring models
-    │   └── models.go
-    │
-    ├── internal/context       ─── Context models
-    │   └── models.go
-    │
-    ├── internal/cost          ─── Cost tracking
-    │   ├── errors.go
-    │   ├── models.go
-    │   └── store.go
-    │
-    ├── internal/entity        ─── Entity models
-    │   └── models.go
-    │
     ├── internal/event         ─── Event store + bus (wired into ledger.MemoryStore)
     │   ├── models.go           ─── 20 event types incl. EvStateDeltaApplied
     │   └── store.go            ─── MemoryStore + MemoryBus
@@ -193,34 +175,19 @@ cmd/server/main.go
     │   ├── models.go
     │   └── store.go
     │
-    ├── internal/relationship  ─── Relationship tracking
-    │   ├── errors.go
-    │   ├── models.go
-    │   └── store.go
-    │
-    ├── internal/revision      ─── Revision history
-    │   ├── errors.go
-    │   ├── models.go
-    │   └── store.go
-    │
-    ├── internal/search        ─── Search functionality
-    │   └── models.go
-    │
     ├── internal/storage       ─── Storage abstraction
     │   └── factory.go
     │
-    ├── internal/telemetry     ─── Telemetry/metrics
-    │   └── metrics.go
+    ├── internal/telemetry     ─── Tracing + metrics (slog-backed, zero deps)
+    │   ├── span.go             ─── Span: named timed span with attrs
+    │   ├── metrics.go          ─── Counter + Histogram with slog.Debug emission
+    │   ├── llm.go              ─── TracedLLMClient: wraps every LLM call with span + metrics
+    │   ├── http.go             ─── HTTPTracing middleware for chi
+    │   └── otel.go             ─── InitFromEnv, TELEMETRY_DISABLED toggle
     │
     ├── internal/validation    ─── 4 validators (Character/Timeline/Lore/Dialogue)
     │   ├── models.go           ─── ValidationCheck, ValidationReport
     │   └── store.go            ─── MemoryStore + ValidatorService (wired into ValidateSceneWorker)
-    │
-    ├── internal/workflow      ─── Workflow engine
-    │   ├── errors.go
-    │   ├── models.go
-    │   ├── store.go
-    │   └── saga.go
     │
     ├── internal/config        ─── Environment-based config
     │   └── config.go          ─── Config struct, FromEnv()
@@ -235,14 +202,10 @@ cmd/server/main.go
     │   └── server/services.go ─── Wraps service interfaces with pb
     │
     ├── internal/adapter       ─── Adapters
-    │   ├── cache/             ─── Cache adapters
-    │   ├── kafka/             ─── Kafka message adapters
-    │   ├── mongo/             ─── MongoDB adapters
-    │   ├── qdrant/            ─── Qdrant vector DB adapters
-    │   ├── redis/             ─── Redis adapters
-    │   └── repository/        ─── Repository adapters
-    │
-    └── internal/platform      ─── Platform support (in progress)
+    │   ├── kafka/              ─── Kafka message bus adapter
+    │   ├── mongo/              ─── MongoDB client adapter
+    │   ├── qdrant/             ─── Qdrant vector DB adapter
+    │   └── redis/              ─── Redis client adapter
 ```
 
 ## Data Flow: Scene Generation

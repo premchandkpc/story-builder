@@ -54,6 +54,7 @@ Go server (chi) + React Flow frontend + Postgres + pgvector + Redis + Mongo + Qd
 | Timeline  | `timeline`  | Engine (event-sourced, branches, past/present/future), Event, MemoryStore |
 | River     | `river`     | 6 job types matching prompt pipeline |
 | Event    | `event`     | Store + Bus (in-memory), 20 event types, evStateDeltaApplied |
+| Telemetry | `telemetry` | Span, Counter, Histogram, TracedLLMClient, HTTPTracing middleware |
 | Validation | `validation` | 4 validators (Character/Timeline/Lore/Dialogue), ValidationReport |
 | API       | `api`       | chi handlers + DB/in-memory service implementations |
 | DB        | `db`        | sqlc-generated query methods (76) |

@@ -28,6 +28,7 @@ import (
 	"github.com/premchand/story-builder/internal/prompt"
 	"github.com/premchand/story-builder/internal/river"
 	"github.com/premchand/story-builder/internal/storage"
+	"github.com/premchand/story-builder/internal/telemetry"
 	"github.com/premchand/story-builder/internal/validation"
 	cachesvc "github.com/premchand/story-builder/internal/service/cache"
 	blueprintsvc "github.com/premchand/story-builder/internal/service/blueprint"
@@ -58,6 +59,7 @@ func main() {
 	defer cancel()
 
 	cfg := config.FromEnv()
+	telemetry.InitFromEnv()
 
 	adapters := storage.Init(ctx, &cfg)
 	if adapters.Mongo != nil {
@@ -122,6 +124,7 @@ func main() {
 	_ = charService
 
 	llmClient := createLLMClient(cfg)
+	llmClient = telemetry.NewTracedLLMClient(llmClient)
 	promptStore := prompt.NewMemoryStore()
 	for _, t := range prompt.DefaultTemplates() {
 		if err := promptStore.Save(t); err != nil {

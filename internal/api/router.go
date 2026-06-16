@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/premchand/story-builder/internal/cache"
+	"github.com/premchand/story-builder/internal/telemetry"
 )
 
 type Server struct {
@@ -75,6 +76,7 @@ func (s *Server) routes() {
 	r := s.router
 
 	r.Use(StructuredLogger(slog.Default()))
+	r.Use(telemetry.HTTPTracing)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 	r.Use(cors.Handler(cors.Options{

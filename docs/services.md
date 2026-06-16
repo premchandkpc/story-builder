@@ -18,6 +18,12 @@ internal/service/
   planner/     Scene/chapter planning
   summary/     Summary CRUD
   blueprint/   Story blueprint (memory-only)
+  telemetry/   Tracing + metrics (slog-backed, zero deps)
+    Span       Named timed span with attributes → slog.LogAttrs
+    Counter    Atomic int64 counter with slog.Debug emission
+    Histogram  Duration histogram with slog.Debug emission
+    TracedLLMClient  Wraps LLMClient with per-call span + LLM metrics
+    HTTPTracing      chi middleware for per-request spans + HTTP metrics
   timeline/    Timeline events (memory-only)
   cache/       Redis cache wrapper + rate limiter
 ```

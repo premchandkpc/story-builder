@@ -12,6 +12,7 @@ import (
 	"github.com/premchand/story-builder/internal/event"
 	"github.com/premchand/story-builder/internal/ledger"
 	"github.com/premchand/story-builder/internal/llm"
+	"github.com/premchand/story-builder/internal/telemetry"
 	"github.com/premchand/story-builder/internal/validation"
 	"github.com/riverqueue/river"
 )
@@ -46,14 +47,23 @@ func NewGenerateSceneWorker(prose llm.ProseService, provider SceneContextProvide
 
 func (w *GenerateSceneWorker) Work(ctx context.Context, job *river.Job[GenerateSceneArgs]) error {
 	args := job.Args
+	ctx, span := telemetry.StartSpan(ctx, "river.generate_scene",
+		slog.String("story_id", args.StoryID.String()),
+		slog.String("node_id", args.NodeID.String()),
+	)
+	defer span.End()
 
 	params, err := w.compilePromptParams(ctx, args)
 	if err != nil {
+		span.RecordError(err)
+		span.End()
 		return fmt.Errorf("compile prompt params: %w", err)
 	}
 
 	resp, err := w.Prose.GenerateScene(ctx, *params)
 	if err != nil {
+		span.RecordError(err)
+		span.End()
 		return fmt.Errorf("generate scene: %w", err)
 	}
 
@@ -154,6 +164,12 @@ func NewExtractStateWorker(extract llm.ExtractionService, namer CharacterNamer, 
 
 func (w *ExtractStateWorker) Work(ctx context.Context, job *river.Job[ExtractStateArgs]) error {
 	args := job.Args
+	ctx, span := telemetry.StartSpan(ctx, "river.extract_state",
+		slog.String("story_id", args.StoryID.String()),
+		slog.String("node_id", args.NodeID.String()),
+	)
+	defer span.End()
+
 	roster := make(map[string]string, len(args.CharacterRefs))
 	for _, ref := range args.CharacterRefs {
 		name, err := w.Namer.NameByID(ctx, ref)
@@ -240,6 +256,12 @@ func NewUpdateSummaryWorker(svc llm.SummaryService, writer SummaryWriter) *Updat
 
 func (w *UpdateSummaryWorker) Work(ctx context.Context, job *river.Job[UpdateSummaryArgs]) error {
 	args := job.Args
+	ctx, span := telemetry.StartSpan(ctx, "river.update_summary",
+		slog.String("story_id", args.StoryID.String()),
+		slog.String("node_id", args.NodeID.String()),
+	)
+	defer span.End()
+
 	updated, err := w.Summary.UpdateSummary(ctx, args.PreviousSummary, args.AcceptedScene)
 	if err != nil {
 		return fmt.Errorf("update summary: %w", err)
@@ -271,6 +293,11 @@ func NewMergeBranchesWorker(svc llm.MergeService, writer SummaryWriter) *MergeBr
 
 func (w *MergeBranchesWorker) Work(ctx context.Context, job *river.Job[MergeBranchesArgs]) error {
 	args := job.Args
+	ctx, span := telemetry.StartSpan(ctx, "river.merge_branches",
+		slog.String("story_id", args.StoryID.String()),
+	)
+	defer span.End()
+
 	result, err := w.Merge.MergeBranches(ctx, args.SummaryA, args.SummaryB, args.TimelineNote)
 	if err != nil {
 		return fmt.Errorf("merge branches: %w", err)
@@ -308,6 +335,11 @@ func NewValidateSceneWorker(svc llm.ValidationService, v validation.ValidatorSer
 
 func (w *ValidateSceneWorker) Work(ctx context.Context, job *river.Job[ValidateSceneArgs]) error {
 	args := job.Args
+	ctx, span := telemetry.StartSpan(ctx, "river.validate_scene",
+		slog.String("story_id", args.StoryID.String()),
+		slog.String("generation_id", args.GenerationID.String()),
+	)
+	defer span.End()
 
 	if w.Validator != nil {
 		w.Validator.ValidateAgainstCanon(args.StoryID, args.NodeID, args.SceneText, nil)
@@ -350,6 +382,8 @@ func NewGenerateStoryWorker(outline llm.OutlineService, factory StoryFactory, pr
 
 func (w *GenerateStoryWorker) Work(ctx context.Context, job *river.Job[GenerateStoryArgs]) error {
 	args := job.Args
+	ctx, span := telemetry.StartSpan(ctx, "river.generate_story")
+	defer span.End()
 
 	outline, err := w.Outline.GenerateOutline(ctx, args.Synopsis)
 	if err != nil {
