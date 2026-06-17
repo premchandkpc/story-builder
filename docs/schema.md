@@ -263,6 +263,34 @@ The AI heart. Each memory is a document with an embedding for vector search.
 
 ---
 
+## Frontend Types
+
+The frontend mirrors backend models as TypeScript interfaces in `web/src/api/types.ts`. Key mappings:
+
+| Frontend Type | Backend Collection | Notes |
+|---|---|---|
+| `Story` | `stories` | DAG root, title + canon pins |
+| `GraphNode` | `scenes` (as graph nodes) | Primary DAG node type used by React Flow |
+| `GraphEdge` | `scene_edges` | Directed edges with type |
+| `Scene` | `scenes` | Legacy chapter-scoped scene |
+| `SceneEdge` | `scene_edges` | Legacy scene-scoped edge |
+| `Generation` | `generations` | LLM output records |
+| `Topology` | `scenes` + `scene_edges` | Full DAG snapshot |
+| `Character` | `characters` | Immutable character definition |
+| `Location` | (separate collection) | Story settings |
+| `Lore` | (separate collection) | World-building entries |
+| `SceneTurn` | (interactive gen) | Single turn in dialogue generation |
+| `StorySummary` | `summaries` | Hierarchical summaries |
+| `Casting` | (separate) | Actor→Character links |
+| `SceneStructure` | embedded in scene | Turn-based flow config |
+
+### UI-Only Types (no backend equivalent)
+
+| Type | Purpose |
+|---|---|
+| `StoryStats` | Aggregated node counts for sidebar (computed client-side) |
+| `CreateStoryPayload` / `CreateNodePayload` etc. | Request body shapes |
+
 ## Entity Relationships
 
 ```

@@ -193,6 +193,47 @@ All repositories depend on interfaces, not `*mongo.Collection` directly. MongoDB
 
 ---
 
+## Frontend Service Layer
+
+### API Client (`web/src/api/client.ts`)
+
+A single `request<T>()` generic function wraps all HTTP calls with:
+- Automatic JSON headers
+- Configurable timeout (default 30s) via `AbortController`
+- HTTP error → thrown `Error`
+- 204 No Content → `undefined`
+
+```typescript
+async function request<T>(path: string, init?: RequestInit & { timeout?: number }): Promise<T>
+```
+
+The exported `api` object groups endpoints by domain (stories, chapters, scenes, nodes, edges, generations, etc.), each returning typed promises.
+
+### React Query Hooks (`web/src/api/hooks.ts`)
+
+Custom hooks that wrap `api.*` calls with TanStack React Query caching:
+
+| Hook | Type | Description |
+|---|---|---|
+| `useStories()` | Query | Fetch all stories |
+| `useChapters(storyId)` | Query | Fetch chapters for a story |
+| `useCreateChapter(storyId)` | Mutation | Create chapter + invalidate cache |
+| `useScenes(storyId, chapterId)` | Query | Fetch scenes for a chapter |
+| `useStoryNodeStats(storyId)` | Query | Compute node status counts |
+| `useAllStoryStats(stories)` | Query | Parallel stats for all stories |
+| `useCreateStory()` | Mutation | Create story + navigate to it |
+| `useGenerateTitle()` | Mutation | LLM title generation |
+| `useGenerateStory()` | Mutation | Full LLM story generation |
+
+**Pattern:** Queries use `useQuery` with explicit `queryKey` arrays for cache scoping. Mutations use `useMutation` with `onSuccess` invalidating related query caches. Some mutations also navigate via `useNavigate`.
+
+### Component Services
+
+The frontend has no separate service layer — business logic lives in:
+- **Custom hooks** (`api/hooks.ts`) — data fetching + cache management
+- **Component state** (`useState`) — UI state (search query, form values, selected node)
+- **Derived data** (`useMemo`) — computed values (filtered story list, status colors)
+
 ## Cache Service
 
 Optional Redis (via `REDIS_ADDR` env var). Degrades gracefully.

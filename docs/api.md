@@ -4,6 +4,29 @@ Base URL: `/api/v1`
 
 All requests and responses are JSON. Standard error format: `{"error": "message"}`
 
+## Frontend API Client
+
+The frontend consumes all endpoints through `web/src/api/client.ts` — a namespaced `api` object with type-safe methods.
+
+```typescript
+import { api } from "../api/client"
+const stories = await api.stories.list()
+const story   = await api.stories.get("story_1")
+const created = await api.stories.create({ title: "My Story" })
+```
+
+Every response is typed via generics (e.g. `api.stories.list()` returns `Promise<Story[]>`). The client handles:
+- JSON serialization/deserialization
+- Request timeout (default 30s) via `AbortController`
+- HTTP error detection (non-2xx → thrown `Error`)
+- 204 No Content → `undefined`
+
+All fetch calls go through a single `request<T>(path, init)` helper — no raw `fetch()` in components.
+
+### API Groups
+
+The client organizes endpoints into namespaced groups matching the backend route structure:
+
 ---
 
 ## Health

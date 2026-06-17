@@ -121,6 +121,78 @@ cmd/server/main.go
     └── internal/log           ─── Structured logging
 ```
 
+## Frontend Architecture
+
+### Component Tree
+
+```
+main.tsx                          ← Entry: StrictMode + QueryClientProvider + RouterProvider
+  └── routes.tsx                  ← Route definitions (createBrowserRouter)
+       └── Layout.tsx             ← App shell: TopBar + Sidebar + <Outlet/>
+            ├── TopBar.tsx        ← Search bar + navigation
+            ├── StoryListItem.tsx ← Sidebar story entries (×N)
+            ├── HomeView.tsx      ← Home page ("/"): create/generate stories
+            └── StoryView.tsx     ← Story detail page ("/stories/:storyId")
+                 └── StoryGraph.tsx  ← React Flow canvas + side panel
+                      └── SceneNode.tsx  ← Custom React Flow node (×N)
+```
+
+### Data Flow (Frontend)
+
+```
+React Component
+    ↓ useQuery / useMutation
+api/hooks.ts  (TanStack React Query)
+    ↓
+api/client.ts  (fetch() wrapper with timeout/error handling)
+    ↓  HTTP /api/v1/*
+Go API Server (chi)
+```
+
+### Key Libraries
+
+| Library | Purpose |
+|---|---|
+| `react` 19 | UI framework |
+| `@xyflow/react` 12 | DAG graph canvas (React Flow) |
+| `@tanstack/react-query` 5 | Data fetching, caching, mutations |
+| `react-router-dom` 7 | Client-side routing |
+| `vite` 8 | Build tool + dev server |
+
+### Frontend File Map
+
+```
+web/src/
+  main.tsx              React entry point
+  routes.tsx            Route tree
+  index.css             Global styles
+  api/
+    types.ts            TypeScript interfaces (mirrors backend domain)
+    client.ts           HTTP API client (fetch + timeout)
+    hooks.ts            React Query hooks
+  components/
+    Layout.tsx          App shell: sidebar + content area
+    TopBar.tsx          Top navigation bar
+    HomeView.tsx        Landing page
+    StoryView.tsx       Story detail wrapper
+    StoryGraph.tsx      React Flow canvas + side panel
+    SceneNode.tsx       Custom React Flow node
+    StoryListItem.tsx   Sidebar story entry
+```
+
+### Frontend Type Hierarchy
+
+The frontend types in `web/src/api/types.ts` mirror the backend domain models. Key types:
+
+- `Story` → top-level entity, DAG root
+- `GraphNode` / `GraphEdge` → DAG elements rendered by React Flow
+- `Scene` / `SceneEdge` → legacy chapter-based model
+- `Generation` → LLM output record
+- `Topology` → full DAG snapshot (nodes + edges + topological order)
+- `NodeStatus` → `draft | generated | accepted | stale`
+- `EdgeType` → `seq | fork | join | choice`
+- `SceneStructure` / `SceneTurn` → interactive turn-based generation
+
 ## Data Flow: Scene Generation
 
 ```
