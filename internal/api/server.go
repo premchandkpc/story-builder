@@ -70,6 +70,15 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 						r.Post("/generate", h.V2GenerateNode)
 						r.Get("/generations", h.V2ListNodeGenerations)
 						r.Post("/accept", h.V2AcceptGeneration)
+						// Interactive scene (stub — not yet implemented)
+						r.Route("/scene", func(r chi.Router) {
+							r.Put("/structure", h.NotImplemented)
+							r.Get("/structure", h.NotImplemented)
+							r.Post("/start", h.NotImplemented)
+							r.Post("/next", h.NotImplemented)
+							r.Post("/finish", h.NotImplemented)
+							r.Get("/turns", h.NotImplemented)
+						})
 					})
 				})
 
@@ -92,6 +101,23 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 					r.Post("/", h.V2CreateEdge)
 					r.Get("/", h.V2ListEdges)
 					r.Delete("/", h.DeleteEdge)
+				})
+
+				// Chapters (stub — not yet implemented)
+				r.Route("/chapters", func(r chi.Router) {
+					r.Get("/", h.NotImplemented)
+					r.Post("/", h.NotImplemented)
+					r.Route("/{chapterID}", func(r chi.Router) {
+						r.Get("/", h.NotImplemented)
+						r.Put("/", h.NotImplemented)
+						r.Delete("/", h.NotImplemented)
+						r.Get("/scenes", h.NotImplemented)
+						r.Post("/scenes", h.NotImplemented)
+						r.Route("/{sceneID}", func(r chi.Router) {
+							r.Get("/", h.NotImplemented)
+							r.Put("/", h.NotImplemented)
+						})
+					})
 				})
 
 				// V2-compat scene-edges

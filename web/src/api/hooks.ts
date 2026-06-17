@@ -80,35 +80,36 @@ export function useStoryNodeStats(storyId: string) {
 
 // ---- useAllStoryStats(stories) ----
 // Fetches node stats for ALL stories in one go (used by sidebar).
-// Uses Promise.all for parallel requests.
-// enabled option: only runs when stories.length > 0 (prevents fetching with empty list).
+// Batches requests with a concurrency limit to avoid N simultaneous API calls.
 // staleTime: data is considered fresh for 10 seconds.
 export function useAllStoryStats(stories: Story[]) {
   return useQuery<Record<string, StoryStats>>({
-    // cache key includes sorted IDs so it changes only when the list changes
     queryKey: ["allStoryStats", stories.map((s) => s.id).sort()],
     queryFn: async () => {
-      // Fetch stats for every story in parallel
-      const entries = await Promise.all(
-        stories.map(async (s) => {
-          try {
-            const nodes = await api.nodes.list(s.id)
-            const total = nodes.length
-            const generated = nodes.filter((n) => n.status === "generated").length
-            const accepted = nodes.filter((n) => n.status === "accepted").length
-            const stale = nodes.filter((n) => n.status === "stale").length
-            return [s.id, { total, generated, accepted, stale }] as const
-          } catch {
-            // If fetching stats for one story fails, return zeros instead of crashing
-            return [s.id, { total: 0, generated: 0, accepted: 0, stale: 0 }] as const
-          }
-        }),
-      )
-      // Convert array of [key, value] pairs into a plain object
-      return Object.fromEntries(entries)
+      const concurrency = 6
+      const results: [string, StoryStats][] = []
+      for (let i = 0; i < stories.length; i += concurrency) {
+        const batch = stories.slice(i, i + concurrency)
+        const entries = await Promise.all(
+          batch.map(async (s) => {
+            try {
+              const nodes = await api.nodes.list(s.id)
+              const total = nodes.length
+              const generated = nodes.filter((n) => n.status === "generated").length
+              const accepted = nodes.filter((n) => n.status === "accepted").length
+              const stale = nodes.filter((n) => n.status === "stale").length
+              return [s.id, { total, generated, accepted, stale }] as const
+            } catch {
+              return [s.id, { total: 0, generated: 0, accepted: 0, stale: 0 }] as const
+            }
+          }),
+        )
+        results.push(...entries)
+      }
+      return Object.fromEntries(results)
     },
-    enabled: stories.length > 0,  // don't run query if there are no stories
-    staleTime: 10_000,             // don't refetch for 10 seconds
+    enabled: stories.length > 0,
+    staleTime: 10_000,
   })
 }
 
@@ -140,14 +141,17 @@ export function useGenerateTitle() {
 
 // ---- useGenerateStory() ----
 // Mutation: kicks off full story generation from a synopsis.
-// Generation runs asynchronously on the server, so we invalidate
-// the stories cache after a 3-second delay to pick up the new story.
+// Navigates to the new story page on success.
 export function useGenerateStory() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   return useMutation({
     mutationFn: (synopsis: string) => api.stories.generate({ synopsis }),
-    onSuccess: () => {
-      setTimeout(() => queryClient.invalidateQueries({ queryKey: ["stories"] }), 3000)
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["stories"] })
+      if (result?.story_id) {
+        navigate(`/stories/${result.story_id}`)
+      }
     },
   })
 }

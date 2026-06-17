@@ -92,11 +92,5 @@ func (rl *SlidingWindowRateLimiter) check(ctx context.Context, redisKey string, 
 }
 
 var DefaultRateLimits = []RateLimitConfig{
-	{Key: "llm:anthropic", Limit: 50, Window: time.Minute},
-	{Key: "llm:anthropic:sonnet", Limit: 10, Window: time.Minute},
-	{Key: "llm:ollama", Limit: 100, Window: time.Minute},
-	{Key: "api", Limit: 100, Window: time.Minute},
 	{Key: "http:api", Limit: 1000, Window: time.Minute},
-	{Key: "node:generate", Limit: 1, Window: time.Second},
-	{Key: "story:generate", Limit: 5, Window: time.Hour},
 }

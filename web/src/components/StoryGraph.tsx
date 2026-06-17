@@ -67,25 +67,50 @@ interface StoryGraphProps {
 
 // ---- Helper: toReactFlowNodes ----
 // Converts backend GraphNode[] into React Flow Node[].
-// Positions nodes in a grid layout (6 columns, 200px row height).
-function toReactFlowNodes(nodes: GraphNode[]): Node<SceneNodeData>[] {
-  const cols = 6                              // grid column count
-  return nodes.map((n, i) => ({
-    id: n.id,                                 // use the MongoDB _id as the node ID
-    type: "scene",                            // maps to SceneNode component via nodeTypes
-    position: {
-      x: 300 * (i % cols),                    // column: index % 6, 300px apart
-      y: 200 * Math.floor(i / cols),          // row: index / 6 (integer division), 200px apart
-    },
-    data: {
-      label: `Node ${i + 1}`,                 // auto-numbered label
-      status: n.status,
-      beatIntent: n.beat_intent || "",
-      pov: n.pov || "",
-      tone: n.tone || "",
-      targetWords: n.target_words,
-    },
-  }))
+// Preserves existing positions for known nodes; assigns grid positions for new ones.
+function toReactFlowNodes(
+  nodes: GraphNode[],
+  existingNodes: Node<SceneNodeData>[] = [],
+): Node<SceneNodeData>[] {
+  const posMap = new Map(existingNodes.map((n) => [n.id, n.position]))
+  const cols = 6
+  let newIdx = 0
+  return nodes.map((n) => {
+    const existing = posMap.get(n.id)
+    if (existing) {
+      return {
+        id: n.id,
+        type: "scene",
+        position: existing,
+        data: {
+          label: `Node ${n.id.slice(-4)}`,
+          status: n.status,
+          beatIntent: n.beat_intent || "",
+          pov: n.pov || "",
+          tone: n.tone || "",
+          targetWords: n.target_words,
+        },
+      }
+    }
+    const pos = {
+      x: 300 * (newIdx % cols),
+      y: 200 * Math.floor(newIdx / cols),
+    }
+    newIdx++
+    return {
+      id: n.id,
+      type: "scene",
+      position: pos,
+      data: {
+        label: `Node ${n.id.slice(-4)}`,
+        status: n.status,
+        beatIntent: n.beat_intent || "",
+        pov: n.pov || "",
+        tone: n.tone || "",
+        targetWords: n.target_words,
+      },
+    }
+  })
 }
 
 // ---- Helper: toReactFlowEdges ----
@@ -135,14 +160,13 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
   // ---- fetchGraph ----
   // useCallback: memoizes this function so it doesn't get recreated on every render.
   // Re-fetches the topology from the server and updates React Flow state.
+  // Preserves existing node positions so user-dragged positions aren't lost.
   const fetchGraph = useCallback(async () => {
     try {
       // Fetch topology (nodes + edges + topological order)
       const topo = await api.topology.get(storyId)
-      const rfNodes = toReactFlowNodes(topo.nodes)    // convert to React Flow format
-      const rfEdges = toReactFlowEdges(topo.edges)     // convert edges
-      setNodes(rfNodes)
-      setEdges(rfEdges)
+      setNodes((prev) => toReactFlowNodes(topo.nodes, prev)) // preserve positions
+      setEdges(toReactFlowEdges(topo.edges))
     } catch (err) {
       console.error("fetch graph:", err)
     }
