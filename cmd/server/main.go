@@ -65,6 +65,9 @@ func main() {
 
 	// ─── Prompt Compiler ───────────────────────────────────
 	promptStore := prompt.NewMemoryStore()
+	for _, tmpl := range prompt.DefaultTemplates() {
+		_ = promptStore.Save(tmpl)
+	}
 	promptCompiler := prompt.NewCompilerService(promptStore)
 
 	// ─── LLM Services ──────────────────────────────────────
@@ -88,9 +91,7 @@ func main() {
 		if err != nil {
 			slog.Warn("redis unavailable, running without cache", "error", err)
 		} else {
-			rateLimiter = cache.NewSlidingWindowRateLimiter(redisClient, []cache.RateLimitConfig{
-				{Key: "api", Limit: 10, Window: time.Minute},
-			})
+			rateLimiter = cache.NewSlidingWindowRateLimiter(redisClient, cache.DefaultRateLimits)
 			slog.Info("redis cache enabled")
 		}
 	} else {
@@ -108,7 +109,7 @@ func main() {
 	memSvc := service.NewMemoryService(memRepo)
 
 	// ─── Handlers ──────────────────────────────────────────
-	h := api.NewHandlers(storySvc, sceneSvc, edgeSvc, charSvc, genSvc, tlSvc, sumSvc, memSvc)
+	h := api.NewHandlers(storySvc, sceneSvc, edgeSvc, charSvc, genSvc, tlSvc, sumSvc, memSvc, outlineSvc)
 
 	// ─── Server ────────────────────────────────────────────
 	srv := api.NewServer(h, rateLimiter)

@@ -44,16 +44,36 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 	})
 
 	r.Route("/api/v1", func(r chi.Router) {
+		// ─── Stories ──────────────────────────────────────────
 		r.Route("/stories", func(r chi.Router) {
 			r.Post("/", h.CreateStory)
 			r.Get("/", h.ListStories)
+			r.Post("/generate", h.GenerateStory)
+			r.Post("/generate-title", h.NotImplemented)
 
 			r.Route("/{storyID}", func(r chi.Router) {
 				r.Get("/", h.GetStory)
 				r.Put("/", h.UpdateStory)
 				r.Delete("/", h.DeleteStory)
-				r.Get("/topology", h.Topology)
 
+				// V2-compat topology (includes topological_order)
+				r.Get("/topology", h.V2Topology)
+
+				// V2-compat nodes
+				r.Route("/nodes", func(r chi.Router) {
+					r.Get("/", h.ListNodes)
+					r.Post("/", h.CreateNode)
+					r.Route("/{nodeID}", func(r chi.Router) {
+						r.Get("/", h.GetNode)
+						r.Put("/", h.UpdateNode)
+						r.Delete("/", h.DeleteNode)
+						r.Post("/generate", h.V2GenerateNode)
+						r.Get("/generations", h.V2ListNodeGenerations)
+						r.Post("/accept", h.V2AcceptGeneration)
+					})
+				})
+
+				// V1 scenes (keep for backward compat)
 				r.Route("/scenes", func(r chi.Router) {
 					r.Post("/", h.CreateScene)
 					r.Get("/", h.ListScenes)
@@ -67,11 +87,16 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 					})
 				})
 
+				// V2-compat edges
 				r.Route("/edges", func(r chi.Router) {
-					r.Post("/", h.CreateEdge)
-					r.Get("/", h.ListEdges)
+					r.Post("/", h.V2CreateEdge)
+					r.Get("/", h.V2ListEdges)
 					r.Delete("/", h.DeleteEdge)
 				})
+
+				// V2-compat scene-edges
+				r.Get("/scene-edges", h.V2ListEdges)
+				r.Post("/scene-edges", h.V2CreateEdge)
 
 				r.Route("/characters", func(r chi.Router) {
 					r.Post("/", h.CreateCharacter)
@@ -85,16 +110,58 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 
 				r.Route("/summaries", func(r chi.Router) {
 					r.Get("/level", h.GetSummaryByLevel)
+					r.Get("/count", h.NotImplemented)
+					r.Get("/elevate", h.NotImplemented)
 					r.Get("/scenes/{sceneID}", h.GetSceneSummary)
+					r.Get("/nodes/{nodeID}", h.GetSceneSummary)
 				})
 			})
 		})
 
+		// ─── Characters (top-level) ──────────────────────────
+		r.Get("/characters", h.V2ListCharacters)
+		r.Post("/characters", h.V2CreateCharacter)
 		r.Route("/characters/{charID}", func(r chi.Router) {
-			r.Get("/", h.GetCharacter)
+			r.Get("/", h.V2GetCharacter)
+			r.Put("/", h.V2UpdateCharacter)
 			r.Get("/memories", h.ListMemories)
 			r.Post("/memories/search", h.SearchMemories)
+			r.Get("/traits", h.EmptyArray)
+			r.Post("/traits/assign", h.NotImplemented)
+			r.Delete("/traits/{traitID}", h.NotImplemented)
 		})
+
+		// ─── Actors (stub) ───────────────────────────────────
+		r.Get("/actors", h.EmptyArray)
+		r.Post("/actors", h.NotImplemented)
+		r.Route("/actors/{id}", func(r chi.Router) {
+			r.Get("/", h.NotImplemented)
+			r.Put("/", h.NotImplemented)
+		})
+
+		// ─── Character Traits (stub) ─────────────────────────
+		r.Get("/character-traits", h.EmptyArray)
+		r.Get("/character-traits/{id}", h.NotImplemented)
+		r.Post("/character-traits", h.NotImplemented)
+
+		// ─── Locations (stub) ────────────────────────────────
+		r.Get("/locations", h.EmptyArray)
+		r.Post("/locations", h.NotImplemented)
+		r.Route("/locations/{id}", func(r chi.Router) {
+			r.Get("/", h.NotImplemented)
+			r.Put("/", h.NotImplemented)
+		})
+
+		// ─── Lore (stub) ─────────────────────────────────────
+		r.Get("/lore", h.EmptyArray)
+		r.Post("/lore", h.NotImplemented)
+		r.Post("/lore/search", h.NotImplemented)
+
+		// ─── Casting (stub) ──────────────────────────────────
+		r.Post("/stories/{storyID}/casting", h.NotImplemented)
+		r.Get("/stories/{storyID}/casting", h.EmptyArray)
+		r.Get("/casting/actor/{actorID}", h.NotImplemented)
+		r.Get("/casting/character/{characterID}", h.NotImplemented)
 	})
 
 	s.Router = r
@@ -114,7 +181,7 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 func middlewareRateLimit(limiter *cache.SlidingWindowRateLimiter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ok, err := limiter.Allow(r.Context(), "api")
+			ok, err := limiter.Allow(r.Context(), "http:api")
 			if err != nil || !ok {
 				writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
 				return

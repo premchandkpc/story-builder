@@ -1,19 +1,27 @@
+/* ---- Global Reset ---- */
+/* The * selector targets ALL elements on the page. */
 * {
-  box-sizing: border-box;
+  box-sizing: border-box; /* makes padding/border included in element's total width/height */
 }
 
+/* ---- Body styles ---- */
 body {
-  margin: 0;
-  background: #0f172a;
-  color: #e2e8f0;
-  font-family: system-ui, -apple-system, sans-serif;
+  margin: 0;               /* remove default browser margin */
+  background: #0f172a;     /* very dark blue-gray background (Tailwind slate-900) */
+  color: #e2e8f0;          /* light gray text (Tailwind slate-200) */
+  font-family: system-ui, -apple-system, sans-serif; /* modern system fonts */
 }
 
+/* ---- Root mount point ---- */
+/* This is the <div id="root"> where React renders the app (see main.tsx) */
 #root {
-  width: 100%;
-  height: 100vh;
+  width: 100%;    /* fill the full viewport width */
+  height: 100vh;  /* fill the full viewport height (100% of viewport height) */
 }
 
+/* ---- Form elements inherit font ---- */
+/* By default, input/select/button use the browser's default font.
+   This makes them use the same font as the rest of the app. */
 input, select, button {
   font-family: inherit;
 }

@@ -1,48 +1,84 @@
+// ---- StoryGraph ----
+// The main story graph editor. Uses React Flow (@xyflow/react) to render a
+// DAG of story scenes as nodes connected by edges.
+//
+// Features:
+//   - Renders the story DAG with custom SceneNode components
+//   - Add/select/edit/delete nodes
+//   - Connect nodes by drawing edges
+//   - Generate LLM content for selected nodes
+//   - Side panel for editing selected node properties
+
+// useCallback: React hook that memoizes a function reference.
+//   - The function is only recreated when its dependencies change.
+//   - Prevents unnecessary re-renders of child components.
+//
+// useEffect: React hook that runs side effects after render.
+//   - Takes a function (the effect) and a dependency array.
+//   - The effect runs when dependencies change (and on mount if array is non-empty).
+//
+// useState: React hook for component-level state.
 import { useCallback, useEffect, useState } from "react"
+
+// React Flow components and utilities:
 import {
-  ReactFlow,
-  Background,
-  Controls,
-  MiniMap,
-  type Node,
-  type Edge,
-  type Connection,
-  useNodesState,
-  useEdgesState,
-  addEdge,
-  type NodeTypes,
+  ReactFlow,          // The main React Flow canvas component
+  Background,         // Grid/dot background
+  Controls,           // Zoom controls (+/-/fit)
+  MiniMap,            // Small overview map in the corner
+  type Node,          // TypeScript type for a React Flow node
+  type Edge,          // TypeScript type for a React Flow edge
+  type Connection,    // TypeScript type for a new connection being created
+  useNodesState,      // React Flow hook: manages array of nodes + provides onChange handler
+  useEdgesState,      // React Flow hook: manages array of edges + provides onChange handler
+  addEdge,            // Utility: creates a new edge from a Connection object
+  type NodeTypes,     // TypeScript type for the node type registry
 } from "@xyflow/react"
+
+// React Flow's default styles (grid, controls, minimap appearance)
 import "@xyflow/react/dist/style.css"
-import SceneNode from "./SceneNode"
-import { api } from "../api/client"
+
+import SceneNode from "./SceneNode"     // Our custom node component
+import { api } from "../api/client"     // API client for backend calls
 import type { GraphNode, GraphEdge } from "../api/types"
 
+// ---- Local type: SceneNodeData ----
+// Defines the shape of data attached to each React Flow node.
+// Extends Record<string, unknown> so it satisfies React Flow's type constraints.
 interface SceneNodeData extends Record<string, unknown> {
-  label: string
-  status: string
-  beatIntent: string
-  pov: string
-  tone: string
-  targetWords: number
+  label: string         // display label
+  status: string        // generation status
+  beatIntent: string    // narrative purpose
+  pov: string           // point of view
+  tone: string          // emotional tone
+  targetWords: number   // word count target
 }
 
+// ---- Node type registry ----
+// Maps node type names to React components.
+// "scene" -> SceneNode component. This tells React Flow:
+//   "When rendering a node with type='scene', use SceneNode."
 const nodeTypes: NodeTypes = { scene: SceneNode }
 
+// ---- Props interface ----
 interface StoryGraphProps {
-  storyId: string
+  storyId: string       // which story to load/edit
 }
 
+// ---- Helper: toReactFlowNodes ----
+// Converts backend GraphNode[] into React Flow Node[].
+// Positions nodes in a grid layout (6 columns, 200px row height).
 function toReactFlowNodes(nodes: GraphNode[]): Node<SceneNodeData>[] {
-  const cols = 6
+  const cols = 6                              // grid column count
   return nodes.map((n, i) => ({
-    id: n.id,
-    type: "scene",
+    id: n.id,                                 // use the MongoDB _id as the node ID
+    type: "scene",                            // maps to SceneNode component via nodeTypes
     position: {
-      x: 300 * (i % cols),
-      y: 200 * Math.floor(i / cols),
+      x: 300 * (i % cols),                    // column: index % 6, 300px apart
+      y: 200 * Math.floor(i / cols),          // row: index / 6 (integer division), 200px apart
     },
     data: {
-      label: `Node ${i + 1}`,
+      label: `Node ${i + 1}`,                 // auto-numbered label
       status: n.status,
       beatIntent: n.beat_intent || "",
       pov: n.pov || "",
@@ -52,25 +88,43 @@ function toReactFlowNodes(nodes: GraphNode[]): Node<SceneNodeData>[] {
   }))
 }
 
+// ---- Helper: toReactFlowEdges ----
+// Converts backend GraphEdge[] into React Flow Edge[].
+// Applies different visual styles based on edge type.
 function toReactFlowEdges(edges: GraphEdge[]): Edge[] {
   return edges.map((e, i) => ({
-    id: `e-${i}`,
-    source: e.from_node,
-    target: e.to_node,
-    label: e.edge_type === "seq" ? "" : e.edge_type,
+    id: `e-${i}`,                        // unique edge ID (e-0, e-1, ...)
+    source: e.from_node,                 // source node ID
+    target: e.to_node,                   // target node ID
+    label: e.edge_type === "seq" ? "" : e.edge_type, // show label only for non-seq edges
     style: {
-      stroke: e.edge_type === "fork" ? "#f59e0b" : e.edge_type === "join" ? "#8b5cf6" : "#64748b",
-      strokeWidth: e.edge_type === "seq" ? 1.5 : 2.5,
-      strokeDasharray: e.edge_type === "choice" ? "5 5" : undefined,
+      stroke: e.edge_type === "fork"  ? "#f59e0b" :   // amber for forks
+              e.edge_type === "join"  ? "#8b5cf6" :    // purple for joins
+                                        "#64748b",     // gray for seq/choice
+      strokeWidth: e.edge_type === "seq" ? 1.5 : 2.5, // thicker for non-seq
+      strokeDasharray: e.edge_type === "choice" ? "5 5" : undefined, // dashed for choice
     },
     labelStyle: { fill: "#94a3b8", fontSize: 10 },
   }))
 }
 
+// ---- Component ----
 export default function StoryGraph({ storyId }: StoryGraphProps) {
+  // ---- React Flow state ----
+  // useNodesState returns: [nodes, setNodes, onNodesChange]
+  //   - nodes: current array of Node objects
+  //   - setNodes: function to replace nodes
+  //   - onNodesChange: handler for React Flow's built-in node operations (drag, select, etc.)
   const [nodes, setNodes, onNodesChange] = useNodesState([] as Node<SceneNodeData>[])
+
+  // Same pattern for edges
   const [edges, setEdges, onEdgesChange] = useEdgesState([] as Edge[])
+
+  // ---- Local state ----
+  // selectedNode: the currently selected node (for editing in side panel)
   const [selectedNode, setSelectedNode] = useState<Node<SceneNodeData> | null>(null)
+
+  // form: the edit form fields, synced with the selected node
   const [form, setForm] = useState({
     beat_intent: "",
     pov: "",
@@ -78,45 +132,63 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
     target_words: 300,
   })
 
+  // ---- fetchGraph ----
+  // useCallback: memoizes this function so it doesn't get recreated on every render.
+  // Re-fetches the topology from the server and updates React Flow state.
   const fetchGraph = useCallback(async () => {
     try {
+      // Fetch topology (nodes + edges + topological order)
       const topo = await api.topology.get(storyId)
-      const rfNodes = toReactFlowNodes(topo.nodes)
-      const rfEdges = toReactFlowEdges(topo.edges)
+      const rfNodes = toReactFlowNodes(topo.nodes)    // convert to React Flow format
+      const rfEdges = toReactFlowEdges(topo.edges)     // convert edges
       setNodes(rfNodes)
       setEdges(rfEdges)
     } catch (err) {
       console.error("fetch graph:", err)
     }
-  }, [storyId, setNodes, setEdges])
+  }, [storyId, setNodes, setEdges])  // dependencies: re-create when storyId changes
 
+  // ---- useEffect: fetch graph on mount ----
+  // The empty dependency array `[fetchGraph]` means this runs when component mounts
+  // and whenever fetchGraph changes identity (which only happens when storyId changes).
   useEffect(() => {
     fetchGraph()
   }, [fetchGraph])
 
+  // ---- onConnect ----
+  // Called when user drags a connection between two handles.
+  // Updates local state immediately, then persists to the server.
   const onConnect = useCallback(
     async (connection: Connection) => {
+      // Connection has source, target, sourceHandle, targetHandle
       if (!connection.source || !connection.target) return
+
+      // Optimistically add the edge to local state
       setEdges((eds: Edge[]) => addEdge({
         ...connection,
-        id: `e-${Date.now()}`,
-        style: { stroke: "#64748b" },
+        id: `e-${Date.now()}`,          // unique ID using timestamp
+        style: { stroke: "#64748b" },   // default style
       }, eds))
+
+      // Persist to server
       try {
         await api.edges.create(storyId, {
           from_node: connection.source,
           to_node: connection.target,
-          edge_type: "seq",
+          edge_type: "seq",             // default to sequential
         })
       } catch (err) {
         console.error("create edge:", err)
       }
     },
-    [storyId, setEdges],
+    [storyId, setEdges],  // dependencies
   )
 
+  // ---- onNodeClick ----
+  // Called when user clicks a node in the graph.
+  // Sets the selected node and populates the edit form.
   const onNodeClick = useCallback((_: unknown, node: Node) => {
-    const d = node.data as unknown as SceneNodeData
+    const d = node.data as unknown as SceneNodeData      // extract custom data
     setSelectedNode(node as unknown as Node<SceneNodeData>)
     setForm({
       beat_intent: d.beatIntent || "",
@@ -124,8 +196,10 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
       tone: d.tone || "",
       target_words: d.targetWords || 300,
     })
-  }, [])
+  }, [])  // no dependencies — stable function
 
+  // ---- addNode ----
+  // Creates a new scene node via API, then refreshes the graph.
   const addNode = useCallback(async () => {
     try {
       await api.nodes.create(storyId, {
@@ -136,12 +210,14 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
         tone: "neutral",
         target_words: 300,
       })
-      await fetchGraph()
+      await fetchGraph()    // re-fetch to include the new node
     } catch (err) {
       console.error("add node:", err)
     }
   }, [storyId, fetchGraph])
 
+  // ---- updateNode ----
+  // Updates the selected node's properties and refreshes the graph.
   const updateNode = useCallback(async () => {
     if (!selectedNode) return
     try {
@@ -153,12 +229,14 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
         target_words: form.target_words,
       })
       await fetchGraph()
-      setSelectedNode(null)
+      setSelectedNode(null)   // deselect after save
     } catch (err) {
       console.error("update node:", err)
     }
   }, [storyId, selectedNode, form, fetchGraph])
 
+  // ---- generate ----
+  // Triggers LLM generation for the selected node.
   const generate = useCallback(async () => {
     if (!selectedNode) return
     try {
@@ -169,9 +247,23 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
     }
   }, [storyId, selectedNode])
 
+  // ---- Render ----
   return (
     <div style={{ display: "flex", height: "100vh" }}>
+      {/* ---- React Flow Canvas ---- */}
       <div style={{ flex: 1 }}>
+        {/*
+          ReactFlow: the main graph canvas component.
+          Props:
+            nodes/edges        — data arrays
+            onNodesChange      — handles node dragging, selection, deletion
+            onEdgesChange      — handles edge interaction
+            onConnect          — called when a new connection is created
+            onNodeClick        — called when a node is clicked
+            nodeTypes          — registry of custom node components
+            fitView            — auto-zoom to fit all nodes
+            colorMode="dark"   — dark theme
+        */}
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -183,8 +275,11 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
           fitView
           colorMode="dark"
         >
+          {/* dot grid pattern */}
           <Background color="#334155" gap={20} />
+          {/* zoom in/out/fit buttons */}
           <Controls />
+          {/* overview map */}
           <MiniMap
             style={{ background: "#0f172a" }}
             nodeColor="#334155"
@@ -192,6 +287,8 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
           />
         </ReactFlow>
       </div>
+
+      {/* ---- Side Panel ---- */}
       <div
         style={{
           width: 300,
@@ -207,6 +304,8 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
         }}
       >
         <h3 style={{ margin: 0, fontSize: 16 }}>Story Graph</h3>
+
+        {/* Add Scene button */}
         <button
           onClick={addNode}
           style={{
@@ -221,9 +320,13 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
         >
           + Add Scene
         </button>
+
+        {/* Edit form — only shown when a node is selected */}
         {selectedNode && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <h4 style={{ margin: 0, fontSize: 14 }}>Edit Scene</h4>
+
+            {/* Beat intent text input */}
             <label>
               Beat Intent
               <input
@@ -232,6 +335,8 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
                 style={inputStyle}
               />
             </label>
+
+            {/* POV dropdown */}
             <label>
               POV
               <select
@@ -244,6 +349,8 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
                 <option value="omniscient">Omniscient</option>
               </select>
             </label>
+
+            {/* Tone dropdown */}
             <label>
               Tone
               <select
@@ -258,15 +365,20 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
                 <option value="dramatic">Dramatic</option>
               </select>
             </label>
+
+            {/* Target word count number input */}
             <label>
               Target Words
               <input
                 type="number"
                 value={form.target_words}
                 onChange={(e) => setForm({ ...form, target_words: +e.target.value })}
+                // + in front of e.target.value converts the string to a number
                 style={inputStyle}
               />
             </label>
+
+            {/* Action buttons */}
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={updateNode} style={btnStyle}>
                 Save
@@ -282,6 +394,10 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
   )
 }
 
+// ---- Local style objects ----
+// Defined outside the component so they don't get recreated on every render.
+
+// inputStyle: reusable style for form inputs in the side panel
 const inputStyle: React.CSSProperties = {
   display: "block",
   width: "100%",
@@ -295,6 +411,7 @@ const inputStyle: React.CSSProperties = {
   fontFamily: "system-ui, sans-serif",
 }
 
+// btnStyle: reusable style for side panel buttons
 const btnStyle: React.CSSProperties = {
   flex: 1,
   padding: "8px 12px",

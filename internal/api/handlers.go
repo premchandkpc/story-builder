@@ -7,18 +7,20 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/premchand/story-builder/internal/domain"
+	"github.com/premchand/story-builder/internal/llm"
 	"github.com/premchand/story-builder/internal/service"
 )
 
 type Handlers struct {
-	storySvc *service.StoryService
-	sceneSvc *service.SceneService
-	edgeSvc  *service.EdgeService
-	charSvc  *service.CharacterService
-	genSvc   *service.GenerationService
-	tlSvc    *service.TimelineService
-	sumSvc   *service.SummaryService
-	memSvc   *service.MemoryService
+	storySvc   *service.StoryService
+	sceneSvc   *service.SceneService
+	edgeSvc    *service.EdgeService
+	charSvc    *service.CharacterService
+	genSvc     *service.GenerationService
+	tlSvc      *service.TimelineService
+	sumSvc     *service.SummaryService
+	memSvc     *service.MemoryService
+	outlineSvc *llm.OutlineServiceImpl
 }
 
 func NewHandlers(
@@ -30,11 +32,12 @@ func NewHandlers(
 	tlSvc *service.TimelineService,
 	sumSvc *service.SummaryService,
 	memSvc *service.MemoryService,
+	outlineSvc *llm.OutlineServiceImpl,
 ) *Handlers {
 	return &Handlers{
 		storySvc: storySvc, sceneSvc: sceneSvc, edgeSvc: edgeSvc,
 		charSvc: charSvc, genSvc: genSvc, tlSvc: tlSvc,
-		sumSvc: sumSvc, memSvc: memSvc,
+		sumSvc: sumSvc, memSvc: memSvc, outlineSvc: outlineSvc,
 	}
 }
 
@@ -78,18 +81,22 @@ func (h *Handlers) GetStory(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) UpdateStory(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "storyID")
 	var body struct {
-		Title string `json:"title"`
+		Title  string `json:"title"`
+		Status string `json:"status"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	story, err := h.storySvc.Update(r.Context(), id, body.Title)
+	updated, err := h.storySvc.Update(r.Context(), id, service.UpdateStoryParams{
+		Title:  body.Title,
+		Status: body.Status,
+	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, story)
+	writeJSON(w, http.StatusOK, updated)
 }
 
 func (h *Handlers) ListStories(w http.ResponseWriter, r *http.Request) {
@@ -186,6 +193,12 @@ func (h *Handlers) Topology(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	if scenes == nil {
+		scenes = []*domain.Scene{}
+	}
+	if edges == nil {
+		edges = []*domain.SceneEdge{}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"nodes": scenes,
 		"edges": edges,
@@ -196,14 +209,25 @@ func (h *Handlers) Topology(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) CreateEdge(w http.ResponseWriter, r *http.Request) {
 	storyID := chi.URLParam(r, "storyID")
-	var edge domain.SceneEdge
-	if err := json.NewDecoder(r.Body).Decode(&edge); err != nil {
+	var body struct {
+		FromScene string `json:"fromSceneId"`
+		ToScene   string `json:"toSceneId"`
+		Type      string `json:"type"`
+		Condition string `json:"condition,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	edge.StoryID = storyID
+	edge := &domain.SceneEdge{
+		StoryID:     storyID,
+		FromSceneID: body.FromScene,
+		ToSceneID:   body.ToScene,
+		Type:        body.Type,
+		Condition:   body.Condition,
+	}
 
-	created, err := h.edgeSvc.Create(r.Context(), &edge)
+	created, err := h.edgeSvc.Create(r.Context(), edge)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

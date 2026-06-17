@@ -137,7 +137,7 @@ func TestStoryService_Update(t *testing.T) {
 	s, _ := svc.Create(context.Background(), "original")
 
 	t.Run("updates title", func(t *testing.T) {
-		updated, err := svc.Update(context.Background(), s.ID, "updated")
+		updated, err := svc.Update(context.Background(), s.ID, UpdateStoryParams{Title: "updated"})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -147,7 +147,7 @@ func TestStoryService_Update(t *testing.T) {
 	})
 
 	t.Run("errors on missing story", func(t *testing.T) {
-		_, err := svc.Update(context.Background(), "nonexistent", "x")
+		_, err := svc.Update(context.Background(), "nonexistent", UpdateStoryParams{Title: "x"})
 		if err == nil {
 			t.Fatal("expected error for missing story")
 		}
@@ -211,7 +211,7 @@ func TestStoryService_Update_NotFound(t *testing.T) {
 	mock := newMockStoryRepo()
 	svc := NewStoryService(mock)
 
-	_, err := svc.Update(context.Background(), "nonexistent", "title")
+	_, err := svc.Update(context.Background(), "nonexistent", UpdateStoryParams{Title: "title"})
 	if err == nil {
 		t.Fatal("expected error for missing story")
 	}

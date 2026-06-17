@@ -34,7 +34,12 @@ func (s *StoryService) Get(ctx context.Context, id string) (*domain.Story, error
 	return s.repo.Get(ctx, id)
 }
 
-func (s *StoryService) Update(ctx context.Context, id, title string) (*domain.Story, error) {
+type UpdateStoryParams struct {
+	Title  string
+	Status string
+}
+
+func (s *StoryService) Update(ctx context.Context, id string, params UpdateStoryParams) (*domain.Story, error) {
 	st, err := s.repo.Get(ctx, id)
 	if err != nil {
 		return nil, err
@@ -42,7 +47,12 @@ func (s *StoryService) Update(ctx context.Context, id, title string) (*domain.St
 	if st == nil {
 		return nil, fmt.Errorf("story not found")
 	}
-	st.Title = title
+	if params.Title != "" {
+		st.Title = params.Title
+	}
+	if params.Status != "" {
+		st.Status = params.Status
+	}
 	st.UpdatedAt = time.Now()
 	if err := s.repo.Update(ctx, st); err != nil {
 		return nil, err
