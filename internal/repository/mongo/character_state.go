@@ -57,3 +57,8 @@ func (r *CharacterStateRepo) ListByScene(ctx context.Context, sceneID string) ([
 	}
 	return states, nil
 }
+
+func (r *CharacterStateRepo) DeleteByStory(ctx context.Context, storyID string) error {
+	_, err := r.coll.DeleteMany(ctx, bson.M{"storyId": storyID})
+	return err
+}

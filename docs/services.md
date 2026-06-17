@@ -76,8 +76,10 @@ type StoryHandler struct {
 
 | Method | Description |
 |---|---|
-| `Create(storyID, name, ...)` | Creates an immutable character definition |
-| `Get(id)` | Gets character by ID |
+| `Create(storyID, name, ...)` | Creates a version-1 character definition (immutable log) |
+| `Get(id)` | Gets character by document ID (specific version) |
+| `GetLatest(charID)` | Gets latest version by logical character ID |
+| `Update(character)` | Creates new versioned document (immutable append) |
 | `List(storyID)` | Lists characters in a story |
 | `UpdateState(characterID, sceneID, state)` | Appends a state snapshot |
 | `GetState(characterID, sceneID)` | Gets state at a specific scene |

@@ -54,13 +54,13 @@ func main() {
 	// ─── LLM Clients ───────────────────────────────────────
 	var anthropic llm.LLMClient
 	if cfg.AnthropicKey != "" {
-		anthropic = llm.NewAnthropicClient(cfg.AnthropicKey)
+		anthropic = llm.NewCircuitBreakerClient(llm.NewAnthropicClient(cfg.AnthropicKey))
 		slog.Info("anthropic client created")
 	} else {
 		slog.Warn("no ANTHROPIC_API_KEY set, using Ollama for all tiers")
-		anthropic = llm.NewOllamaClient(cfg.OllamaURL)
+		anthropic = llm.NewCircuitBreakerClient(llm.NewOllamaClient(cfg.OllamaURL))
 	}
-	ollama := llm.NewOllamaClient(cfg.OllamaURL)
+	ollama := llm.NewCircuitBreakerClient(llm.NewOllamaClient(cfg.OllamaURL))
 	router := llm.NewRouter(anthropic, ollama)
 
 	// ─── Prompt Compiler ───────────────────────────────────
@@ -99,7 +99,16 @@ func main() {
 	}
 
 	// ─── Services ──────────────────────────────────────────
-	storySvc := service.NewStoryService(storyRepo)
+	storySvc := service.NewStoryService(storyRepo, &service.StoryCascadeDeleter{
+		SceneRepo: sceneRepo,
+		EdgeRepo:  edgeRepo,
+		CharRepo:  charRepo,
+		StateRepo: stateRepo,
+		GenRepo:   genRepo,
+		MemRepo:   memRepo,
+		TlRepo:    tlRepo,
+		SumRepo:   sumRepo,
+	})
 	sceneSvc := service.NewSceneService(sceneRepo, edgeRepo)
 	edgeSvc := service.NewEdgeService(edgeRepo)
 	charSvc := service.NewCharacterService(charRepo, stateRepo)

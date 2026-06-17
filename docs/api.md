@@ -191,7 +191,27 @@ Get character by ID (across stories).
 
 ### `PUT /api/v1/characters/{id}`
 
-**Note:** Character definitions are immutable. Update creates a new document. The old ID is preserved — previous scenes reference the original version.
+Updates a character by creating a new versioned document (immutable log).
+
+**Request:**
+```json
+{
+  "name": "Arya Stark",
+  "persona": "warrior",
+  "backstory": "Orphaned young, raised by the guild",
+  "personality": {"courage": 9, "kindness": 5},
+  "goals": ["find family", "avenge father", "protect the north"],
+  "flaws": ["reckless", "vengeful", "stubborn"],
+  "traits": ["sneaky", "fast", "strategic"]
+}
+```
+
+**Response 200:** Full character object with incremented version, new `_id`, and same `char_id`.
+
+**Response fields:**
+- `id` — new document ID for this version
+- `char_id` — logical character ID (same across versions)
+- `version` — incremented integer
 
 ---
 

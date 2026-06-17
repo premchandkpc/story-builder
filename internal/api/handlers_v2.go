@@ -263,7 +263,69 @@ func (h *Handlers) V2GetCharacter(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) V2UpdateCharacter(w http.ResponseWriter, r *http.Request) {
-	writeError(w, http.StatusNotImplemented, "not implemented")
+	charID := chi.URLParam(r, "charID")
+	existing, err := h.charSvc.GetLatest(r.Context(), charID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if existing == nil {
+		writeError(w, http.StatusNotFound, "character not found")
+		return
+	}
+	var body struct {
+		Name           string            `json:"name,omitempty"`
+		Persona        string            `json:"persona,omitempty"`
+		Backstory      string            `json:"backstory,omitempty"`
+		Personality    map[string]any    `json:"personality,omitempty"`
+		MoralAlignment string            `json:"moralAlignment,omitempty"`
+		Goals          []string          `json:"goals,omitempty"`
+		Flaws          []string          `json:"flaws,omitempty"`
+		Traits         []string          `json:"traits,omitempty"`
+		VoiceSamples   []string          `json:"voiceSamples,omitempty"`
+		Relationships  map[string]string `json:"relationships,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	updated := *existing
+	if body.Name != "" {
+		updated.Name = body.Name
+	}
+	if body.Persona != "" {
+		updated.Persona = body.Persona
+	}
+	if body.Backstory != "" {
+		updated.Backstory = body.Backstory
+	}
+	if body.Personality != nil {
+		updated.Personality = body.Personality
+	}
+	if body.MoralAlignment != "" {
+		updated.MoralAlignment = body.MoralAlignment
+	}
+	if body.Goals != nil {
+		updated.Goals = body.Goals
+	}
+	if body.Flaws != nil {
+		updated.Flaws = body.Flaws
+	}
+	if body.Traits != nil {
+		updated.Traits = body.Traits
+	}
+	if body.VoiceSamples != nil {
+		updated.VoiceSamples = body.VoiceSamples
+	}
+	if body.Relationships != nil {
+		updated.Relationships = body.Relationships
+	}
+	result, err := h.charSvc.Update(r.Context(), &updated)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (h *Handlers) GenerateStory(w http.ResponseWriter, r *http.Request) {

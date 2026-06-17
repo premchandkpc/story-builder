@@ -72,3 +72,8 @@ func (r *SceneEdgeRepo) Delete(ctx context.Context, storyID, fromSceneID, toScen
 	})
 	return err
 }
+
+func (r *SceneEdgeRepo) DeleteByStory(ctx context.Context, storyID string) error {
+	_, err := r.coll.DeleteMany(ctx, bson.M{"storyId": storyID})
+	return err
+}

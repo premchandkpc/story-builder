@@ -7,6 +7,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/premchand/story-builder/internal/domain"
 )
@@ -21,8 +22,12 @@ func NewCharacterRepo(db *mongo.Database) *CharacterRepo {
 
 func (r *CharacterRepo) Create(ctx context.Context, c *domain.Character) error {
 	c.CreatedAt = time.Now()
+	c.Version = 1
 	if c.ID == "" {
 		c.ID = primitive.NewObjectID().Hex()
+	}
+	if c.CharID == "" {
+		c.CharID = c.ID
 	}
 	_, err := r.coll.InsertOne(ctx, c)
 	return err
@@ -31,6 +36,16 @@ func (r *CharacterRepo) Create(ctx context.Context, c *domain.Character) error {
 func (r *CharacterRepo) Get(ctx context.Context, id string) (*domain.Character, error) {
 	var c domain.Character
 	err := r.coll.FindOne(ctx, bson.M{"_id": id}).Decode(&c)
+	if err == mongo.ErrNoDocuments {
+		return nil, nil
+	}
+	return &c, err
+}
+
+func (r *CharacterRepo) GetLatest(ctx context.Context, charID string) (*domain.Character, error) {
+	opts := options.FindOne().SetSort(bson.D{{Key: "version", Value: -1}})
+	var c domain.Character
+	err := r.coll.FindOne(ctx, bson.M{"charId": charID}, opts).Decode(&c)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -50,6 +65,15 @@ func (r *CharacterRepo) ListByStory(ctx context.Context, storyID string) ([]*dom
 }
 
 func (r *CharacterRepo) Update(ctx context.Context, c *domain.Character) error {
-	_, err := r.coll.ReplaceOne(ctx, bson.M{"_id": c.ID}, c)
+	// Create a new versioned document (immutable log).
+	c.ID = primitive.NewObjectID().Hex()
+	c.Version++
+	c.CreatedAt = time.Now()
+	_, err := r.coll.InsertOne(ctx, c)
+	return err
+}
+
+func (r *CharacterRepo) DeleteByStory(ctx context.Context, storyID string) error {
+	_, err := r.coll.DeleteMany(ctx, bson.M{"storyId": storyID})
 	return err
 }

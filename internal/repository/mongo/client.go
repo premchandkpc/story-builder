@@ -49,9 +49,10 @@ func EnsureIndexes(ctx context.Context, db *mongo.Database) error {
 		"characters": {
 			{Keys: bson.D{{Key: "storyId", Value: 1}}},
 			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "name", Value: 1}}},
+			{Keys: bson.D{{Key: "charId", Value: 1}, {Key: "version", Value: -1}}},
 		},
 		"character_state": {
-			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "characterId", Value: 1}, {Key: "sceneId", Value: 1}}, Options: options.Index().SetUnique(true)},
+			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "characterId", Value: 1}, {Key: "sceneId", Value: 1}, {Key: "createdAt", Value: -1}}},
 			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "characterId", Value: 1}, {Key: "createdAt", Value: -1}}},
 			{Keys: bson.D{{Key: "sceneId", Value: 1}}},
 		},
@@ -61,6 +62,7 @@ func EnsureIndexes(ctx context.Context, db *mongo.Database) error {
 		},
 		"generations": {
 			{Keys: bson.D{{Key: "sceneId", Value: 1}, {Key: "createdAt", Value: -1}}},
+			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "createdAt", Value: -1}}},
 		},
 		"summaries": {
 			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "level", Value: 1}, {Key: "createdAt", Value: -1}}},

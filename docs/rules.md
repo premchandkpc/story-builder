@@ -14,7 +14,7 @@
 1. **No schema migrations.** MongoDB is schemaless. Add fields to documents freely.
 2. **Indexes are code.** Define indexes in `internal/repository/mongo/indexes.go`. Created on startup.
 3. **Append-only for state.** Never overwrite character state. Always append a new document.
-4. **Character definitions are immutable.** Create a new document if the character concept evolves (rare).
+4. **Character definitions are versioned immutably.** Each update creates a new document with a new `_id`, same `charId`, and incremented `version`. Use `GetLatest` for the current version.
 5. **Embed when co-accessed.** Store `participants` in scenes. Don't store DAG children in scenes (use `scene_edges` collection).
 
 ## Code Structure
@@ -88,5 +88,6 @@ internal/
 ## Making Changes
 
 1. **Update docs first** (or in the same PR). Every structural change updates the relevant `.md` files.
-2. **No test suite yet.** Run the server and curl endpoints to verify.
+2. **Cascade delete story.** `StoryService.Delete` calls `StoryCascadeDeleter.cascade()` which deletes child collections (character_state, memories, generations, summaries, timeline, edges, scenes, characters) in order before deleting the story document.
+3. **No test suite yet.** Run the server and curl endpoints to verify.
 3. **Docker Compose for local dev.** `docker compose up -d mongo redis ollama` for minimal infra.

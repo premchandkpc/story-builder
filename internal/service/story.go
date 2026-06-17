@@ -3,18 +3,32 @@ package service
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/repository"
 )
 
-type StoryService struct {
-	repo repository.StoryRepository
+// StoryCascadeDeleter collects all repositories needed for cascade-deleting a story.
+type StoryCascadeDeleter struct {
+	SceneRepo  repository.SceneRepository
+	EdgeRepo   repository.SceneEdgeRepository
+	CharRepo   repository.CharacterRepository
+	StateRepo  repository.CharacterStateRepository
+	GenRepo    repository.GenerationRepository
+	MemRepo    repository.MemoryRepository
+	TlRepo     repository.TimelineRepository
+	SumRepo    repository.SummaryRepository
 }
 
-func NewStoryService(repo repository.StoryRepository) *StoryService {
-	return &StoryService{repo: repo}
+type StoryService struct {
+	repo    repository.StoryRepository
+	deleter *StoryCascadeDeleter
+}
+
+func NewStoryService(repo repository.StoryRepository, deleter *StoryCascadeDeleter) *StoryService {
+	return &StoryService{repo: repo, deleter: deleter}
 }
 
 func (s *StoryService) Create(ctx context.Context, title string) (*domain.Story, error) {
@@ -65,7 +79,42 @@ func (s *StoryService) List(ctx context.Context) ([]*domain.Story, error) {
 }
 
 func (s *StoryService) Delete(ctx context.Context, id string) error {
+	if s.deleter != nil {
+		if err := s.deleter.cascade(ctx, id); err != nil {
+			return err
+		}
+	}
 	return s.repo.Delete(ctx, id)
+}
+
+func (d *StoryCascadeDeleter) cascade(ctx context.Context, storyID string) error {
+	// Best-effort cascade delete across all related collections.
+	// Order matters: child collections first, then parents.
+	type step struct {
+		name string
+		fn   func(context.Context, string) error
+	}
+	steps := []step{
+		{"character_state",   d.StateRepo.DeleteByStory},
+		{"character_memories", d.MemRepo.DeleteByStory},
+		{"generations",        d.GenRepo.DeleteByStory},
+		{"summaries",          d.SumRepo.DeleteByStory},
+		{"timeline_events",    d.TlRepo.DeleteByStory},
+		{"scene_edges",        d.EdgeRepo.DeleteByStory},
+		{"scenes",             d.SceneRepo.DeleteByStory},
+		{"characters",         d.CharRepo.DeleteByStory},
+	}
+
+	var firstErr error
+	for _, st := range steps {
+		if err := st.fn(ctx, storyID); err != nil {
+			slog.Error("cascade delete failed", "collection", st.name, "storyId", storyID, "error", err)
+			if firstErr == nil {
+				firstErr = fmt.Errorf("cascade delete %s: %w", st.name, err)
+			}
+		}
+	}
+	return firstErr
 }
 
 type SceneService struct {
@@ -156,6 +205,17 @@ func (s *CharacterService) Create(ctx context.Context, c *domain.Character) (*do
 
 func (s *CharacterService) Get(ctx context.Context, id string) (*domain.Character, error) {
 	return s.charRepo.Get(ctx, id)
+}
+
+func (s *CharacterService) GetLatest(ctx context.Context, charID string) (*domain.Character, error) {
+	return s.charRepo.GetLatest(ctx, charID)
+}
+
+func (s *CharacterService) Update(ctx context.Context, c *domain.Character) (*domain.Character, error) {
+	if err := s.charRepo.Update(ctx, c); err != nil {
+		return nil, fmt.Errorf("update character: %w", err)
+	}
+	return c, nil
 }
 
 func (s *CharacterService) List(ctx context.Context, storyID string) ([]*domain.Character, error) {

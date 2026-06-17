@@ -77,7 +77,7 @@ func (m *mockStoryRepo) Delete(ctx context.Context, id string) error {
 
 func TestStoryService_Create(t *testing.T) {
 	mock := newMockStoryRepo()
-	svc := NewStoryService(mock)
+	svc := NewStoryService(mock, nil)
 
 	t.Run("creates story with title", func(t *testing.T) {
 		s, err := svc.Create(context.Background(), "My Story")
@@ -107,7 +107,7 @@ func TestStoryService_Create(t *testing.T) {
 
 func TestStoryService_Get(t *testing.T) {
 	mock := newMockStoryRepo()
-	svc := NewStoryService(mock)
+	svc := NewStoryService(mock, nil)
 	s, _ := svc.Create(context.Background(), "test")
 
 	t.Run("returns existing story", func(t *testing.T) {
@@ -133,7 +133,7 @@ func TestStoryService_Get(t *testing.T) {
 
 func TestStoryService_Update(t *testing.T) {
 	mock := newMockStoryRepo()
-	svc := NewStoryService(mock)
+	svc := NewStoryService(mock, nil)
 	s, _ := svc.Create(context.Background(), "original")
 
 	t.Run("updates title", func(t *testing.T) {
@@ -156,7 +156,7 @@ func TestStoryService_Update(t *testing.T) {
 
 func TestStoryService_List(t *testing.T) {
 	mock := newMockStoryRepo()
-	svc := NewStoryService(mock)
+	svc := NewStoryService(mock, nil)
 	svc.Create(context.Background(), "a")
 	svc.Create(context.Background(), "b")
 
@@ -172,7 +172,7 @@ func TestStoryService_List(t *testing.T) {
 
 	t.Run("returns empty list when no stories", func(t *testing.T) {
 		emptyMock := newMockStoryRepo()
-		emptySvc := NewStoryService(emptyMock)
+		emptySvc := NewStoryService(emptyMock, nil)
 		stories, err := emptySvc.List(context.Background())
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -185,7 +185,7 @@ func TestStoryService_List(t *testing.T) {
 
 func TestStoryService_Delete(t *testing.T) {
 	mock := newMockStoryRepo()
-	svc := NewStoryService(mock)
+	svc := NewStoryService(mock, nil)
 	s, _ := svc.Create(context.Background(), "test")
 
 	t.Run("deletes existing story", func(t *testing.T) {
@@ -209,7 +209,7 @@ func TestStoryService_Delete(t *testing.T) {
 
 func TestStoryService_Update_NotFound(t *testing.T) {
 	mock := newMockStoryRepo()
-	svc := NewStoryService(mock)
+	svc := NewStoryService(mock, nil)
 
 	_, err := svc.Update(context.Background(), "nonexistent", UpdateStoryParams{Title: "title"})
 	if err == nil {

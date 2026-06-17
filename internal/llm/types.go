@@ -31,14 +31,15 @@ type ToolDefinition struct {
 }
 
 type CompletionRequest struct {
-	Model       ModelTier
-	System      string
-	UserMessage string
-	Temperature float64
-	MaxTokens   int
-	Tools       []ToolDefinition
-	ToolChoice  string
-	MaxRetries  int
+	Model        ModelTier
+	System       string
+	UserMessage  string
+	Temperature  float64
+	MaxTokens    int
+	Tools        []ToolDefinition
+	ToolChoice   string
+	MaxRetries   int
+	ValidateJSON bool
 }
 
 type CompletionResponse struct {

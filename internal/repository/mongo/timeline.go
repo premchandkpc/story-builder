@@ -29,6 +29,11 @@ func (r *TimelineRepo) Create(ctx context.Context, e *domain.TimelineEvent) erro
 	return err
 }
 
+func (r *TimelineRepo) DeleteByStory(ctx context.Context, storyID string) error {
+	_, err := r.coll.DeleteMany(ctx, bson.M{"storyId": storyID})
+	return err
+}
+
 func (r *TimelineRepo) ListByStory(ctx context.Context, storyID string) ([]*domain.TimelineEvent, error) {
 	cursor, err := r.coll.Find(ctx, bson.M{"storyId": storyID}, options.Find().SetSort(bson.D{{Key: "order", Value: 1}, {Key: "createdAt", Value: 1}}))
 	if err != nil {

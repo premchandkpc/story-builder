@@ -99,8 +99,9 @@ cmd/server/main.go
     │
     ├── internal/llm           ─── LLM clients + router
     │   ├── types.go           ─── ModelTier, service interfaces
-    │   ├── router.go          ─── Dispatches by model tier
+    │   ├── router.go          ─── Dispatches by model tier, JSON validation, retry with backoff
     │   ├── client.go          ─── AnthropicClient + OllamaClient
+    │   ├── circuitbreaker.go  ─── CircuitBreakerClient wrapper
     │   └── services.go        ─── Prose, Extract, Summary, Merge, Validation, Outline, Title
     │
     ├── internal/graph         ─── DAG data model + traversal
@@ -239,7 +240,13 @@ Each worker runs in its own goroutine. Workers communicate through MongoDB (writ
 | `claude-haiku` | Anthropic | Fast validation |
 | `local-7b` | Ollama | Extraction, summarization, outline |
 
-Retries: 2 attempts (1 initial + 2 retries = 3 total) with exponential backoff (250ms, 500ms).
+Retries: 1 initial + 2 retries = 3 attempts total, exponential backoff + jitter.
+- Anthropic: 1s base, 15s max, 2× (±25% jitter)
+- Local: 200ms base, 5s max, 2× (±25% jitter)
+
+Circuit breaker: 5 consecutive failures → open 30s → half-open probe.
+
+JSON output validation: services that expect JSON set `ValidateJSON` on the request; router validates before returning, retries on invalid.
 
 ## Redis Cache Layer
 

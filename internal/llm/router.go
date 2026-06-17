@@ -2,7 +2,10 @@ package llm
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"math/rand"
+	"strings"
 	"time"
 )
 
@@ -36,11 +39,27 @@ func (r *Router) Complete(ctx context.Context, req CompletionRequest) (*Completi
 			if resp != nil && resp.Model == "" {
 				resp.Model = string(req.Model)
 			}
+			if req.ValidateJSON && !json.Valid([]byte(strings.TrimSpace(resp.Content))) {
+				err = fmt.Errorf("invalid JSON response")
+				lastErr = err
+				if attempt < req.MaxRetries {
+					wait := backoff(attempt, req.Model)
+					timer := time.NewTimer(wait)
+					select {
+					case <-ctx.Done():
+						timer.Stop()
+						return nil, ctx.Err()
+					case <-timer.C:
+					}
+				}
+				continue
+			}
 			return resp, nil
 		}
 		lastErr = err
 		if attempt < req.MaxRetries {
-			timer := time.NewTimer(time.Duration(250*(attempt+1)) * time.Millisecond)
+			wait := backoff(attempt, req.Model)
+			timer := time.NewTimer(wait)
 			select {
 			case <-ctx.Done():
 				timer.Stop()
@@ -50,6 +69,29 @@ func (r *Router) Complete(ctx context.Context, req CompletionRequest) (*Completi
 		}
 	}
 	return nil, lastErr
+}
+
+// backoff returns exponential backoff with jitter based on model tier.
+// Anthropic:  initial 1s, factor 2, max 15s
+// Local:      initial 200ms, factor 2, max 5s
+func backoff(attempt int, tier ModelTier) time.Duration {
+	var base time.Duration
+	var max time.Duration
+	switch tier {
+	case ModelSonnet, ModelHaiku:
+		base = 1 * time.Second
+		max = 15 * time.Second
+	default:
+		base = 200 * time.Millisecond
+		max = 5 * time.Second
+	}
+	d := base * (1 << attempt) // 2^attempt
+	if d > max {
+		d = max
+	}
+	// ±25% jitter
+	jitter := time.Duration(float64(d) * (0.5 - rand.Float64()))
+	return d + jitter
 }
 
 func (r *Router) clientForModel(model ModelTier) (LLMClient, bool) {

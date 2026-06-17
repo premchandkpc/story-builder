@@ -55,7 +55,24 @@ func (r *GenerationRepo) ListByScene(ctx context.Context, sceneID string) ([]*do
 	return gens, nil
 }
 
+func (r *GenerationRepo) ListByStory(ctx context.Context, storyID string) ([]*domain.Generation, error) {
+	cursor, err := r.coll.Find(ctx, bson.M{"storyId": storyID}, options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}}))
+	if err != nil {
+		return nil, err
+	}
+	var gens []*domain.Generation
+	if err := cursor.All(ctx, &gens); err != nil {
+		return nil, err
+	}
+	return gens, nil
+}
+
 func (r *GenerationRepo) DeleteByScene(ctx context.Context, sceneID string) error {
 	_, err := r.coll.DeleteMany(ctx, bson.M{"sceneId": sceneID})
+	return err
+}
+
+func (r *GenerationRepo) DeleteByStory(ctx context.Context, storyID string) error {
+	_, err := r.coll.DeleteMany(ctx, bson.M{"storyId": storyID})
 	return err
 }

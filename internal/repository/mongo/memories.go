@@ -70,6 +70,11 @@ func (r *MemoryRepo) Search(ctx context.Context, storyID, characterID string, qu
 	return r.searchByImportance(ctx, storyID, characterID, limit)
 }
 
+func (r *MemoryRepo) DeleteByStory(ctx context.Context, storyID string) error {
+	_, err := r.coll.DeleteMany(ctx, bson.M{"storyId": storyID})
+	return err
+}
+
 func (r *MemoryRepo) searchByImportance(ctx context.Context, storyID, characterID string, limit int) ([]*domain.CharacterMemory, error) {
 	cursor, err := r.coll.Find(ctx, bson.M{"storyId": storyID, "characterId": characterID},
 		options.Find().SetSort(bson.D{{Key: "importance", Value: -1}}).SetLimit(int64(limit)))

@@ -36,6 +36,7 @@ type SceneEdge struct {
 
 type Generation struct {
 	ID               string         `bson:"_id" json:"id"`
+	StoryID          string         `bson:"storyId" json:"storyId"`
 	SceneID          string         `bson:"sceneId" json:"sceneId"`
 	ContextHash      string         `bson:"contextHash,omitempty" json:"contextHash,omitempty"`
 	PromptSnapshot   string         `bson:"promptSnapshot,omitempty" json:"promptSnapshot,omitempty"`

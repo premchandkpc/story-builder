@@ -67,6 +67,10 @@ func (m *mockSceneRepo) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+func (m *mockSceneRepo) DeleteByStory(ctx context.Context, storyID string) error {
+	return nil
+}
+
 type mockEdgeRepo struct {
 	edges   map[string]*domain.SceneEdge
 	byStory map[string][]*domain.SceneEdge
@@ -117,6 +121,10 @@ func (m *mockEdgeRepo) Delete(ctx context.Context, storyID, fromSceneID, toScene
 			return nil
 		}
 	}
+	return nil
+}
+
+func (m *mockEdgeRepo) DeleteByStory(ctx context.Context, storyID string) error {
 	return nil
 }
 
@@ -245,6 +253,14 @@ func (m *mockCharacterRepo) Update(ctx context.Context, c *domain.Character) err
 	return nil
 }
 
+func (m *mockCharacterRepo) GetLatest(ctx context.Context, charID string) (*domain.Character, error) {
+	return m.Get(ctx, charID)
+}
+
+func (m *mockCharacterRepo) DeleteByStory(ctx context.Context, storyID string) error {
+	return nil
+}
+
 // ── Mock CharacterStateRepository ─────────────────────────────────────
 
 type mockStateRepo struct {
@@ -270,4 +286,8 @@ func (m *mockStateRepo) ListByCharacter(ctx context.Context, characterID string)
 
 func (m *mockStateRepo) ListByScene(ctx context.Context, sceneID string) ([]*domain.CharacterState, error) {
 	return nil, nil
+}
+
+func (m *mockStateRepo) DeleteByStory(ctx context.Context, storyID string) error {
+	return nil
 }

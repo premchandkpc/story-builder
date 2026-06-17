@@ -80,11 +80,12 @@ func (s *ExtractionServiceImpl) ExtractState(ctx context.Context, sceneText stri
 		return nil, fmt.Errorf("compile prompt: %w", err)
 	}
 	req := CompletionRequest{
-		Model:       ModelTier(compiled.Model),
-		System:      compiled.System,
-		UserMessage: compiled.User,
-		Temperature: compiled.Temperature,
-		MaxTokens:   compiled.MaxTokens,
+		Model:        ModelTier(compiled.Model),
+		System:       compiled.System,
+		UserMessage:  compiled.User,
+		Temperature:  compiled.Temperature,
+		MaxTokens:    compiled.MaxTokens,
+		ValidateJSON: true,
 	}
 	res, err := s.client.Complete(ctx, req)
 	if err != nil {
@@ -149,11 +150,12 @@ func (s *MergeServiceImpl) MergeBranches(ctx context.Context, summaryA, summaryB
 		return nil, fmt.Errorf("compile prompt: %w", err)
 	}
 	req := CompletionRequest{
-		Model:       ModelTier(compiled.Model),
-		System:      compiled.System,
-		UserMessage: compiled.User,
-		Temperature: compiled.Temperature,
-		MaxTokens:   compiled.MaxTokens,
+		Model:        ModelTier(compiled.Model),
+		System:       compiled.System,
+		UserMessage:  compiled.User,
+		Temperature:  compiled.Temperature,
+		MaxTokens:    compiled.MaxTokens,
+		ValidateJSON: true,
 	}
 	res, err := s.client.Complete(ctx, req)
 	if err != nil {
@@ -185,11 +187,12 @@ func (s *ValidationServiceImpl) ValidateAgainstCanon(ctx context.Context, canonX
 		return nil, fmt.Errorf("compile prompt: %w", err)
 	}
 	req := CompletionRequest{
-		Model:       ModelTier(compiled.Model),
-		System:      compiled.System,
-		UserMessage: compiled.User,
-		Temperature: compiled.Temperature,
-		MaxTokens:   compiled.MaxTokens,
+		Model:        ModelTier(compiled.Model),
+		System:       compiled.System,
+		UserMessage:  compiled.User,
+		Temperature:  compiled.Temperature,
+		MaxTokens:    compiled.MaxTokens,
+		ValidateJSON: true,
 	}
 	res, err := s.client.Complete(ctx, req)
 	if err != nil {
@@ -220,11 +223,12 @@ func (s *OutlineServiceImpl) GenerateOutline(ctx context.Context, synopsis strin
 		return nil, fmt.Errorf("compile prompt: %w", err)
 	}
 	req := CompletionRequest{
-		Model:       ModelTier(compiled.Model),
-		System:      compiled.System,
-		UserMessage: compiled.User,
-		Temperature: compiled.Temperature,
-		MaxTokens:   compiled.MaxTokens,
+		Model:        ModelTier(compiled.Model),
+		System:       compiled.System,
+		UserMessage:  compiled.User,
+		Temperature:  compiled.Temperature,
+		MaxTokens:    compiled.MaxTokens,
+		ValidateJSON: true,
 	}
 	res, err := s.client.Complete(ctx, req)
 	if err != nil {

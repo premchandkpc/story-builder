@@ -22,7 +22,14 @@ const (
 - `claude-sonnet` / `claude-haiku` → AnthropicClient
 - `local-7b` → OllamaClient
 
-Both clients are always created at startup. Router retries on failure (1 initial + 2 retries = 3 total, exponential backoff 250ms/500ms).
+Both clients are always created at startup and wrapped in a `CircuitBreakerClient`. Router retries on failure (attempt + 2 retries = 3 total) with exponential backoff + jitter:
+
+| Tier | Initial | Max | Factor |
+|------|---------|-----|--------|
+| Anthropic (sonnet/haiku) | 1s | 15s | 2× (±25% jitter) |
+| Local (ollama) | 200ms | 5s | 2× (±25% jitter) |
+
+JSON output validation is enabled on requests from services that expect JSON (Extraction, Merge, Validation, Outline). If the response is not valid JSON, the router retries the request.
 
 ## Service Interfaces
 
@@ -191,7 +198,11 @@ type CompiledContext struct {
 ### Router
 - Wraps both clients
 - Dispatches by model tier
-- Retry: 1 initial + 2 retries = 3 attempts total, exponential backoff 250ms/500ms
+- Retry: 1 initial + 2 retries = 3 attempts total, exponential backoff + jitter
+  - Anthropic: 1s base, 15s max, 2× (±25% jitter)
+  - Local: 200ms base, 5s max, 2× (±25% jitter)
+- JSON response validation: if `ValidateJSON` flag is set, validates JSON before returning; retries on invalid
+- Circuit breaker: 5 consecutive failures → open for 30s → half-open probe → closed on success
 - Fallback: if Anthropic unavailable for Sonnet/Haiku, returns error
 
 ### CachedLLMClient (optional, Redis-backed)

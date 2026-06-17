@@ -60,3 +60,8 @@ func (r *SceneRepo) Delete(ctx context.Context, id string) error {
 	_, err := r.coll.DeleteOne(ctx, bson.M{"_id": id})
 	return err
 }
+
+func (r *SceneRepo) DeleteByStory(ctx context.Context, storyID string) error {
+	_, err := r.coll.DeleteMany(ctx, bson.M{"storyId": storyID})
+	return err
+}

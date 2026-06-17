@@ -56,6 +56,7 @@ func (s *GenerationService) Generate(ctx context.Context, sceneID string) (*doma
 	}
 
 	gen := &domain.Generation{
+		StoryID: scene.StoryID,
 		SceneID: sceneID,
 		Model:   string(llm.ModelSonnet),
 	}

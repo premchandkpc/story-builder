@@ -99,11 +99,13 @@ Separate collection for DAG structure. Never embed children in scenes.
 
 ### `characters`
 
-Immutable definition. Never overwrite — create a new document if the character concept evolves.
+Immutable versioned log. Each update inserts a new document with an incremented version; old versions are preserved.
 
 ```json
 {
-  "_id": "char_1",
+  "_id": "char_1_v1",
+  "charId": "char_1",
+  "version": 1,
   "storyId": "story_1",
   "name": "Arya",
   "persona": "rogue",
@@ -132,9 +134,12 @@ Immutable definition. Never overwrite — create a new document if the character
 }
 ```
 
+On update, a new document is inserted with the same `charId`, incremented `version`, and a new `_id`. This creates an immutable version log.
+
 **Indexes:**
 - `{ storyId: 1 }`
 - `{ storyId: 1, name: 1 }`
+- `{ charId: 1, version: -1 }` — efficient latest-version lookup
 
 ---
 
@@ -167,7 +172,7 @@ Event-sourced state history. Always append, never overwrite.
 ```
 
 **Indexes:**
-- `{ storyId: 1, characterId: 1, sceneId: 1 }` (unique)
+- `{ storyId: 1, characterId: 1, sceneId: 1, createdAt: -1 }`
 - `{ storyId: 1, characterId: 1, createdAt: -1 }`
 - `{ sceneId: 1 }`
 
@@ -205,6 +210,7 @@ The AI heart. Each memory is a document with an embedding for vector search.
 ```json
 {
   "_id": "gen_1",
+  "storyId": "story_1",
   "sceneId": "scene_100",
   "contextHash": "sha256hex...",
   "promptSnapshot": "POV: Arya | Tone: mysterious",
@@ -218,6 +224,7 @@ The AI heart. Each memory is a document with an embedding for vector search.
 
 **Indexes:**
 - `{ sceneId: 1, createdAt: -1 }`
+- `{ storyId: 1, createdAt: -1 }`
 
 ---
 

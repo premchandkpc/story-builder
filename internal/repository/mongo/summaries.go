@@ -53,6 +53,11 @@ func (r *SummaryRepo) GetSceneSummary(ctx context.Context, storyID, sceneID stri
 	return &s, err
 }
 
+func (r *SummaryRepo) DeleteByStory(ctx context.Context, storyID string) error {
+	_, err := r.coll.DeleteMany(ctx, bson.M{"storyId": storyID})
+	return err
+}
+
 func (r *SummaryRepo) ListByLevel(ctx context.Context, storyID, level string) ([]*domain.Summary, error) {
 	cursor, err := r.coll.Find(ctx, bson.M{"storyId": storyID, "level": level})
 	if err != nil {
