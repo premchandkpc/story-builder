@@ -172,6 +172,11 @@ func BranchCharacterSets(nodes []Node, edges []Edge, forkNodeID uuid.UUID) (map[
 		adj[e.FromNode] = append(adj[e.FromNode], e)
 	}
 
+	nodeMap := make(map[uuid.UUID]Node)
+	for _, n := range nodes {
+		nodeMap[n.ID] = n
+	}
+
 	forkEdges := adj[forkNodeID]
 	result := make(map[uuid.UUID][]uuid.UUID)
 
@@ -179,7 +184,7 @@ func BranchCharacterSets(nodes []Node, edges []Edge, forkNodeID uuid.UUID) (map[
 		if !fe.EdgeType.IsBranching() {
 			continue
 		}
-		pathNodes := walkToJoin(fe.ToNode, adj, nil)
+		pathNodes := walkToJoin(fe.ToNode, adj, nodeMap)
 		var refs []uuid.UUID
 		for _, pn := range pathNodes {
 			refs = append(refs, pn.CharacterRefs...)

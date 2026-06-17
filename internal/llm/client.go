@@ -84,22 +84,26 @@ func (c *AnthropicClient) Complete(ctx context.Context, req CompletionRequest) (
 	return &CompletionResponse{Content: text, Model: model}, nil
 }
 
-func NewOllamaClient(baseURL string) *OllamaClient {
+func NewOllamaClient(baseURL, defaultModel string) *OllamaClient {
 	if baseURL == "" {
 		baseURL = "http://localhost:11434"
 	}
-	return &OllamaClient{baseURL: baseURL, http: &http.Client{Timeout: 120 * time.Second}}
+	if defaultModel == "" {
+		defaultModel = "llama3.2:3b"
+	}
+	return &OllamaClient{baseURL: baseURL, defaultModel: defaultModel, http: &http.Client{Timeout: 120 * time.Second}}
 }
 
 type OllamaClient struct {
-	baseURL string
-	http    *http.Client
+	baseURL      string
+	defaultModel string
+	http         *http.Client
 }
 
 func (c *OllamaClient) Complete(ctx context.Context, req CompletionRequest) (*CompletionResponse, error) {
 	model := string(req.Model)
 	if model == "" || model == "local-7b" {
-		model = "qwen2.5:7b"
+		model = c.defaultModel
 	}
 
 	messages := []map[string]string{}

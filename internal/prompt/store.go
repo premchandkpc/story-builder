@@ -62,8 +62,8 @@ func DefaultTemplates() []*PromptTemplate {
 			MaxTokens:   4096,
 			Layers: []PromptLayer{
 				{ID: LayerGlobal, Strategy: MergeOverride, System: "You are a fiction co-writer. Write ONE scene and nothing else.", Priority: 1},
-				{ID: LayerFrame, Strategy: MergeOverride, Priority: 2},
-				{ID: LayerSafety, Strategy: MergeOverride, System: "HARD RULES:\n1. Canon is law. Never contradict <canon> or <current_state>.\n2. A character cannot reference knowledge listed in their 'does NOT know'.\n3. Introduce NO new named characters or locations. Unnamed extras are fine.\n4. Every line of dialogue must pass the voice-sample test for that character.\n5. End the scene when the beat resolves. Do not set up the next scene.\n6. Output prose only — no titles, no notes, no 'Scene:' headers.", Priority: 10},
+				{ID: LayerFrame, Strategy: MergeAppend, Priority: 2},
+				{ID: LayerSafety, Strategy: MergeAppend, System: "HARD RULES:\n1. Canon is law. Never contradict <canon> or <current_state>.\n2. A character cannot reference knowledge listed in their 'does NOT know'.\n3. Introduce NO new named characters or locations. Unnamed extras are fine.\n4. Every line of dialogue must pass the voice-sample test for that character.\n5. End the scene when the beat resolves. Do not set up the next scene.\n6. Output prose only — no titles, no notes, no 'Scene:' headers.", Priority: 10},
 			},
 		},
 		{
@@ -73,8 +73,8 @@ func DefaultTemplates() []*PromptTemplate {
 			MaxTokens:   2048,
 			Layers: []PromptLayer{
 				{ID: LayerGlobal, Strategy: MergeOverride, System: "You are a continuity clerk. Read the scene and call record_state_deltas.", Priority: 1},
-				{ID: LayerFrame, Strategy: MergeOverride, Priority: 2},
-				{ID: LayerScene, Strategy: MergeOverride, System: "Rules: extract ONLY what is explicit in the text. No inference, no speculation about feelings not shown. If a character appears but nothing changed for them, omit them entirely. 'learned' means information the character witnessed or was told IN THIS SCENE.\nOutput valid JSON with a top-level object containing a 'deltas' array and an optional 'open_threads' array.", Priority: 3},
+				{ID: LayerFrame, Strategy: MergeAppend, Priority: 2},
+				{ID: LayerScene, Strategy: MergeAppend, System: "Rules: extract ONLY what is explicit in the text. No inference, no speculation about feelings not shown. If a character appears but nothing changed for them, omit them entirely. 'learned' means information the character witnessed or was told IN THIS SCENE.\nOutput valid JSON with a top-level object containing a 'deltas' array and an optional 'open_threads' array.", Priority: 3},
 			},
 		},
 		{
@@ -84,7 +84,7 @@ func DefaultTemplates() []*PromptTemplate {
 			MaxTokens:   1024,
 			Layers: []PromptLayer{
 				{ID: LayerGlobal, Strategy: MergeOverride, System: "You maintain a running plot summary for one storyline branch.", Priority: 1},
-				{ID: LayerScene, Strategy: MergeOverride, System: "Produce an updated summary. Rules:\n- Max 200 words. Plot facts and character knowledge only — no prose style, no atmosphere, no quotes.\n- Preserve every fact from the previous summary unless the new scene explicitly supersedes it.\n- Chronological order. Present tense.\n- Output the summary only.", Priority: 2},
+				{ID: LayerScene, Strategy: MergeAppend, System: "Produce an updated summary. Rules:\n- Max 200 words. Plot facts and character knowledge only — no prose style, no atmosphere, no quotes.\n- Preserve every fact from the previous summary unless the new scene explicitly supersedes it.\n- Chronological order. Present tense.\n- Output the summary only.", Priority: 2},
 			},
 		},
 		{
@@ -94,7 +94,7 @@ func DefaultTemplates() []*PromptTemplate {
 			MaxTokens:   1024,
 			Layers: []PromptLayer{
 				{ID: LayerGlobal, Strategy: MergeOverride, System: "Two parallel storylines are converging. Merge their summaries.", Priority: 1},
-				{ID: LayerScene, Strategy: MergeOverride, System: "Output JSON: {\"merged_summary\": \"...\", \"conflicts\": [{\"description\": \"...\", \"severity\": \"blocking|warning\"}]}\n\nA conflict is: the same character acting in both branches, contradictory facts, or events that cannot coexist on the stated timeline. If branches are cleanly disjoint, conflicts is []. Interleave events chronologically in the merged summary.", Priority: 2},
+				{ID: LayerScene, Strategy: MergeAppend, System: "Output JSON: {\"merged_summary\": \"...\", \"conflicts\": [{\"description\": \"...\", \"severity\": \"blocking|warning\"}]}\n\nA conflict is: the same character acting in both branches, contradictory facts, or events that cannot coexist on the stated timeline. If branches are cleanly disjoint, conflicts is []. Interleave events chronologically in the merged summary.", Priority: 2},
 			},
 		},
 		{
@@ -104,8 +104,8 @@ func DefaultTemplates() []*PromptTemplate {
 			MaxTokens:   2048,
 			Layers: []PromptLayer{
 				{ID: LayerGlobal, Strategy: MergeOverride, System: "You are a strict continuity editor. Check this draft against canon.", Priority: 1},
-				{ID: LayerFrame, Strategy: MergeOverride, Priority: 2},
-				{ID: LayerScene, Strategy: MergeOverride, System: "Output JSON: {\"violations\": [{\"type\": \"voice|knowledge|trait|location|world_rule\", \"character\": \"...\", \"evidence\": \"<short quote from draft>\", \"explanation\": \"...\", \"severity\": \"high|low\"}]}\n\nCheck specifically: (1) any character using knowledge from their does-not-know list, (2) dialogue that doesn't match voice samples, (3) trait contradictions, (4) physical impossibilities given locations, (5) world-rule breaks.\nEmpty array if clean. Do not comment on writing quality — continuity only.", Priority: 3},
+				{ID: LayerFrame, Strategy: MergeAppend, Priority: 2},
+				{ID: LayerScene, Strategy: MergeAppend, System: "Output JSON: {\"violations\": [{\"type\": \"voice|knowledge|trait|location|world_rule\", \"character\": \"...\", \"evidence\": \"<short quote from draft>\", \"explanation\": \"...\", \"severity\": \"high|low\"}]}\n\nCheck specifically: (1) any character using knowledge from their does-not-know list, (2) dialogue that doesn't match voice samples, (3) trait contradictions, (4) physical impossibilities given locations, (5) world-rule breaks.\nEmpty array if clean. Do not comment on writing quality — continuity only.", Priority: 3},
 			},
 		},
 		{

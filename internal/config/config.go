@@ -10,6 +10,7 @@ type Config struct {
 	RedisPass    string
 	AnthropicKey string
 	OllamaURL    string
+	OllamaModel  string
 }
 
 func FromEnv() Config {
@@ -21,6 +22,7 @@ func FromEnv() Config {
 		RedisPass:    env("REDIS_PASSWORD", ""),
 		AnthropicKey: env("ANTHROPIC_API_KEY", ""),
 		OllamaURL:    env("OLLAMA_URL", "http://localhost:11434"),
+		OllamaModel:  env("OLLAMA_MODEL", "llama3.2:3b"),
 	}
 }
 

@@ -16,6 +16,7 @@ type GenerateSceneWorker struct {
 
 type GenerationWriter interface {
 	Create(ctx context.Context, g *domain.Generation) error
+	Get(ctx context.Context, id string) (*domain.Generation, error)
 	Update(ctx context.Context, g *domain.Generation) error
 }
 
@@ -51,10 +52,11 @@ func (w *GenerateSceneWorker) Work(ctx context.Context, args GenerateSceneArgs) 
 		return "", err
 	}
 
-	gen := &domain.Generation{
-		ID:     args.GenID,
-		Output: resp.Content,
+	gen, err := w.genRepo.Get(ctx, args.GenID)
+	if err != nil {
+		return "", err
 	}
+	gen.Output = resp.Content
 
 	return resp.Content, w.genRepo.Update(ctx, gen)
 }

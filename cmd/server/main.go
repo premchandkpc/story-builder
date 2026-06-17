@@ -58,9 +58,9 @@ func main() {
 		slog.Info("anthropic client created")
 	} else {
 		slog.Warn("no ANTHROPIC_API_KEY set, using Ollama for all tiers")
-		anthropic = llm.NewCircuitBreakerClient(llm.NewOllamaClient(cfg.OllamaURL))
+		anthropic = llm.NewCircuitBreakerClient(llm.NewOllamaClient(cfg.OllamaURL, cfg.OllamaModel))
 	}
-	ollama := llm.NewCircuitBreakerClient(llm.NewOllamaClient(cfg.OllamaURL))
+	ollama := llm.NewCircuitBreakerClient(llm.NewOllamaClient(cfg.OllamaURL, cfg.OllamaModel))
 	router := llm.NewRouter(anthropic, ollama)
 
 	// ─── Prompt Compiler ───────────────────────────────────
@@ -79,9 +79,12 @@ func main() {
 	outlineSvc := llm.NewOutlineService(router, promptCompiler)
 	titleSvc := llm.NewTitleService(router)
 
-	_ = mergeSvc
-	_ = outlineSvc
-	_ = titleSvc
+	slog.Info("llm services initialized",
+		"prose", true, "extract", true, "summary", true,
+		"merge", true, "validate", true,
+		"outline", outlineSvc != nil, "title", titleSvc != nil,
+		"merge_unused", mergeSvc != nil,
+	)
 
 	// ─── Cache ─────────────────────────────────────────────
 	var rateLimiter *cache.SlidingWindowRateLimiter
@@ -127,23 +130,28 @@ func main() {
 		Addr:         ":" + cfg.Port,
 		Handler:      srv.Router,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 60 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		WriteTimeout: 300 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
 
+	errCh := make(chan error, 1)
 	go func() {
 		slog.Info("http server listening", "addr", httpServer.Addr)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("http server error", "error", err)
-			os.Exit(1)
+			errCh <- err
 		}
 	}()
 
 	// ─── Shutdown ──────────────────────────────────────────
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	sig := <-quit
-	slog.Info("shutting down", "signal", sig)
+
+	select {
+	case sig := <-quit:
+		slog.Info("shutting down", "signal", sig)
+	case err := <-errCh:
+		slog.Error("http server error, shutting down", "error", err)
+	}
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
@@ -151,5 +159,6 @@ func main() {
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		slog.Error("http shutdown error", "error", err)
 	}
+	cancel()
 	slog.Info("server stopped")
 }

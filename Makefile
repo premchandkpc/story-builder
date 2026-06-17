@@ -1,4 +1,4 @@
-.PHONY: all dev run frontend db db/stop build lint test test-integration sqlc clean
+.PHONY: all dev run frontend db db/stop build lint test clean
 
 all: build
 
@@ -22,10 +22,10 @@ frontend:
 
 db:
 	docker compose up -d
-	@echo "Waiting for PostgreSQL..."
+	@echo "Waiting for MongoDB..."
 	@for i in $$(seq 1 30); do \
-		if docker compose exec -T db pg_isready -U storybuilder >/dev/null 2>&1; then \
-			echo "PostgreSQL ready"; \
+		if docker compose exec -T mongo mongosh --quiet --eval 'db.runCommand("ping").ok' >/dev/null 2>&1; then \
+			echo "MongoDB ready"; \
 			break; \
 		fi; \
 		echo "Waiting... $$i"; \
@@ -53,12 +53,6 @@ lint:
 
 test:
 	go test ./...
-
-test-integration:
-	go test ./... -tags=integration
-
-sqlc:
-	sqlc generate -f sqlc/sqlc.yaml
 
 clean:
 	rm -rf web/dist

@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -164,7 +165,7 @@ func (h *Handlers) DeleteNode(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handlers) V2Topology(w http.ResponseWriter, r *http.Request) {
@@ -231,7 +232,20 @@ func (h *Handlers) V2ListEdges(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) V2ListCharacters(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, []*domain.Character{})
+	storyID := r.URL.Query().Get("story_id")
+	if storyID == "" {
+		writeJSON(w, http.StatusOK, []*domain.Character{})
+		return
+	}
+	chars, err := h.charSvc.List(r.Context(), storyID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if chars == nil {
+		chars = []*domain.Character{}
+	}
+	writeJSON(w, http.StatusOK, chars)
 }
 
 func (h *Handlers) V2CreateCharacter(w http.ResponseWriter, r *http.Request) {
@@ -391,6 +405,7 @@ func (h *Handlers) GenerateStory(w http.ResponseWriter, r *http.Request) {
 		}
 		created, err := h.sceneSvc.Create(r.Context(), scene)
 		if err != nil {
+			slog.Error("generate story: create scene failed", "beat", b.Title, "error", err)
 			continue
 		}
 		beatIDByTitle[b.Title] = created.ID

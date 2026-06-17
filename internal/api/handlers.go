@@ -114,7 +114,7 @@ func (h *Handlers) DeleteStory(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // ─── Scenes ────────────────────────────────────────────────
@@ -183,7 +183,7 @@ func (h *Handlers) DeleteScene(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handlers) Topology(w http.ResponseWriter, r *http.Request) {
@@ -259,7 +259,7 @@ func (h *Handlers) DeleteEdge(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // ─── Characters ────────────────────────────────────────────

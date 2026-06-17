@@ -1,4 +1,4 @@
-FROM golang:1.26-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 RUN apk add --no-cache gcc musl-dev
 
@@ -15,8 +15,8 @@ RUN apk add --no-cache ca-certificates tzdata
 
 WORKDIR /app
 COPY --from=builder /build/server .
-COPY migrations/ ./migrations/
+# Note: migrations/ skipped — MongoDB is schemaless (ADR 0003)
 
-EXPOSE 8080 9090
+EXPOSE 8080
 
 ENTRYPOINT ["/app/server"]

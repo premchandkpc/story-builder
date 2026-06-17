@@ -53,7 +53,16 @@ func (r *CharacterRepo) GetLatest(ctx context.Context, charID string) (*domain.C
 }
 
 func (r *CharacterRepo) ListByStory(ctx context.Context, storyID string) ([]*domain.Character, error) {
-	cursor, err := r.coll.Find(ctx, bson.M{"storyId": storyID})
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{"storyId": storyID}}},
+		{{Key: "$sort", Value: bson.D{{Key: "version", Value: -1}}}},
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$charId"},
+			{Key: "doc", Value: bson.D{{Key: "$first", Value: "$$ROOT"}}},
+		}}},
+		{{Key: "$replaceWith", Value: "$doc"}},
+	}
+	cursor, err := r.coll.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
 	}
@@ -66,6 +75,7 @@ func (r *CharacterRepo) ListByStory(ctx context.Context, storyID string) ([]*dom
 
 func (r *CharacterRepo) Update(ctx context.Context, c *domain.Character) error {
 	// Create a new versioned document (immutable log).
+	// NOTE: Mutates input pointer — caller's char now has new ID/Version/CreatedAt.
 	c.ID = primitive.NewObjectID().Hex()
 	c.Version++
 	c.CreatedAt = time.Now()

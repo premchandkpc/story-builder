@@ -71,7 +71,7 @@ func (s *GenerationService) Generate(ctx context.Context, sceneID string) (*doma
 		TargetWords: scene.TargetWords,
 	}
 
-	go s.runPipeline(context.Background(), gen.ID, scene, params)
+	go s.runPipeline(ctx, gen.ID, scene, params)
 
 	return gen, nil
 }
@@ -87,7 +87,7 @@ func (s *GenerationService) AcceptGeneration(ctx context.Context, sceneID, genID
 
 	gen.Accepted = true
 	if err := s.genRepo.Update(ctx, gen); err != nil {
-		return err
+		return fmt.Errorf("accept gen: %w", err)
 	}
 
 	gens, err := s.genRepo.ListByScene(ctx, sceneID)
@@ -97,7 +97,20 @@ func (s *GenerationService) AcceptGeneration(ctx context.Context, sceneID, genID
 	for _, g := range gens {
 		if g.ID != genID {
 			g.Accepted = false
-			s.genRepo.Update(ctx, g)
+			if err := s.genRepo.Update(ctx, g); err != nil {
+				slog.Error("accept gen: marking stale failed", "genId", g.ID, "error", err)
+			}
+		}
+	}
+
+	scene, err := s.sceneRepo.Get(ctx, sceneID)
+	if err != nil {
+		return fmt.Errorf("accept gen: get scene: %w", err)
+	}
+	if scene != nil {
+		scene.Status = domain.SceneStatusAccepted
+		if err := s.sceneRepo.Update(ctx, scene); err != nil {
+			return fmt.Errorf("accept gen: update scene status: %w", err)
 		}
 	}
 
@@ -132,6 +145,7 @@ func (s *GenerationService) runPipeline(ctx context.Context, genID string, scene
 		StoryID: scene.StoryID, SceneID: scene.ID, SceneText: sceneText, CharacterRefs: scene.Participants,
 	}); err != nil {
 		slog.Error("extract step failed", "genId", genID, "error", err)
+		return
 	}
 
 	for _, charID := range scene.Participants {

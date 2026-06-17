@@ -33,6 +33,7 @@ type CircuitBreakerClient struct {
 	state         circuitState
 	failures      int
 	lastFailureAt time.Time
+	probe         sync.Mutex
 }
 
 func NewCircuitBreakerClient(client LLMClient) *CircuitBreakerClient {
@@ -55,6 +56,11 @@ func (c *CircuitBreakerClient) Complete(ctx context.Context, req CompletionReque
 	}
 	halfOpen := c.state == circuitHalfOpen
 	c.mu.Unlock()
+
+	if halfOpen {
+		c.probe.Lock()
+		defer c.probe.Unlock()
+	}
 
 	resp, err := c.client.Complete(ctx, req)
 

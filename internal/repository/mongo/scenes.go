@@ -40,7 +40,7 @@ func (r *SceneRepo) Get(ctx context.Context, id string) (*domain.Scene, error) {
 
 func (r *SceneRepo) Update(ctx context.Context, s *domain.Scene) error {
 	s.UpdatedAt = time.Now()
-	_, err := r.coll.UpdateOne(ctx, bson.M{"_id": s.ID}, bson.M{"$set": s})
+	_, err := r.coll.ReplaceOne(ctx, bson.M{"_id": s.ID}, s)
 	return err
 }
 

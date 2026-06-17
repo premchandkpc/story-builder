@@ -27,7 +27,8 @@ func (r *CharacterStateRepo) Append(ctx context.Context, s *domain.CharacterStat
 
 func (r *CharacterStateRepo) Get(ctx context.Context, characterID, sceneID string) (*domain.CharacterState, error) {
 	var s domain.CharacterState
-	err := r.coll.FindOne(ctx, bson.M{"characterId": characterID, "sceneId": sceneID}).Decode(&s)
+	opts := options.FindOne().SetSort(bson.D{{Key: "createdAt", Value: -1}})
+	err := r.coll.FindOne(ctx, bson.M{"characterId": characterID, "sceneId": sceneID}, opts).Decode(&s)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
