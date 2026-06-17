@@ -14,6 +14,7 @@ type ValidationWorker struct {
 }
 
 type ValidationWriter interface {
+	Get(ctx context.Context, id string) (*domain.Generation, error)
 	Update(ctx context.Context, g *domain.Generation) error
 }
 
@@ -36,10 +37,14 @@ func (w *ValidationWorker) Work(ctx context.Context, args ValidateArgs) error {
 		return err
 	}
 
-	gen := &domain.Generation{
-		ID:               args.GenerationID,
-		ValidationResult: result,
+	gen, err := w.genRepo.Get(ctx, args.GenerationID)
+	if err != nil {
+		return err
 	}
+	if gen == nil {
+		return nil
+	}
+	gen.ValidationResult = result
 
 	return w.genRepo.Update(ctx, gen)
 }

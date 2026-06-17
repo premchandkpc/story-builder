@@ -25,6 +25,9 @@ func (r *SceneRepo) Create(ctx context.Context, s *domain.Scene) error {
 	if s.ID == "" {
 		s.ID = primitive.NewObjectID().Hex()
 	}
+	if s.Status == "" {
+		s.Status = domain.SceneStatusDraft
+	}
 	_, err := r.coll.InsertOne(ctx, s)
 	return err
 }

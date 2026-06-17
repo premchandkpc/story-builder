@@ -22,14 +22,18 @@ func NewSummaryRepo(db *mongo.Database) *SummaryRepo {
 
 func (r *SummaryRepo) Upsert(ctx context.Context, s *domain.Summary) error {
 	s.CreatedAt = time.Now()
-	if s.ID == "" {
-		s.ID = primitive.NewObjectID().Hex()
-	}
 	filter := bson.M{"storyId": s.StoryID}
 	if s.SceneID != "" {
 		filter["sceneId"] = s.SceneID
 	}
 	filter["level"] = s.Level
+
+	var existing domain.Summary
+	if err := r.coll.FindOne(ctx, filter).Decode(&existing); err == nil {
+		s.ID = existing.ID
+	} else if s.ID == "" {
+		s.ID = primitive.NewObjectID().Hex()
+	}
 
 	_, err := r.coll.ReplaceOne(ctx, filter, s, options.Replace().SetUpsert(true))
 	return err

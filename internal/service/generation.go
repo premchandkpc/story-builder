@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 
 	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/llm"
@@ -24,6 +25,8 @@ type GenerationService struct {
 	extractSvc  llm.ExtractionService
 	summarySvc  llm.SummaryService
 	validateSvc llm.ValidationService
+
+	inFlight sync.Map
 }
 
 func NewGenerationService(
@@ -47,11 +50,17 @@ func NewGenerationService(
 }
 
 func (s *GenerationService) Generate(ctx context.Context, sceneID string) (*domain.Generation, error) {
+	if _, loaded := s.inFlight.LoadOrStore(sceneID, true); loaded {
+		return nil, fmt.Errorf("generation already in progress for scene %s", sceneID)
+	}
+
 	scene, err := s.sceneRepo.Get(ctx, sceneID)
 	if err != nil {
+		s.inFlight.Delete(sceneID)
 		return nil, fmt.Errorf("get scene: %w", err)
 	}
 	if scene == nil {
+		s.inFlight.Delete(sceneID)
 		return nil, fmt.Errorf("scene not found")
 	}
 
@@ -61,6 +70,7 @@ func (s *GenerationService) Generate(ctx context.Context, sceneID string) (*doma
 		Model:   string(llm.ModelSonnet),
 	}
 	if err := s.genRepo.Create(ctx, gen); err != nil {
+		s.inFlight.Delete(sceneID)
 		return nil, fmt.Errorf("create generation: %w", err)
 	}
 
@@ -71,7 +81,10 @@ func (s *GenerationService) Generate(ctx context.Context, sceneID string) (*doma
 		TargetWords: scene.TargetWords,
 	}
 
-	go s.runPipeline(ctx, gen.ID, scene, params)
+	go func() {
+		s.runPipeline(ctx, gen.ID, scene, params)
+		s.inFlight.Delete(sceneID)
+	}()
 
 	return gen, nil
 }
