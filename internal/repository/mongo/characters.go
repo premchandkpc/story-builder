@@ -74,13 +74,12 @@ func (r *CharacterRepo) ListByStory(ctx context.Context, storyID string) ([]*dom
 }
 
 // Update creates a new versioned document (immutable append-log).
-// NOTE: Mutates the input pointer — c.ID, c.Version, c.CreatedAt are updated
-// in place. Callers should not reuse the pre-update pointer state.
 func (r *CharacterRepo) Update(ctx context.Context, c *domain.Character) error {
-	c.ID = primitive.NewObjectID().Hex()
-	c.Version++
-	c.CreatedAt = time.Now()
-	_, err := r.coll.InsertOne(ctx, c)
+	doc := *c
+	doc.ID = primitive.NewObjectID().Hex()
+	doc.Version = c.Version + 1
+	doc.CreatedAt = time.Now()
+	_, err := r.coll.InsertOne(ctx, &doc)
 	return err
 }
 

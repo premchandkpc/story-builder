@@ -28,6 +28,15 @@ func (r *LocationRepo) Create(ctx context.Context, l *domain.Location) error {
 	return err
 }
 
+func (r *LocationRepo) GetByName(ctx context.Context, storyID, name string) (*domain.Location, error) {
+	var l domain.Location
+	err := r.coll.FindOne(ctx, bson.M{"storyId": storyID, "name": name}).Decode(&l)
+	if err == mongo.ErrNoDocuments {
+		return nil, nil
+	}
+	return &l, err
+}
+
 func (r *LocationRepo) Get(ctx context.Context, id string) (*domain.Location, error) {
 	var l domain.Location
 	err := r.coll.FindOne(ctx, bson.M{"_id": id}).Decode(&l)

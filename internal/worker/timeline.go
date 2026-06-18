@@ -5,17 +5,14 @@ import (
 	"log/slog"
 
 	"github.com/premchand/story-builder/internal/domain"
+	"github.com/premchand/story-builder/internal/repository"
 )
 
 type TimelineWorker struct {
-	tlRepo TimelineWriter
+	tlRepo repository.TimelineRepository
 }
 
-type TimelineWriter interface {
-	Create(ctx context.Context, e *domain.TimelineEvent) error
-}
-
-func NewTimelineWorker(tlRepo TimelineWriter) *TimelineWorker {
+func NewTimelineWorker(tlRepo repository.TimelineRepository) *TimelineWorker {
 	return &TimelineWorker{tlRepo: tlRepo}
 }
 

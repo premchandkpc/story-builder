@@ -20,6 +20,13 @@ func NewGenerationRepo(db *mongo.Database) *GenerationRepo {
 	return &GenerationRepo{coll: db.Collection("generations")}
 }
 
+func (r *GenerationRepo) SetStepStatus(ctx context.Context, genID, step, status string) error {
+	_, err := r.coll.UpdateOne(ctx, bson.M{"_id": genID}, bson.M{
+		"$set": bson.M{"stepStatus." + step: status},
+	})
+	return err
+}
+
 func (r *GenerationRepo) Create(ctx context.Context, g *domain.Generation) error {
 	g.CreatedAt = time.Now()
 	if g.ID == "" {

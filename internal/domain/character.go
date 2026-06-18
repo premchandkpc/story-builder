@@ -17,7 +17,6 @@ type Character struct {
 	Traits          []string         `bson:"traits,omitempty" json:"traits,omitempty"`
 	VoiceSamples    []string         `bson:"voiceSamples,omitempty" json:"voiceSamples,omitempty"`
 	Relationships   map[string]string `bson:"relationships,omitempty" json:"relationships,omitempty"`
-	CurrentState    CharacterState   `bson:"currentState,omitempty" json:"currentState,omitempty"`
 	CreatedAt       time.Time        `bson:"createdAt" json:"createdAt"`
 }
 

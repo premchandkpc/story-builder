@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/llm"
@@ -84,17 +85,25 @@ func (s *GenerationService) Generate(ctx context.Context, sceneID string) (*doma
 		return nil, fmt.Errorf("create generation: %w", err)
 	}
 
-	params := s.buildPromptParams(ctx, scene)
+	params, charNameToID := s.buildPromptParams(ctx, scene)
 
 	go func() {
 		defer s.genInFlight.Delete(sceneID)
-		s.runPipeline(context.WithoutCancel(ctx), gen.ID, scene, params)
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("pipeline panic", "genId", gen.ID, "recover", r)
+				s.setStepStatus(context.Background(), gen.ID, "pipeline", domain.StepFailed)
+			}
+		}()
+		pCtx, pCancel := context.WithTimeout(ctx, 5*time.Minute)
+		defer pCancel()
+		s.runPipeline(pCtx, gen.ID, scene, params, charNameToID)
 	}()
 
 	return gen, nil
 }
 
-func (s *GenerationService) buildPromptParams(ctx context.Context, scene *domain.Scene) llm.PromptParams {
+func (s *GenerationService) buildPromptParams(ctx context.Context, scene *domain.Scene) (llm.PromptParams, map[string]string) {
 	params := llm.PromptParams{
 		BeatIntent:  scene.BeatIntent,
 		POV:         scene.POV,
@@ -105,8 +114,10 @@ func (s *GenerationService) buildPromptParams(ctx context.Context, scene *domain
 	allChars, err := s.charRepo.ListByStory(ctx, scene.StoryID)
 	if err != nil {
 		slog.Warn("buildPromptParams: list characters", "storyId", scene.StoryID, "error", err)
-		return params
+		return params, nil
 	}
+
+	charNameToID := make(map[string]string, len(scene.Participants))
 
 	participantIDs := make(map[string]bool, len(scene.Participants))
 	for _, pid := range scene.Participants {
@@ -117,6 +128,8 @@ func (s *GenerationService) buildPromptParams(ctx context.Context, scene *domain
 		if !participantIDs[c.ID] && !participantIDs[c.CharID] {
 			continue
 		}
+		charNameToID[c.Name] = c.CharID
+
 		card := llm.CharacterCard{
 			Name:         c.Name,
 			Description:  c.Persona,
@@ -177,7 +190,7 @@ func (s *GenerationService) buildPromptParams(ctx context.Context, scene *domain
 		params.BranchSummary = existing.Content
 	}
 
-	return params
+	return params, charNameToID
 }
 
 func (s *GenerationService) AcceptGeneration(ctx context.Context, sceneID, genID string) error {
@@ -226,18 +239,12 @@ func (s *GenerationService) ListGenerations(ctx context.Context, sceneID string)
 }
 
 func (s *GenerationService) setStepStatus(ctx context.Context, genID, step, status string) {
-	gen, err := s.genRepo.Get(ctx, genID)
-	if err != nil || gen == nil {
-		return
+	if err := s.genRepo.SetStepStatus(ctx, genID, step, status); err != nil {
+		slog.Error("set step status failed", "genId", genID, "step", step, "status", status, "error", err)
 	}
-	if gen.StepStatus == nil {
-		gen.StepStatus = map[string]string{}
-	}
-	gen.StepStatus[step] = status
-	s.genRepo.Update(ctx, gen)
 }
 
-func (s *GenerationService) runPipeline(ctx context.Context, genID string, scene *domain.Scene, params llm.PromptParams) {
+func (s *GenerationService) runPipeline(ctx context.Context, genID string, scene *domain.Scene, params llm.PromptParams, charNameToID map[string]string) {
 	genWorker := worker.NewGenerateSceneWorker(s.proseSvc, s.genRepo, s.sceneRepo)
 	extractWorker := worker.NewExtractStateWorker(s.extractSvc, s.stateRepo)
 	memWorker := worker.NewMemoryUpdateWorker(s.memRepo)
@@ -262,7 +269,7 @@ func (s *GenerationService) runPipeline(ctx context.Context, genID string, scene
 
 	s.setStepStatus(ctx, genID, "extract", domain.StepRunning)
 	if err := extractWorker.Work(ctx, worker.ExtractStateArgs{
-		StoryID: scene.StoryID, SceneID: scene.ID, SceneText: sceneText, CharacterRefs: scene.Participants,
+		StoryID: scene.StoryID, SceneID: scene.ID, SceneText: sceneText, CharacterRefs: scene.Participants, CharNameToID: charNameToID,
 	}); err != nil {
 		slog.Error("extract step failed", "genId", genID, "error", err)
 		s.setStepStatus(ctx, genID, "extract", domain.StepFailed)

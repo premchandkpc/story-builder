@@ -4,21 +4,16 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/llm"
+	"github.com/premchand/story-builder/internal/repository"
 )
 
 type ValidationWorker struct {
 	validate llm.ValidationService
-	genRepo  ValidationWriter
+	genRepo  repository.GenerationRepository
 }
 
-type ValidationWriter interface {
-	Get(ctx context.Context, id string) (*domain.Generation, error)
-	Update(ctx context.Context, g *domain.Generation) error
-}
-
-func NewValidationWorker(validate llm.ValidationService, genRepo ValidationWriter) *ValidationWorker {
+func NewValidationWorker(validate llm.ValidationService, genRepo repository.GenerationRepository) *ValidationWorker {
 	return &ValidationWorker{validate: validate, genRepo: genRepo}
 }
 

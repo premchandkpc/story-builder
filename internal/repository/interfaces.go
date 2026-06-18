@@ -53,6 +53,7 @@ type GenerationRepository interface {
 	Create(ctx context.Context, g *domain.Generation) error
 	Get(ctx context.Context, id string) (*domain.Generation, error)
 	Update(ctx context.Context, g *domain.Generation) error
+	SetStepStatus(ctx context.Context, genID, step, status string) error
 	ListByScene(ctx context.Context, sceneID string) ([]*domain.Generation, error)
 	ListByStory(ctx context.Context, storyID string) ([]*domain.Generation, error)
 	DeleteByScene(ctx context.Context, sceneID string) error
@@ -75,6 +76,7 @@ type TimelineRepository interface {
 type LocationRepository interface {
 	Create(ctx context.Context, l *domain.Location) error
 	Get(ctx context.Context, id string) (*domain.Location, error)
+	GetByName(ctx context.Context, storyID, name string) (*domain.Location, error)
 	ListByStory(ctx context.Context, storyID string) ([]*domain.Location, error)
 	Update(ctx context.Context, l *domain.Location) error
 	DeleteByStory(ctx context.Context, storyID string) error

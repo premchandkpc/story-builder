@@ -4,28 +4,17 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/llm"
+	"github.com/premchand/story-builder/internal/repository"
 )
 
 type GenerateSceneWorker struct {
 	prose     llm.ProseService
-	genRepo   GenerationWriter
-	sceneRepo SceneUpdater
+	genRepo   repository.GenerationRepository
+	sceneRepo repository.SceneRepository
 }
 
-type GenerationWriter interface {
-	Create(ctx context.Context, g *domain.Generation) error
-	Get(ctx context.Context, id string) (*domain.Generation, error)
-	Update(ctx context.Context, g *domain.Generation) error
-}
-
-type SceneUpdater interface {
-	Get(ctx context.Context, id string) (*domain.Scene, error)
-	Update(ctx context.Context, s *domain.Scene) error
-}
-
-func NewGenerateSceneWorker(prose llm.ProseService, genRepo GenerationWriter, sceneRepo SceneUpdater) *GenerateSceneWorker {
+func NewGenerateSceneWorker(prose llm.ProseService, genRepo repository.GenerationRepository, sceneRepo repository.SceneRepository) *GenerateSceneWorker {
 	return &GenerateSceneWorker{prose: prose, genRepo: genRepo, sceneRepo: sceneRepo}
 }
 
@@ -57,6 +46,9 @@ func (w *GenerateSceneWorker) Work(ctx context.Context, args GenerateSceneArgs) 
 		return "", err
 	}
 	gen.Output = resp.Content
+	if resp.Model != "" {
+		gen.Model = resp.Model
+	}
 
 	return resp.Content, w.genRepo.Update(ctx, gen)
 }

@@ -137,6 +137,7 @@ func (m *mockGenRepo) ListByScene(ctx context.Context, sceneID string) ([]*domai
 func (m *mockGenRepo) ListByStory(ctx context.Context, storyID string) ([]*domain.Generation, error) { return nil, nil }
 func (m *mockGenRepo) DeleteByScene(ctx context.Context, sceneID string) error { return nil }
 func (m *mockGenRepo) DeleteByStory(ctx context.Context, storyID string) error { return nil }
+func (m *mockGenRepo) SetStepStatus(ctx context.Context, genID, step, status string) error { return nil }
 
 func TestSceneService_Topology(t *testing.T) {
 	sceneMock := newMockSceneRepo()

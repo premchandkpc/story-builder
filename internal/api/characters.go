@@ -16,6 +16,10 @@ func (h *Handlers) CreateCharacter(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	if char.Name == "" {
+		writeError(w, http.StatusBadRequest, "name is required")
+		return
+	}
 	char.StoryID = storyID
 
 	created, err := h.charSvc.Create(r.Context(), &char)
@@ -71,6 +75,10 @@ func (h *Handlers) V2CreateCharacter(w http.ResponseWriter, r *http.Request) {
 	var char domain.Character
 	if err := json.NewDecoder(r.Body).Decode(&char); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if char.Name == "" {
+		writeError(w, http.StatusBadRequest, "name is required")
 		return
 	}
 	created, err := h.charSvc.Create(r.Context(), &char)

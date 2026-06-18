@@ -6,18 +6,15 @@ import (
 
 	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/llm"
+	"github.com/premchand/story-builder/internal/repository"
 )
 
 type SummaryWorker struct {
-	summary  llm.SummaryService
-	sumRepo  SummaryWriter
+	summary llm.SummaryService
+	sumRepo repository.SummaryRepository
 }
 
-type SummaryWriter interface {
-	Upsert(ctx context.Context, s *domain.Summary) error
-}
-
-func NewSummaryWorker(summary llm.SummaryService, sumRepo SummaryWriter) *SummaryWorker {
+func NewSummaryWorker(summary llm.SummaryService, sumRepo repository.SummaryRepository) *SummaryWorker {
 	return &SummaryWorker{summary: summary, sumRepo: sumRepo}
 }
 

@@ -21,8 +21,9 @@ func NewMemoryStore() *MemoryStore {
 func (s *MemoryStore) Save(tmpl *PromptTemplate) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	tmpl.ID = uuid.New()
-	s.data[tmpl.Name] = tmpl
+	clone := *tmpl
+	clone.ID = uuid.New()
+	s.data[tmpl.Name] = &clone
 	return nil
 }
 

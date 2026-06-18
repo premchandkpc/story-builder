@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/repository"
@@ -37,14 +36,5 @@ func (s *LocationService) DeleteByStory(ctx context.Context, storyID string) err
 }
 
 func (s *LocationService) GetByName(ctx context.Context, storyID, name string) (*domain.Location, error) {
-	locations, err := s.repo.ListByStory(ctx, storyID)
-	if err != nil {
-		return nil, fmt.Errorf("list locations: %w", err)
-	}
-	for _, l := range locations {
-		if l.Name == name {
-			return l, nil
-		}
-	}
-	return nil, nil
+	return s.repo.GetByName(ctx, storyID, name)
 }

@@ -5,17 +5,14 @@ import (
 	"log/slog"
 
 	"github.com/premchand/story-builder/internal/domain"
+	"github.com/premchand/story-builder/internal/repository"
 )
 
 type MemoryUpdateWorker struct {
-	memRepo MemoryWriter
+	memRepo repository.MemoryRepository
 }
 
-type MemoryWriter interface {
-	Create(ctx context.Context, m *domain.CharacterMemory) error
-}
-
-func NewMemoryUpdateWorker(memRepo MemoryWriter) *MemoryUpdateWorker {
+func NewMemoryUpdateWorker(memRepo repository.MemoryRepository) *MemoryUpdateWorker {
 	return &MemoryUpdateWorker{memRepo: memRepo}
 }
 

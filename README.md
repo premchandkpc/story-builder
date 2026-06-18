@@ -1,6 +1,7 @@
 # story-builder
 
 Full-stack story graph editor with DAG-based plot structure and LLM-generated prose. Built with Go (chi), React Flow, Postgres + pgvector, and River async jobs.
+Full-stack story graph editor with DAG-based plot structure and LLM-generated prose. Built with Go (chi), React Flow, MongoDB, and Redis.
 
 ## Quick start
 
@@ -9,6 +10,11 @@ docker compose up -d          # postgres + pgvector + redis + mongo + qdrant + k
 # Or just the essential infra:
 docker compose up -d db redis ollama
 # Server + web are also containerized:
+# Start all services (backend, frontend, db, cache, llm)
+docker compose up -d --build
+
+# Or just the essential infrastructure:
+docker compose up -d mongo redis ollama
 docker compose up -d --build  # builds and starts everything
 ```
 

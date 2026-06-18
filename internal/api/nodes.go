@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"sort"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/premchand/story-builder/internal/domain"
+	"github.com/premchand/story-builder/internal/graph"
 )
 
 type graphNode struct {
@@ -118,6 +120,10 @@ func (h *Handlers) CreateNode(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	if body.BeatIntent == "" {
+		writeError(w, http.StatusBadRequest, "beat_intent is required")
+		return
+	}
 	scene := &domain.Scene{
 		StoryID:        storyID,
 		BeatIntent:     body.BeatIntent,
@@ -193,14 +199,24 @@ func (h *Handlers) V2Topology(w http.ResponseWriter, r *http.Request) {
 	for _, e := range edges {
 		ge = append(ge, edgeToGraphEdge(e))
 	}
-	sorted := make([]*domain.Scene, len(scenes))
-	copy(sorted, scenes)
-	sort.SliceStable(sorted, func(i, j int) bool {
-		return sorted[i].TimelinePosition < sorted[j].TimelinePosition
-	})
+	nodeIDs := extractIDs(scenes)
+	adj := make(map[string][]string, len(edges))
+	for _, e := range edges {
+		adj[e.FromSceneID] = append(adj[e.FromSceneID], e.ToSceneID)
+	}
+	sortedIDs, err := graph.TopologicalSortStrings(nodeIDs, adj)
+	if err != nil {
+		slog.Warn("topological sort failed, falling back to timeline position", "storyId", storyID, "error", err)
+		sorted := make([]*domain.Scene, len(scenes))
+		copy(sorted, scenes)
+		sort.SliceStable(sorted, func(i, j int) bool {
+			return sorted[i].TimelinePosition < sorted[j].TimelinePosition
+		})
+		sortedIDs = extractIDs(sorted)
+	}
 	writeJSON(w, http.StatusOK, topologyResponse{
 		Nodes:            nodes,
 		Edges:            ge,
-		TopologicalOrder: extractIDs(sorted),
+		TopologicalOrder: sortedIDs,
 	})
 }

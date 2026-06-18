@@ -74,16 +74,12 @@ func main() {
 	proseSvc := llm.NewProseService(router, promptCompiler)
 	extractSvc := llm.NewExtractionService(router, promptCompiler)
 	summarySvc := llm.NewSummaryService(router, promptCompiler)
-	mergeSvc := llm.NewMergeService(router, promptCompiler)
 	validateSvc := llm.NewValidationService(router, promptCompiler)
 	outlineSvc := llm.NewOutlineService(router, promptCompiler)
-	titleSvc := llm.NewTitleService(router)
 
 	slog.Info("llm services initialized",
 		"prose", true, "extract", true, "summary", true,
-		"merge", true, "validate", true,
-		"outline", outlineSvc != nil, "title", titleSvc != nil,
-		"merge_unused", mergeSvc != nil,
+		"validate", true, "outline", outlineSvc != nil,
 	)
 
 	// ─── Cache ─────────────────────────────────────────────

@@ -1,0 +1,259 @@
+
+<h2 class="sr-only">Narrative OS audit dashboard — 15 verified bugs across 5 severity levels</h2>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans)}
+.top{padding:1rem 0 1.5rem}
+.meta{font-size:13px;color:var(--color-text-secondary);margin-bottom:1.5rem}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:1.5rem}
+.stat{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:0.75rem 1rem}
+.stat-n{font-size:22px;font-weight:500}
+.stat-l{font-size:12px;color:var(--color-text-secondary);margin-top:2px}
+.s-crit .stat-n{color:#A32D2D}
+.s-high .stat-n{color:#854F0B}
+.s-med .stat-n{color:#185FA5}
+.s-low .stat-n{color:#3B6D11}
+.s-tot .stat-n{color:var(--color-text-primary)}
+
+.bugs{display:flex;flex-direction:column;gap:8px}
+.bug{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden}
+.bug-header{display:flex;align-items:center;gap:10px;padding:0.75rem 1rem;cursor:pointer;user-select:none}
+.bug-header:hover{background:var(--color-background-secondary)}
+.sev{font-size:11px;font-weight:500;padding:3px 8px;border-radius:var(--border-radius-md);white-space:nowrap}
+.sev-crit{background:#FCEBEB;color:#A32D2D}
+.sev-high{background:#FAEEDA;color:#854F0B}
+.sev-med{background:#E6F1FB;color:#185FA5}
+.sev-low{background:#EAF3DE;color:#3B6D11}
+.bug-title{font-size:14px;font-weight:500;flex:1}
+.bug-file{font-size:12px;color:var(--color-text-secondary);font-family:var(--font-mono)}
+.chevron{font-size:14px;color:var(--color-text-secondary);transition:transform 0.15s}
+.chevron.open{transform:rotate(180deg)}
+.bug-body{padding:0 1rem 1rem;font-size:13px;line-height:1.6;border-top:0.5px solid var(--color-border-tertiary);display:none}
+.bug-body.open{display:block}
+.bug-body p{color:var(--color-text-secondary);margin-top:0.75rem}
+.code{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:0.75rem 1rem;font-family:var(--font-mono);font-size:12px;margin-top:0.75rem;white-space:pre;overflow-x:auto;border-left:3px solid}
+.code-bad{border-color:#E24B4A}
+.code-good{border-color:#639922}
+.code-label{font-size:11px;font-weight:500;margin-top:0.75rem;color:var(--color-text-secondary)}
+.fix-btn{margin-top:0.75rem;font-size:12px}
+.filters{display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap}
+.filt{padding:4px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:0.5px solid var(--color-border-secondary);background:var(--color-background-primary);color:var(--color-text-secondary)}
+.filt.active{background:var(--color-background-secondary);color:var(--color-text-primary);font-weight:500}
+.done-badge{font-size:11px;padding:2px 8px;border-radius:20px;background:#EAF3DE;color:#3B6D11;margin-left:auto}
+</style>
+
+<div class="top">
+  <div class="meta">Audit date: June 2026 · 15 bugs · all confirmed against source</div>
+
+  <div class="stats">
+    <div class="stat s-crit"><div class="stat-n">5</div><div class="stat-l">Critical</div></div>
+    <div class="stat s-high"><div class="stat-n">3</div><div class="stat-l">High</div></div>
+    <div class="stat s-med"><div class="stat-n">5</div><div class="stat-l">Medium</div></div>
+    <div class="stat s-low"><div class="stat-n">2</div><div class="stat-l">Low</div></div>
+    <div class="stat s-tot"><div class="stat-n">~3h</div><div class="stat-l">Fix time</div></div>
+  </div>
+
+  <div class="filters">
+    <span class="filt active" data-f="all">All 15</span>
+    <span class="filt" data-f="CRITICAL">Critical 5</span>
+    <span class="filt" data-f="HIGH">High 3</span>
+    <span class="filt" data-f="MEDIUM">Medium 5</span>
+    <span class="filt" data-f="LOW">Low 2</span>
+  </div>
+
+  <div class="bugs" id="buglist"></div>
+</div>
+
+<script>
+const BUGS = [
+  {
+    id:1, sev:'CRITICAL', title:'No defer on inFlight goroutine — permanent scene lock on panic',
+    file:'internal/service/generation.go',
+    why:'Any panic inside runPipeline (LLM timeout, nil pointer) leaves the sceneID locked forever in inFlight. That scene can never generate again without a server restart.',
+    bad:`go func() {\n    s.runPipeline(context.WithoutCancel(ctx), gen.ID, scene, params)\n    s.inFlight.Delete(sceneID)  // never called on panic\n}()`,
+    good:`go func() {\n    defer s.inFlight.Delete(sceneID)  // always runs, even on panic\n    s.runPipeline(context.WithoutCancel(ctx), gen.ID, scene, params)\n}()`,
+    time:'2 min', done:false
+  },
+  {
+    id:2, sev:'CRITICAL', title:'CharState make() inside character loop — only last char state survives',
+    file:'internal/service/generation.go — buildPromptParams',
+    why:'With 3 chars (Arya, Jon, Dany) all having state, only Dany\'s reaches the LLM. Arya and Jon hallucinate outfit and mood every single scene.',
+    bad:`for _, c := range allChars {\n    if len(states) > 0 {\n        params.CharState = make(map[string]interface{}) // reinit every loop!\n        params.CharState[c.Name] = cs\n    }\n}`,
+    good:`params.CharState = make(map[string]interface{}) // init ONCE outside loop\nfor _, c := range allChars {\n    if len(states) > 0 {\n        params.CharState[c.Name] = cs  // accumulates all chars\n    }\n}`,
+    time:'5 min', done:false
+  },
+  {
+    id:3, sev:'CRITICAL', title:'Integration tests: NewGenerationService called with 11 args, needs 13',
+    file:'internal/test/integration/api_test.go + pipeline_test.go',
+    why:'charRepo (pos 4) and locRepo (pos 9) are missing. Both test files. These do not compile. Running go test -tags integration gives a compiler error.',
+    bad:`service.NewGenerationService(\n    genRepo, sceneRepo, storyRepo,\n    // charRepo  ← MISSING\n    stateRepo, memRepo, tlRepo, sumRepo,\n    // locRepo   ← MISSING\n    prose, extract, summary, validate,\n)`,
+    good:`locRepo := mgorepo.NewLocationRepo(testDB)\nservice.NewGenerationService(\n    genRepo, sceneRepo, storyRepo,\n    charRepo,   // ADD\n    stateRepo, memRepo, tlRepo, sumRepo,\n    locRepo,    // ADD\n    prose, extract, summary, validate,\n)`,
+    time:'10 min', done:false
+  },
+  {
+    id:4, sev:'CRITICAL', title:'StoryCascadeDeleter.LocRepo = nil — nil panic on story delete',
+    file:'internal/test/integration/crud_test.go + api_test.go buildServer',
+    why:'cascade() calls d.LocRepo.DeleteByStory unconditionally. LocRepo never set in test. DELETE /api/v1/stories/{id} crashes the server with a nil pointer dereference.',
+    bad:`deleter := &service.StoryCascadeDeleter{\n    SceneRepo: sceneRepo, EdgeRepo: edgeRepo,\n    CharRepo: charRepo, StateRepo: stateRepo,\n    GenRepo: genRepo, MemRepo: memRepo,\n    TlRepo: tlRepo, SumRepo: sumRepo,\n    // LocRepo never set\n}`,
+    good:`locRepo := mgorepo.NewLocationRepo(testDB)\ndeleter := &service.StoryCascadeDeleter{\n    SceneRepo: sceneRepo, EdgeRepo: edgeRepo,\n    CharRepo: charRepo, StateRepo: stateRepo,\n    GenRepo: genRepo, MemRepo: memRepo,\n    TlRepo: tlRepo, SumRepo: sumRepo,\n    LocRepo: locRepo,  // ADD\n}`,
+    time:'5 min', done:false
+  },
+  {
+    id:5, sev:'CRITICAL', title:'CharacterState stored with char NAME, read back with hex ID — always empty',
+    file:'internal/worker/extract.go + service/generation.go',
+    why:'roster maps hexID→hexID. LLM is told "known chars: [507f...]" and returns delta.Character="Arya". State stored with CharacterID="Arya". buildPromptParams reads with c.CharID=hex. State is NEVER found. Memory system is non-functional.',
+    bad:`roster[ref] = ref  // maps hexID → hexID\n// LLM returns delta.Character = "Arya" (name)\nstate := &domain.CharacterState{\n    CharacterID: delta.Character, // stores "Arya"\n}\n// Later in buildPromptParams:\ns.stateRepo.ListByCharacter(ctx, c.CharID) // reads with hexID\n// Result: always empty`,
+    good:`// Build roster: name → charID\ncharNameToID[c.Name] = c.CharID\n\n// In extract worker, look up charID by name:\ncharID := roster[delta.Character] // "Arya" → hexID\nstate := &domain.CharacterState{\n    CharacterID: charID, // store hexID\n}`,
+    time:'30 min', done:false
+  },
+  {
+    id:6, sev:'HIGH', title:'CharacterRepo.Update mutates caller\'s pointer silently',
+    file:'internal/repository/mongo/characters.go',
+    why:'Caller\'s ID, Version, CreatedAt are overwritten. Current V2UpdateCharacter survives because it copies the struct first. Any future caller who forgets the copy gets silently corrupted data.',
+    bad:`func (r *CharacterRepo) Update(ctx, c *domain.Character) error {\n    c.ID = primitive.NewObjectID().Hex()  // mutates caller!\n    c.Version++\n    c.CreatedAt = time.Now()\n    _, err := r.coll.InsertOne(ctx, c)\n    return err\n}`,
+    good:`func (r *CharacterRepo) Update(ctx, c *domain.Character) (*domain.Character, error) {\n    newVer := *c  // copy — don't mutate caller\n    newVer.ID = primitive.NewObjectID().Hex()\n    newVer.Version = c.Version + 1\n    newVer.CreatedAt = time.Now()\n    _, err := r.coll.InsertOne(ctx, &newVer)\n    return &newVer, err\n}`,
+    time:'20 min', done:false
+  },
+  {
+    id:7, sev:'HIGH', title:'Two topology endpoints return different JSON shapes',
+    file:'internal/api/scenes.go vs internal/api/nodes.go',
+    why:'scenes.go Topology returns {nodes:[domain.Scene]}. nodes.go V2Topology returns {nodes:[graphNode], topological_order:[...]}. Frontend uses V2 but the V1 route still exists with a different shape.',
+    bad:`// scenes.go Topology:\nwriteJSON(w, 200, map[string]any{\n    "nodes": scenes,  // domain.Scene shape\n    "edges": edges,\n})`,
+    good:`// scenes.go — redirect to canonical:\nfunc (h *Handlers) Topology(w http.ResponseWriter, r *http.Request) {\n    h.V2Topology(w, r)  // one shape, everywhere\n}`,
+    time:'10 min', done:false
+  },
+  {
+    id:8, sev:'HIGH', title:'gen.Model never updated from actual resp.Model',
+    file:'internal/worker/generate.go',
+    why:'Initial model is "claude-sonnet". If router falls back to haiku (rate limit, circuit open), the generation record still shows "claude-sonnet". Debugging LLM issues becomes impossible.',
+    bad:`gen.Output = resp.Content\n// gen.Model stays as initial "claude-sonnet"\nreturn resp.Content, w.genRepo.Update(ctx, gen)`,
+    good:`gen.Output = resp.Content\nif resp.Model != "" {\n    gen.Model = resp.Model  // store what was actually used\n}\nreturn resp.Content, w.genRepo.Update(ctx, gen)`,
+    time:'2 min', done:false
+  },
+  {
+    id:9, sev:'MEDIUM', title:'Handler dependencies are concrete types — handlers untestable',
+    file:'internal/api/handlers.go',
+    why:'All service fields are *service.ConcreteType. Cannot inject mocks for unit testing. Must spin up full service layer for any handler test.',
+    bad:`type Handlers struct {\n    storySvc  *service.StoryService     // concrete\n    sceneSvc  *service.SceneService     // concrete\n    charSvc   *service.CharacterService // concrete\n}`,
+    good:`// internal/api/interfaces.go\ntype StoryServicer interface {\n    Create(ctx, title string) (*domain.Story, error)\n    Get(ctx, id string) (*domain.Story, error)\n    // ...\n}\ntype Handlers struct {\n    storySvc  StoryServicer  // interface\n}`,
+    time:'45 min', done:false
+  },
+  {
+    id:10, sev:'MEDIUM', title:'contextTimeout middleware defined but never wired into router',
+    file:'internal/api/server.go',
+    why:'LLM calls can hang indefinitely. Without an HTTP-layer timeout, goroutines pile up. contextTimeout() exists but is not in the middleware chain.',
+    bad:`r.Use(middleware.Logger)\nr.Use(middleware.Recoverer)\nr.Use(middleware.RequestID)\n// contextTimeout defined but never added`,
+    good:`r.Use(middleware.Logger)\nr.Use(middleware.Recoverer)\nr.Use(middleware.RequestID)\nr.Use(contextTimeout(90 * time.Second))  // ADD`,
+    time:'5 min', done:false
+  },
+  {
+    id:11, sev:'MEDIUM', title:'TopologicalOrder = MongoDB insert order, not actual topological sort',
+    file:'internal/api/nodes.go — V2Topology',
+    why:'extractIDs(scenes) just maps scene slice to IDs. MongoDB returns in insert order. A DAG like A→B, A→C, B→D could return [D, A, B, C] if D was inserted first.',
+    bad:`TopologicalOrder: extractIDs(scenes), // MongoDB order ≠ topo order`,
+    good:`sorted, _ := graph.TopologicalSort(graphNodes, graphEdges)\norder := make([]string, 0, len(sorted))\nfor _, n := range sorted {\n    order = append(order, n.ID.String())\n}\nTopologicalOrder: order, // actual Kahn's algorithm sort`,
+    time:'15 min', done:false
+  },
+  {
+    id:12, sev:'MEDIUM', title:'Location.Props is []string in code, map[string]any in schema',
+    file:'internal/domain/location.go + docs/schema.md',
+    why:'Schema shows {"architecture": "gothic", "defenses": ["portcullis"]}. Code has []string. One of them is wrong. Pick map[string]any and align all three: domain, handler, schema.',
+    bad:`// domain/location.go\nProps []string  \`bson:"props"\`\n// schema.md shows:\n// "props": {"architecture": "gothic"}  // map type`,
+    good:`// domain/location.go\nProps map[string]any \`bson:"props,omitempty" json:"props,omitempty"\`\n// handler CreateLocation body:\nProps map[string]any \`json:"props"\``,
+    time:'15 min', done:false
+  },
+  {
+    id:13, sev:'MEDIUM', title:'Three different JSON field names for the same edge concept',
+    file:'internal/api/edges.go',
+    why:'CreateEdge uses fromSceneId/toSceneId. V2CreateEdge uses from_node/to_node. DeleteEdge uses from_scene/to_scene. Pick one convention (snake_case) and apply everywhere.',
+    bad:`// CreateEdge:   json:"fromSceneId", json:"toSceneId"\n// V2CreateEdge: json:"from_node",   json:"to_node"\n// DeleteEdge:   json:"from_scene",  json:"to_scene"`,
+    good:`// All three handlers use:\nFromScene string \`json:"from_scene"\`\nToScene   string \`json:"to_scene"\`\nType      string \`json:"type"\``,
+    time:'10 min', done:false
+  },
+  {
+    id:14, sev:'LOW', title:'MemoryStore.Save stores caller\'s pointer — shared mutations possible',
+    file:'internal/prompt/store.go',
+    why:'After Save, the caller and the store share the same *PromptTemplate. Mutating the template after saving corrupts the stored version silently.',
+    bad:`func (s *MemoryStore) Save(tmpl *PromptTemplate) error {\n    tmpl.ID = uuid.New()     // mutates caller\n    s.data[tmpl.Name] = tmpl // stores caller's pointer\n    return nil\n}`,
+    good:`func (s *MemoryStore) Save(tmpl *PromptTemplate) error {\n    copy := *tmpl\n    copy.ID = uuid.New()\n    copy.Layers = make([]PromptLayer, len(tmpl.Layers))\n    for i, l := range tmpl.Layers { copy.Layers[i] = l }\n    s.data[copy.Name] = &copy  // store independent copy\n    return nil\n}`,
+    time:'10 min', done:false
+  },
+  {
+    id:15, sev:'LOW', title:'GenerateStory stores location NAME in LocationRef, not ID',
+    file:'internal/api/stories.go — GenerateStory',
+    why:'buildPromptParams has a Name||ID fallback, so it works today. But the inconsistency (sometimes LocationRef = name, sometimes = ID) will cause bugs when either side is refactored.',
+    bad:`scene := &domain.Scene{\n    LocationRef: b.LocationName,  // name "Castle Gates"\n}\n// buildPromptParams: loc.Name == scene.LocationRef || loc.ID == scene.LocationRef`,
+    good:`// After creating location, store its ID:\nif loc was created {\n    scene.LocationRef = loc.ID  // always store ID\n}`,
+    time:'10 min', done:false
+  },
+];
+
+const STATE = { filter:'all', done:{} };
+
+function sev(s){
+  const m={CRITICAL:'sev-crit',HIGH:'sev-high',MEDIUM:'sev-med',LOW:'sev-low'};
+  return m[s]||'sev-low';
+}
+
+function render(){
+  const list = document.getElementById('buglist');
+  const filtered = STATE.filter==='all' ? BUGS : BUGS.filter(b=>b.sev===STATE.filter);
+  list.innerHTML = filtered.map(b => {
+    const isDone = STATE.done[b.id];
+    return `<div class="bug" data-id="${b.id}">
+      <div class="bug-header" onclick="toggle(${b.id})">
+        <span class="sev ${sev(b.sev)}">${b.sev}</span>
+        <span class="bug-title" style="${isDone?'text-decoration:line-through;opacity:0.5':''}">FIX-${b.id}: ${b.title}</span>
+        <span class="bug-file">${b.file.split('/').pop()}</span>
+        ${isDone ? '<span class="done-badge">done</span>' : ''}
+        <i class="ti ti-chevron-down chevron" id="chev-${b.id}" aria-hidden="true"></i>
+      </div>
+      <div class="bug-body" id="body-${b.id}">
+        <p>${b.why}</p>
+        <div class="code-label">problem</div>
+        <div class="code code-bad">${b.bad.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+        <div class="code-label">fix</div>
+        <div class="code code-good">${b.good.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+        <div style="display:flex;gap:8px;margin-top:0.75rem;align-items:center">
+          <span style="font-size:12px;color:var(--color-text-secondary)">~${b.time}</span>
+          <button class="fix-btn" onclick="markDone(${b.id},event)">${isDone?'undo':'mark fixed'}</button>
+          <button class="fix-btn" onclick="askFix(${b.id},event)">explain fix ↗</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggle(id){
+  const body = document.getElementById('body-'+id);
+  const chev = document.getElementById('chev-'+id);
+  const open = body.classList.toggle('open');
+  chev.classList.toggle('open', open);
+}
+
+function markDone(id, e){
+  e.stopPropagation();
+  STATE.done[id] = !STATE.done[id];
+  const remaining = BUGS.filter(b=>!STATE.done[b.id]).length;
+  document.querySelector('.s-tot .stat-n').textContent = remaining === 0 ? '✓' : remaining + ' left';
+  render();
+}
+
+function askFix(id, e){
+  e.stopPropagation();
+  const b = BUGS.find(x=>x.id===id);
+  sendPrompt(`Show me the complete code fix for FIX-${id}: ${b.title} in ${b.file}`);
+}
+
+document.querySelectorAll('.filt').forEach(el => {
+  el.addEventListener('click', () => {
+    STATE.filter = el.dataset.f;
+    document.querySelectorAll('.filt').forEach(x=>x.classList.remove('active'));
+    el.classList.add('active');
+    render();
+  });
+});
+
+render();
+</script>

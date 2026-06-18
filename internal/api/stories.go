@@ -160,6 +160,10 @@ func (h *Handlers) GenerateStory(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+			locRef := b.LocationName
+		if id, ok := locIDByName[b.LocationName]; ok {
+			locRef = id
+		}
 		scene := &domain.Scene{
 			StoryID:          story.ID,
 			Title:            b.Title,
@@ -167,7 +171,7 @@ func (h *Handlers) GenerateStory(w http.ResponseWriter, r *http.Request) {
 			POV:              b.POV,
 			Tone:             b.Tone,
 			TargetWords:      b.TargetWords,
-			LocationRef:      b.LocationName,
+			LocationRef:      locRef,
 			TimelinePosition: i + 1,
 		}
 		for _, cn := range b.CharacterNames {
