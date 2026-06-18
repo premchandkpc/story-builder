@@ -26,6 +26,7 @@ func TestIntegration_Stories(t *testing.T) {
 		MemRepo:   mgorepo.NewMemoryRepo(testDB),
 		TlRepo:    mgorepo.NewTimelineRepo(testDB),
 		SumRepo:   mgorepo.NewSummaryRepo(testDB),
+		LocRepo:   mgorepo.NewLocationRepo(testDB),
 	}
 	svc := service.NewStoryService(storyRepo, deleter)
 	ctx := context.Background()

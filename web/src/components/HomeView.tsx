@@ -1,134 +1,115 @@
-// ---- HomeView ----
-// The home/landing page. Shows a form to create stories or generate them via LLM.
-// Users can:
-//   1. Type a title and click "Create" for a blank story
-//   2. Write a synopsis and click "✨" to generate a title
-//   3. Write a synopsis and click "Full Generate" to generate an entire story
-
-// useState: a React hook that lets components remember values between renders.
-//   - Returns [value, setValue] pair
-//   - When setValue is called, the component re-renders with the new value
 import { useState } from "react"
 import { inputStyle, btnStyle } from "../api/types"
 import { useCreateStory, useGenerateTitle, useGenerateStory } from "../api/hooks"
 
-// ---- Component ----
 export default function HomeView() {
-  // ---- State variables ----
-  // newTitle: the text typed into the "Story title" input field
   const [newTitle, setNewTitle] = useState("")
-  // synopsis: the text typed into the textarea (story description for AI)
   const [synopsis, setSynopsis] = useState("")
-  // error: nullable string — non-null means an error banner is shown
   const [error, setError] = useState<string | null>(null)
 
-  // ---- Mutations (React Query) ----
-  // These are "mutation" hooks that send data to the server.
-  // Each returns { mutate, mutateAsync, isPending, isError, ... }
-  const createStoryMut = useCreateStory()       // creates a story and navigates
-  const generateTitleMut = useGenerateTitle()   // generates AI title from synopsis
-  const generateStoryMut = useGenerateStory()   // generates full story via LLM
+  const createStoryMut = useCreateStory()
+  const generateTitleMut = useGenerateTitle()
+  const generateStoryMut = useGenerateStory()
 
-  // ---- Handlers ----
-
-  // handleGenerateTitle: sends synopsis to LLM for title generation
   const handleGenerateTitle = async () => {
-    if (!synopsis.trim()) return                        // skip if empty
+    if (!synopsis.trim()) return
     try {
-      // mutateAsync returns a promise (vs mutate which is fire-and-forget)
       const res = await generateTitleMut.mutateAsync(synopsis)
-      setNewTitle(res.title)                            // fill the title field with AI result
+      setNewTitle(res.title)
     } catch {
-      setError("Failed to generate title")              // show error message
+      setError("Failed to generate title")
     }
   }
 
-  // handleCreate: creates a new story with given or auto-generated title
   const handleCreate = (title?: string) => {
-    // Priority: explicit title > newTitle state > first 50 chars of synopsis
     const t = (title || newTitle || synopsis.trim().slice(0, 50)).trim()
-    if (!t) return               // still empty — do nothing
-    createStoryMut.mutate(t)   // fire the mutation (React Query handles the API call)
+    if (!t) return
+    createStoryMut.mutate(t)
   }
 
-  // handleGenerateStory: kicks off full AI story generation
   const handleGenerateStory = async () => {
     if (!synopsis.trim()) return
     try {
       await generateStoryMut.mutateAsync(synopsis)
-      setSynopsis("")                               // clear the textarea
+      setSynopsis("")
       setError("Story generation started (async). Refresh in a moment.")
     } catch {
       setError("Failed to start generation")
     }
   }
 
-  // ---- Render ----
   return (
-    // Center everything vertically and horizontally
     <div style={{
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
       minHeight: "100%",
-      gap: 20,
+      gap: 24,
       padding: 40,
     }}>
-      {/* Error banner — only shown when error is not null */}
       {error && (
-        <div style={{ background: "#fdd", color: "#c00", padding: "8px 16px", borderRadius: 4 }}>
+        <div style={{
+          background: "rgba(212, 103, 103, 0.15)",
+          color: "var(--error)",
+          border: "1px solid var(--error)",
+          padding: "10px 18px",
+          borderRadius: 8,
+          fontSize: 13,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+        }}>
           {error}
-          {/*
-            "×" button dismisses the error by setting it back to null.
-            Inline styles for a minimal close button.
-          */}
           <button onClick={() => setError(null)} style={{
-            background: "none", border: "none", color: "#c00",
-            cursor: "pointer", fontSize: 18, marginLeft: 8
+            background: "none", border: "none", color: "var(--error)",
+            cursor: "pointer", fontSize: 18, lineHeight: 1,
           }}>×</button>
         </div>
       )}
 
-      {/* Page heading */}
-      <div style={{ fontSize: 22, fontWeight: 700 }}>Story Builder</div>
-
-      {/* Card container for the form */}
       <div style={{
-        background: "#1e293b",
-        border: "1px solid #334155",
-        borderRadius: 8,
-        padding: 24,
-        width: 460,
+        fontFamily: "var(--font-heading)",
+        fontSize: 28,
+        fontWeight: 700,
+        color: "var(--accent)",
+        letterSpacing: "-0.02em",
+      }}>
+        Story Builder
+      </div>
+
+      <div style={{
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        borderRadius: 12,
+        padding: 28,
+        width: 480,
         display: "flex",
         flexDirection: "column",
-        gap: 12,
+        gap: 14,
       }}>
-        {/* Section label */}
-        <div style={{ fontSize: 14, color: "#94a3b8" }}>Create Story</div>
+        <div style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+          Create Story
+        </div>
 
-        {/* Row: title input + generate-title button */}
         <div style={{ display: "flex", gap: 8 }}>
           <input
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             placeholder="Story title (or generate from synopsis)"
             style={{ ...inputStyle, flex: 1 }}
-            // Press Enter to create story
             onKeyDown={(e) => e.key === "Enter" && handleCreate()}
           />
           <button
             onClick={handleGenerateTitle}
             disabled={!synopsis.trim() || generateTitleMut.isPending}
-            style={btnStyle("#8b5cf6", !synopsis.trim() || generateTitleMut.isPending)}
+            style={btnStyle("var(--secondary)", !synopsis.trim() || generateTitleMut.isPending)}
             title="Generate title from synopsis"
           >
             {generateTitleMut.isPending ? "..." : "✨"}
-            {/* Show "..." while generating, otherwise sparkles emoji */}
           </button>
         </div>
 
-        {/* Synopsis textarea */}
         <textarea
           value={synopsis}
           onChange={(e) => setSynopsis(e.target.value)}
@@ -137,23 +118,18 @@ export default function HomeView() {
           style={{ ...inputStyle, resize: "vertical" }}
         />
 
-        {/* Row: Create button + Full Generate button */}
         <div style={{ display: "flex", gap: 8 }}>
           <button
             onClick={() => handleCreate()}
-            style={{ ...btnStyle("#3b82f6", !newTitle.trim() && !synopsis.trim()), flex: 1 }}
+            style={{ ...btnStyle("var(--accent)", !newTitle.trim() && !synopsis.trim()), flex: 1 }}
             disabled={!newTitle.trim() && !synopsis.trim()}
           >
-            {/*
-              Button text changes to "(auto-title)" if no title was typed
-              but a synopsis exists, hinting the first 50 chars will be used.
-            */}
             Create{!newTitle.trim() && synopsis.trim() ? " (auto-title)" : ""}
           </button>
           <button
             onClick={handleGenerateStory}
             disabled={generateStoryMut.isPending || !synopsis.trim()}
-            style={{ ...btnStyle("#8b5cf6", generateStoryMut.isPending || !synopsis.trim()), flex: 1 }}
+            style={{ ...btnStyle("var(--secondary)", generateStoryMut.isPending || !synopsis.trim()), flex: 1 }}
           >
             {generateStoryMut.isPending ? "Generating..." : "Full Generate"}
           </button>

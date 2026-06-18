@@ -1,27 +1,57 @@
-/* ---- Global Reset ---- */
-/* The * selector targets ALL elements on the page. */
+:root {
+  --bg: #1a1a24;
+  --surface: #24243a;
+  --surface-hover: #2e2e48;
+  --border: #3a3a52;
+  --text: #e8e4d8;
+  --text-muted: #8888a0;
+  --accent: #d4a853;
+  --accent-hover: #e0b96a;
+  --secondary: #c9734a;
+  --success: #7bb87b;
+  --error: #d46767;
+  --cork: #c4a46c;
+
+  --font-heading: 'Playfair Display', Georgia, serif;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
 * {
-  box-sizing: border-box; /* makes padding/border included in element's total width/height */
+  box-sizing: border-box;
 }
 
-/* ---- Body styles ---- */
 body {
-  margin: 0;               /* remove default browser margin */
-  background: #0f172a;     /* very dark blue-gray background (Tailwind slate-900) */
-  color: #e2e8f0;          /* light gray text (Tailwind slate-200) */
-  font-family: system-ui, -apple-system, sans-serif; /* modern system fonts */
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* ---- Root mount point ---- */
-/* This is the <div id="root"> where React renders the app (see main.tsx) */
 #root {
-  width: 100%;    /* fill the full viewport width */
-  height: 100vh;  /* fill the full viewport height (100% of viewport height) */
+  width: 100%;
+  height: 100vh;
 }
 
-/* ---- Form elements inherit font ---- */
-/* By default, input/select/button use the browser's default font.
-   This makes them use the same font as the rest of the app. */
-input, select, button {
+input, select, button, textarea {
   font-family: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::selection {
+  background: rgba(212, 168, 83, 0.3);
+  color: var(--text);
 }

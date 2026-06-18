@@ -31,11 +31,12 @@ func buildServer(t *testing.T) (*api.Server, *mgorepo.StoryRepo) {
 	memRepo := mgorepo.NewMemoryRepo(testDB)
 	tlRepo := mgorepo.NewTimelineRepo(testDB)
 	sumRepo := mgorepo.NewSummaryRepo(testDB)
+	locRepo := mgorepo.NewLocationRepo(testDB)
 
 	deleter := &service.StoryCascadeDeleter{
 		SceneRepo: sceneRepo, EdgeRepo: edgeRepo, CharRepo: charRepo,
 		StateRepo: stateRepo, GenRepo: genRepo, MemRepo: memRepo,
-		TlRepo: tlRepo, SumRepo: sumRepo,
+		TlRepo: tlRepo, SumRepo: sumRepo, LocRepo: locRepo,
 	}
 
 	mockLLM := &stubLLMClient{}
@@ -56,10 +57,16 @@ func buildServer(t *testing.T) (*api.Server, *mgorepo.StoryRepo) {
 		service.NewSceneService(sceneRepo, edgeRepo, genRepo),
 		service.NewEdgeService(edgeRepo),
 		service.NewCharacterService(charRepo),
-		service.NewGenerationService(genRepo, sceneRepo, storyRepo, stateRepo, memRepo, tlRepo, sumRepo, prose, extract, summary, validate),
+		service.NewGenerationService(service.GenerationServiceConfig{
+			GenRepo: genRepo, SceneRepo: sceneRepo, StoryRepo: storyRepo,
+			CharRepo: charRepo, StateRepo: stateRepo, MemRepo: memRepo,
+			TlRepo: tlRepo, SumRepo: sumRepo, LocRepo: locRepo,
+			ProseSvc: prose, ExtractSvc: extract, SummarySvc: summary, ValidateSvc: validate,
+		}),
 		service.NewTimelineService(tlRepo),
 		service.NewSummaryService(sumRepo),
 		service.NewMemoryService(memRepo),
+		service.NewLocationService(locRepo),
 		llm.NewOutlineService(mockLLM, compiler),
 	)
 

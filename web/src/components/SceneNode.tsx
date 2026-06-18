@@ -1,118 +1,77 @@
-// ---- SceneNode: A custom React Flow node ----
-// This component renders a single node in the story graph (DAG).
-// It displays the scene's label, status badge, beat intent, and metadata.
-
-// memo: a React higher-order component that prevents re-rendering
-// if the props haven't changed (performance optimization).
 import { memo } from "react"
-
-// Handle: the small connection circles on node edges (input/output ports).
-// Position: enum for handle placement (LEFT for target, RIGHT for source).
-// NodeProps: TypeScript type that describes the props React Flow passes to custom nodes.
-// Node: TypeScript type for a React Flow node object.
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react"
 
-// ---- Local type definition ----
-// Describes the custom data attached to this node type.
 type SceneNodeData = {
-  label: string                                         // display label
-  status: "draft" | "generated" | "accepted" | "stale" // generation lifecycle status
-  beatIntent: string                                    // what this scene accomplishes
-  pov: string                                           // point of view
-  tone: string                                          // emotional tone
-  targetWords: number                                   // target word count
+  label: string
+  status: "draft" | "generated" | "accepted" | "stale"
+  beatIntent: string
+  pov: string
+  tone: string
+  targetWords: number
 }
 
-// ---- Lookup tables ----
-// statusColors maps status strings to CSS color values (used for the border and badge).
-const statusColors: Record<string, string> = {
-  draft:     "#94a3b8", // gray
-  generated: "#f59e0b", // amber/orange
-  accepted:  "#22c55e", // green
-  stale:     "#ef4444", // red
+const statusAccents: Record<string, { dot: string; label: string }> = {
+  draft:     { dot: "#8888a0", label: "Draft" },
+  generated: { dot: "#c9734a", label: "Generated" },
+  accepted:  { dot: "#7bb87b", label: "Accepted" },
+  stale:     { dot: "#d46767", label: "Stale" },
 }
 
-// statusLabels maps status to human-readable text for the badge.
-const statusLabels: Record<string, string> = {
-  draft:     "Draft",
-  generated: "Generated",
-  accepted:  "Accepted",
-  stale:     "Stale",
-}
-
-// ---- Component ----
-// NodeProps<Node<SceneNodeData>> is the type for props that React Flow passes.
-// React Flow automatically injects `data`, `id`, `selected`, etc.
-// We destructure only `data` since that's all we need.
 function SceneNode({ data }: NodeProps<Node<SceneNodeData>>) {
+  const s = statusAccents[data.status] || statusAccents.draft
+
   return (
-    // The outer div is the node's visual container.
-    <div
-      style={{
-        background: "#1e293b",                                        // dark card background
-        border: `2px solid ${statusColors[data.status] || statusColors.draft}`, // color-coded border
-        borderRadius: 8,
-        padding: "12px 16px",
-        minWidth: 200,                                                // minimum width for readability
-        color: "#e2e8f0",
-        fontFamily: "system-ui, sans-serif",
-        fontSize: 13,
+    <div style={{
+      background: "#f5f0e8",
+      border: `1px solid ${s.dot}`,
+      borderRadius: 6,
+      padding: "14px 18px 12px",
+      minWidth: 200,
+      color: "#1a1a24",
+      fontFamily: "var(--font-body)",
+      fontSize: 13,
+      position: "relative",
+      boxShadow: "0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08)",
+      cursor: "pointer",
+      transition: "box-shadow 0.15s, transform 0.15s",
+    }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.18), 0 2px 4px rgba(0,0,0,0.1)"
+        e.currentTarget.style.transform = "translateY(-1px)"
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08)"
+        e.currentTarget.style.transform = "none"
       }}
     >
-      {/*
-        Handle (target) — input port on the LEFT side.
-        type="target" means edges connect INTO this handle.
-        Position.Left places it on the left edge of the node.
-      */}
-      <Handle type="target" position={Position.Left} />
+      <Handle type="target" position={Position.Left} style={{ background: s.dot, width: 8, height: 8, border: "2px solid #f5f0e8" }} />
 
-      {/* Header row: label on the left, status badge on the right */}
-      <div
-        style={{
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+        <strong style={{ fontSize: 14, fontFamily: "var(--font-heading)", color: "#1a1a24" }}>{data.label}</strong>
+        <span style={{
           display: "flex",
-          justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: 6,
-        }}
-      >
-        <strong style={{ fontSize: 14 }}>{data.label}</strong>
-
-        {/* Status badge — a colored pill showing draft/generated/accepted/stale */}
-        <span
-          style={{
-            background: statusColors[data.status],
-            color: "#000",
-            padding: "1px 8px",
-            borderRadius: 10,       // rounded pill shape
-            fontSize: 11,
-            fontWeight: 600,
-          }}
-        >
-          {statusLabels[data.status]}
+          gap: 4,
+          fontSize: 11,
+          fontWeight: 600,
+          color: s.dot,
+        }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.dot, flexShrink: 0 }} />
+          {s.label}
         </span>
       </div>
 
-      {/* Beat intent — what this scene is supposed to accomplish */}
-      <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 4 }}>
+      <div style={{ fontSize: 12, color: "#555", marginBottom: 4, lineHeight: 1.4 }}>
         {data.beatIntent}
       </div>
 
-      {/* Metadata row: POV · Tone · Word count */}
-      <div style={{ fontSize: 11, color: "#64748b" }}>
+      <div style={{ fontSize: 11, color: "#888" }}>
         {data.pov} · {data.tone} · {data.targetWords}w
       </div>
 
-      {/*
-        Handle (source) — output port on the RIGHT side.
-        type="source" means edges START from this handle.
-        Position.Right places it on the right edge of the node.
-      */}
-      <Handle type="source" position={Position.Right} />
+      <Handle type="source" position={Position.Right} style={{ background: s.dot, width: 8, height: 8, border: "2px solid #f5f0e8" }} />
     </div>
   )
 }
 
-// ---- Export ----
-// memo() wraps the component so it only re-renders when its props change.
-// This is important for React Flow performance when many nodes exist.
 export default memo(SceneNode)

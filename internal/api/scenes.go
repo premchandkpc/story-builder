@@ -76,21 +76,4 @@ func (h *Handlers) DeleteScene(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *Handlers) Topology(w http.ResponseWriter, r *http.Request) {
-	storyID := chi.URLParam(r, "storyID")
-	scenes, edges, err := h.sceneSvc.Topology(r.Context(), storyID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if scenes == nil {
-		scenes = []*domain.Scene{}
-	}
-	if edges == nil {
-		edges = []*domain.SceneEdge{}
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"nodes": scenes,
-		"edges": edges,
-	})
-}
+

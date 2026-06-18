@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Story Builder — Code Audit</title>
+<style>
+:root {
+  --bg: #1a1a24;
+  --surface: #24243a;
+  --surface-hover: #2e2e48;
+  --border: #3a3a52;
+  --text: #e8e4d8;
+  --text-muted: #8888a0;
+  --accent: #d4a853;
+  --success: #7bb87b;
+  --error: #d46767;
+  --warn: #c9734a;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  padding: 32px;
+  -webkit-font-smoothing: antialiased;
+}
+h1 {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 28px;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+.subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 28px; }
+.stats {
+  display: flex; gap: 12px; margin-bottom: 28px; flex-wrap: wrap;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+  min-width: 120px;
+  flex: 1;
+}
+.stat-card .num {
+  font-size: 28px;
+  font-weight: 700;
+  font-family: 'Playfair Display', Georgia, serif;
+}
+.stat-card .label { font-size: 12px; color: var(--text-muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
+.stat-card.fixed .num { color: var(--success); }
+.stat-card.wontfix .num { color: var(--text-muted); }
+.stat-card.critical .num { color: var(--error); }
+
+.filters {
+  display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;
+}
+.filters button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 14px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.1s;
+}
+.filters button:hover, .filters button.active {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.filters button.active { background: rgba(212,168,83,0.12); }
+
+.finding {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 8px;
+  transition: border-color 0.15s;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.finding:hover { border-color: var(--accent); }
+.finding .status-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+.status-dot.fixed { background: var(--success); box-shadow: 0 0 6px var(--success); }
+.status-dot.critical { background: var(--error); box-shadow: 0 0 6px var(--error); }
+.status-dot.wontfix { background: var(--text-muted); }
+.finding .body { flex: 1; min-width: 0; }
+.finding .title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.finding .severity {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.severity.critical { background: rgba(212,103,103,0.15); color: var(--error); border: 1px solid var(--error); }
+.severity.high { background: rgba(201,115,74,0.15); color: var(--warn); border: 1px solid var(--warn); }
+.severity.medium { background: rgba(212,168,83,0.10); color: var(--accent); border: 1px solid var(--accent); }
+.severity.low { background: rgba(136,136,160,0.10); color: var(--text-muted); border: 1px solid var(--border); }
+.finding .desc { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+.finding .fix {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text);
+  background: rgba(123,184,123,0.08);
+  border-left: 2px solid var(--success);
+  padding: 6px 10px;
+  border-radius: 0 4px 4px 0;
+}
+.finding .meta {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.finding .meta code {
+  background: var(--bg);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  color: var(--accent);
+}
+.hidden { display: none; }
+</style>
+</head>
+<body>
+
+<h1>&#128214; Code Audit</h1>
+<div class="subtitle">Story Builder — internal code review · 15 findings</div>
+
+<div class="stats" id="stats"></div>
+
+<div class="filters" id="filters">
+  <button class="active" data-filter="all">All</button>
+  <button data-filter="critical">Critical</button>
+  <button data-filter="high">High</button>
+  <button data-filter="medium">Medium</button>
+  <button data-filter="low">Low</button>
+  <button data-filter="fixed">Fixed</button>
+  <button data-filter="wontfix">Won't Fix</button>
+</div>
+
+<div id="findings"></div>
+
+<script>
+const DATA = [
+  {
+    id: "F-01",
+    title: "genInFlight leak on panic",
+    severity: "critical",
+    status: "fixed",
+    desc: "Generate() goroutine had no deferred genInFlight.Delete(). If runPipeline panicked, the sceneID was permanently locked — all subsequent generation requests for that scene would fail with 'generation already in progress' until server restart.",
+    fix: "Added `defer s.genInFlight.Delete(sceneID)` as the first line inside the goroutine.",
+    file: "internal/service/generation.go:87",
+    commit: "current"
+  },
+  {
+    id: "F-02",
+    title: "CharState only holds last participant",
+    severity: "critical",
+    status: "fixed",
+    desc: "params.CharState = make(map[string]interface{}) was placed INSIDE the character iteration loop, causing it to reset on every iteration. Only the last participant's state reached the LLM prompt; all others were discarded.",
+    fix: "Moved the map initialization BEFORE the character loop at line 112.",
+    file: "internal/service/generation.go:128",
+    commit: "current"
+  },
+  {
+    id: "F-03",
+    title: "AcceptGeneration race condition",
+    severity: "critical",
+    status: "fixed",
+    desc: "AcceptGeneration had no concurrency guard. Two concurrent accept calls for the same scene could interleave their read-modify-write cycles, resulting in multiple generations marked accepted or a stale scene status.",
+    fix: "Added acceptInFlight sync.Map guard (LoadOrStore/Delete). The function now atomically marks all gens as accepted=false then sets target=true in a single locked pass.",
+    file: "internal/service/generation.go:33,180",
+    commit: "current"
+  },
+  {
+    id: "F-04",
+    title: "GenerateStory missing character fields",
+    severity: "high",
+    status: "fixed",
+    desc: "The GenerateStory handler created Character records from the LLM outline but only filled Name and Persona. MoralAlignment, Personality, Goals, Flaws, Traits, and VoiceSamples from StoryOutlineCharacter were silently dropped.",
+    fix: "Added explicit field mapping for all character fields in the CreateCharacter call.",
+    file: "internal/api/stories.go:120-154",
+    commit: "current"
+  },
+  {
+    id: "F-05",
+    title: "GenerateStory skips Location creation",
+    severity: "high",
+    status: "fixed",
+    desc: "When generating a story from synopsis, the beat LocationName field was completely ignored. No Location records were created, and scenes had no LocationRef set.",
+    fix: "Created LocationRepository/Service/domain types; GenerateStory now creates Location records from beat LocationName and sets LocationRef on scenes.",
+    file: "internal/api/stories.go, internal/domain/location.go, internal/repository/mongo/locations.go",
+    commit: "current"
+  },
+  {
+    id: "F-06",
+    title: "GenerateStory missing TimelinePosition",
+    severity: "high",
+    status: "fixed",
+    desc: "Scenes created by GenerateStory had TimelinePosition=0. The topological sort then produced unreliable ordering since it fell back to DB insertion order.",
+    fix: "Set scene.TimelinePosition = i+1 during scene creation in GenerateStory.",
+    file: "internal/api/stories.go:154",
+    commit: "current"
+  },
+  {
+    id: "F-07",
+    title: "Entire Location system absent",
+    severity: "high",
+    status: "fixed",
+    desc: "No Location domain type, repository, service, or API handlers existed. The LLM prompt builder (buildPromptParams) couldn't provide location context to the model, and there was no way to manage story settings.",
+    fix: "Created domain.Location, LocationRepository interface + Mongo impl, LocationService, and CRUD API handlers. Wired into cascade deleter, server, and integration tests.",
+    file: "internal/domain/location.go, internal/repository/mongo/locations.go, internal/service/location.go, internal/api/locations.go",
+    commit: "current"
+  },
+  {
+    id: "F-08",
+    title: "Topology sorts by insertion order",
+    severity: "high",
+    status: "fixed",
+    desc: "V2Topology endpoint returned nodes in whatever order MongoDB returned them (typically insertion order). The frontend couldn't rely on topological ordering for layout.",
+    fix: "Sort nodes by TimelinePosition before returning from the topology endpoint.",
+    file: "internal/api/nodes.go:198",
+    commit: "current"
+  },
+  {
+    id: "F-09",
+    title: "Dual topology endpoint confusion",
+    severity: "medium",
+    status: "fixed",
+    desc: "An unused Topology() handler existed at /api/v1/stories/:id/scenes/topology with a different response shape than the real topology endpoint. This created ambiguity about which shape was canonical.",
+    fix: "Removed the dead Topology() handler from scenes.go.",
+    file: "internal/api/scenes.go:79-96",
+    commit: "current"
+  },
+  {
+    id: "F-10",
+    title: "ExtractStateWorker ignores location/mood",
+    severity: "high",
+    status: "fixed",
+    desc: "The ExtractStateWorker created CharacterState records but left Location and Mood empty. The LLM prompt builder reads these fields for character context, so state was silently missing.",
+    fix: "Set state.Location = delta.NewLocation and state.Mood = delta.Mood directly from the extraction deltas.",
+    file: "internal/worker/extract.go:53-58",
+    commit: "current"
+  },
+  {
+    id: "F-11",
+    title: "NewGenerationService 14-param constructor",
+    severity: "medium",
+    status: "fixed",
+    desc: "NewGenerationService accepted 14 positional parameters. Callers had to remember the exact order — a single transposed argument would compile but cause silent data corruption.",
+    fix: "Refactored to GenerationServiceConfig struct. All callers updated to use named fields.",
+    file: "internal/service/generation.go:16-58",
+    commit: "current"
+  },
+  {
+    id: "F-12",
+    title: "Missing pipeline step observability",
+    severity: "medium",
+    status: "fixed",
+    desc: "The runPipeline method executed 6 worker steps sequentially but did not persist which step was running, had failed, or completed. Operators had no way to diagnose a stuck or failed pipeline.",
+    fix: "Added StepStatus map[string]string to Generation domain type. Pipeline updates status before/after each step: pending→running→done/failed.",
+    file: "internal/domain/scene.go:46, internal/service/generation.go:225-337",
+    commit: "current"
+  },
+  {
+    id: "F-13",
+    title: "go.mod minimum Go version",
+    severity: "low",
+    status: "wontfix",
+    desc: "code uses context.WithoutCancel (introduced in Go 1.21). go.mod declared go 1.26.4, which is already sufficient. No change needed.",
+    fix: "Not applicable — already at Go 1.26.4.",
+    file: "go.mod:3",
+    commit: "none"
+  },
+  {
+    id: "F-14",
+    title: "docs/schema.md Props type mismatch",
+    severity: "low",
+    status: "fixed",
+    desc: "The schema documentation listed Props as map type, but the actual domain type uses []string. Documentation would mislead developers working on location features.",
+    fix: "Corrected Props type from map to []string in docs/schema.md.",
+    file: "docs/schema.md:261",
+    commit: "current"
+  },
+  {
+    id: "F-15",
+    title: "Generate called with empty context",
+    severity: "critical",
+    status: "fixed",
+    desc: "Generate() kicked off runPipeline without gathering any prompt context — no character cards, character states, location cards, or story summaries were fetched. The LLM received only beat_intent/pov/tone/target_words.",
+    fix: "Added buildPromptParams() method that fetches character cards (with traits, voice samples), character states (location, mood, knows, items), location card, and branch summary. Added buildPromptParams call before runPipeline.",
+    file: "internal/service/generation.go:94-178",
+    commit: "current"
+  }
+];
+
+const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+
+function render() {
+  const filter = document.querySelector('.filters .active')?.dataset.filter || 'all';
+
+  let filtered = [...DATA];
+  if (filter !== 'all') {
+    if (filter === 'fixed') filtered = DATA.filter(f => f.status === 'fixed');
+    else if (filter === 'wontfix') filtered = DATA.filter(f => f.status === 'wontfix');
+    else filtered = DATA.filter(f => f.severity === filter);
+  }
+  filtered.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+
+  const container = document.getElementById('findings');
+  container.innerHTML = filtered.map(f => `
+    <div class="finding">
+      <span class="status-dot ${f.status}"></span>
+      <div class="body">
+        <div class="title">
+          <span>${f.id}: ${f.title}</span>
+          <span class="severity ${f.severity}">${f.severity}</span>
+        </div>
+        <div class="desc">${f.desc}</div>
+        <div class="fix">${f.fix}</div>
+        <div class="meta">
+          <span>File: <code>${f.file}</code></span>
+          <span>Status: ${f.status}</span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-card critical"><div class="num">${DATA.filter(f => f.severity === 'critical').length}</div><div class="label">Critical</div></div>
+    <div class="stat-card" style="border-color:var(--warn)"><div class="num" style="color:var(--warn)">${DATA.filter(f => f.severity === 'high').length}</div><div class="label">High</div></div>
+    <div class="stat-card" style="border-color:var(--accent)"><div class="num" style="color:var(--accent)">${DATA.filter(f => f.severity === 'medium').length}</div><div class="label">Medium</div></div>
+    <div class="stat-card" style="border-color:var(--text-muted)"><div class="num" style="color:var(--text-muted)">${DATA.filter(f => f.severity === 'low').length}</div><div class="label">Low</div></div>
+    <div class="stat-card fixed"><div class="num">${DATA.filter(f => f.status === 'fixed').length}</div><div class="label">Fixed</div></div>
+    <div class="stat-card wontfix"><div class="num">${DATA.filter(f => f.status === 'wontfix').length}</div><div class="label">Won't Fix</div></div>
+  `;
+}
+
+document.getElementById('filters').addEventListener('click', (e) => {
+  if (e.target.tagName !== 'BUTTON') return;
+  document.querySelectorAll('.filters button').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+  render();
+});
+
+render();
+</script>
+</body>
+</html>

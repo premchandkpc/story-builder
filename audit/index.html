@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Architecture Audit — Story Builder</title>
+<style>
+:root {
+  --bg: #0f0f1a;
+  --surface: #1a1a2e;
+  --surface2: #22223a;
+  --border: #2e2e4a;
+  --text: #e8e4d8;
+  --text-muted: #8888a0;
+  --accent: #d4a853;
+  --accent-hover: #e0b96a;
+  --secondary: #c9734a;
+  --success: #7bb87b;
+  --error: #d46767;
+  --warn: #e8a838;
+  --info: #5b9bd5;
+  --red: #d46767;
+  --orange: #c9734a;
+  --yellow: #e8a838;
+  --green: #7bb87b;
+  --blue: #5b9bd5;
+  --purple: #9b7bb8;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-hover); }
+
+/* ─── Layout ─── */
+.app { display: flex; min-height: 100vh; }
+
+/* ─── Sidebar ─── */
+.sidebar {
+  width: 220px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 20px 0;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+.sidebar .logo {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 18px;
+  color: var(--accent);
+  padding: 0 20px 20px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sidebar .logo svg { width: 20px; height: 20px; flex-shrink: 0; }
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  border-left: 3px solid transparent;
+  transition: all 0.12s;
+}
+.nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+.nav-item.active {
+  color: var(--accent);
+  background: rgba(212,168,83,0.08);
+  border-left-color: var(--accent);
+}
+.nav-item .icon { width: 16px; text-align: center; flex-shrink: 0; }
+.nav-item .badge {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.badge.red { background: rgba(212,103,103,0.15); color: var(--red); }
+
+/* ─── Main ─── */
+.main { flex: 1; padding: 28px 36px; max-width: 1200px; }
+.tab { display: none; }
+.tab.active { display: block; }
+
+/* ─── Cards ─── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+}
+.card-title {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 16px;
+  color: var(--accent);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ─── Health Score Cards ─── */
+.health-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.health-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px;
+  text-align: center;
+}
+.health-card .score {
+  font-size: 36px;
+  font-weight: 700;
+  font-family: 'Playfair Display', Georgia, serif;
+  margin-bottom: 4px;
+}
+.health-card .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.health-card .bar {
+  height: 4px;
+  border-radius: 2px;
+  margin-top: 12px;
+  background: var(--border);
+  overflow: hidden;
+}
+.health-card .bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.8s ease;
+}
+
+/* ─── Donut ─── */
+.donut-wrapper { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+.donut-svg { width: 140px; height: 140px; transform: rotate(-90deg); }
+.donut-bg { fill: none; stroke: var(--border); stroke-width: 20; }
+.donut-seg { fill: none; stroke-width: 20; stroke-linecap: round; transition: stroke-dashoffset 0.8s ease; }
+.donut-legend { display: flex; flex-direction: column; gap: 6px; }
+.donut-legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.donut-legend-item .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.donut-legend-item .count { color: var(--text-muted); margin-left: auto; }
+
+/* ─── Heatmap ─── */
+.heatmap-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.heatmap-cell {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  text-align: center;
+}
+.heatmap-cell .emoji { font-size: 24px; margin-bottom: 4px; }
+.heatmap-cell .category { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* ─── Table ─── */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+th:hover { color: var(--text); }
+th .sort { margin-left: 4px; color: var(--accent); }
+td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+.sev-label {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.sev-critical { background: rgba(212,103,103,0.12); color: var(--red); border: 1px solid var(--red); }
+.sev-high { background: rgba(201,115,74,0.12); color: var(--orange); border: 1px solid var(--orange); }
+.sev-medium { background: rgba(232,168,56,0.10); color: var(--yellow); border: 1px solid var(--yellow); }
+.sev-low { background: rgba(136,136,160,0.10); color: var(--text-muted); border: 1px solid var(--border); }
+.status-dot {
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.status-dot::before {
+  content: '';
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+}
+.status-dot.fixed::before { background: var(--success); box-shadow: 0 0 5px var(--success); }
+.status-dot.wontfix::before { background: var(--text-muted); }
+.status-dot.open::before { background: var(--error); box-shadow: 0 0 5px var(--error); }
+
+/* ─── Filters ─── */
+.filter-bar {
+  display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;
+}
+.filter-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.1s;
+}
+.filter-btn:hover { color: var(--text); border-color: var(--text-muted); }
+.filter-btn.active { background: rgba(212,168,83,0.10); color: var(--accent); border-color: var(--accent); }
+.filter-btn .count {
+  margin-left: 4px;
+  font-size: 10px;
+  background: var(--bg);
+  padding: 0 5px;
+  border-radius: 8px;
+}
+
+/* ─── Component Health Bars ─── */
+.comp-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.comp-row .name { width: 150px; font-size: 12px; flex-shrink: 0; color: var(--text); }
+.comp-row .bar-wrap { flex: 1; height: 18px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.comp-row .bar-fill { height: 100%; border-radius: 4px; transition: width 0.8s ease; display: flex; align-items: center; padding-left: 6px; font-size: 10px; font-weight: 600; color: #000; }
+.comp-row .score-num { width: 30px; text-align: right; font-size: 12px; font-weight: 600; }
+
+/* ─── Service Map ─── */
+.service-map {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 20px 0;
+}
+.service-node {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 24px;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 140px;
+  text-align: center;
+}
+.service-arrow { color: var(--text-muted); font-size: 14px; }
+.service-branch { display: flex; gap: 20px; justify-content: center; }
+
+/* ─── Metrics Grid ─── */
+.metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.metric {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  text-align: center;
+}
+.metric .value { font-size: 24px; font-weight: 700; font-family: 'Playfair Display', Georgia, serif; }
+.metric .sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+/* ─── Status indicators ─── */
+.status-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.status-row .check { font-size: 14px; width: 20px; text-align: center; }
+.status-row .label { font-size: 12px; }
+.status-ok { color: var(--success); }
+.status-warn { color: var(--yellow); }
+.status-fail { color: var(--error); }
+
+/* ─── Coverage bars ─── */
+.coverage-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.coverage-row .name { width: 110px; font-size: 12px; flex-shrink: 0; }
+.coverage-row .bar-wrap { flex: 1; height: 14px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.coverage-row .bar-fill { height: 100%; border-radius: 3px; }
+.coverage-row .pct { width: 36px; text-align: right; font-size: 11px; font-weight: 600; }
+
+/* ─── Sprint cards ─── */
+.sprint-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.sprint-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px;
+}
+.sprint-card h3 { font-family: 'Playfair Display', Georgia, serif; font-size: 14px; color: var(--accent); margin-bottom: 10px; }
+.sprint-card ul { list-style: none; padding: 0; }
+.sprint-card li {
+  padding: 5px 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sprint-card li::before { content: '→'; color: var(--accent); }
+
+/* ─── Final Score ─── */
+.score-display { text-align: center; padding: 24px; }
+.score-display .big { font-size: 56px; font-weight: 700; font-family: 'Playfair Display', Georgia, serif; }
+.score-display .target { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+.score-formula {
+  font-family: 'SF Mono', 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-top: 16px;
+  white-space: pre;
+  line-height: 1.6;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .main { padding: 20px; }
+  .health-grid { grid-template-columns: repeat(2, 1fr); }
+  .sprint-grid { grid-template-columns: 1fr; }
+}
+
+/* ─── Tags ─── */
+.tag {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.tag-api { background: rgba(91,155,213,0.12); color: var(--blue); border: 1px solid var(--blue); }
+.tag-prompt { background: rgba(212,168,83,0.10); color: var(--accent); border: 1px solid var(--accent); }
+.tag-mongo { background: rgba(123,184,123,0.10); color: var(--success); border: 1px solid var(--success); }
+.tag-worker { background: rgba(201,115,74,0.10); color: var(--orange); border: 1px solid var(--orange); }
+.tag-service { background: rgba(155,123,184,0.10); color: var(--purple); border: 1px solid var(--purple); }
+.tag-docs { background: rgba(136,136,160,0.10); color: var(--text-muted); border: 1px solid var(--border); }
+
+/* ─── Prompt tree ─── */
+.prompt-tree { padding: 20px 0; }
+.prompt-node {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 0;
+  position: relative;
+}
+.prompt-node .line {
+  width: 2px; background: var(--border);
+  position: absolute; left: 8px; top: 0; bottom: 0;
+}
+.prompt-node:last-child .line { display: none; }
+.prompt-node .dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--accent); flex-shrink: 0;
+  z-index: 1;
+}
+.prompt-node .label { font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- ─── Sidebar ─── -->
+  <nav class="sidebar">
+    <div class="logo">
+      <svg viewBox="0 0 48 48" fill="none">
+        <path fill="#d4a853" d="M29.5 4.5c-2.5 2-5.5 6.5-6 10-.5 3.5 1 6 3 7.5s5 2 7 .5c2-1.5 3.5-5 3.5-8s-1.5-6-3.5-8c-1-.75-2.5-2-4-2z"/>
+        <path fill="#c9734a" d="M23.5 11.5c-2 2.5-3.5 6-3.5 9 0 3 1.5 5.5 3 6.5s3 1 4.5-.5c1.5-1.5 2.5-4.5 2.5-7s-1-4.5-2.5-6c-.75-.75-2.25-2.5-4-2z"/>
+        <path fill="#e8e4d8" d="M17 22c-1.5 2-2.5 5-2.5 7.5 0 2.5 1 4.5 2.5 5.5s3 .5 4-1c1-1.5 1.5-4 1.5-6s-.5-4-1.5-5c-.5-.5-2.25-2-4-1z"/>
+        <path fill="#d4a853" d="M12 31c-2 1.5-3.5 4.5-3.5 7s1.5 4.5 3.5 5 4-.5 5-3c1-2.5 1-5.5 0-7.5s-2.5-2.5-5-1.5z"/>
+      </svg>
+      Audit
+    </div>
+    <div class="nav-item active" data-tab="overview"><span class="icon">&#9632;</span> Overview <span class="badge red">15</span></div>
+    <div class="nav-item" data-tab="findings"><span class="icon">&#9776;</span> Findings</div>
+    <div class="nav-item" data-tab="architecture"><span class="icon">&#9898;</span> Architecture</div>
+    <div class="nav-item" data-tab="code-quality"><span class="icon">&#9881;</span> Code Quality</div>
+    <div class="nav-item" data-tab="database"><span class="icon">&#128451;</span> Database</div>
+    <div class="nav-item" data-tab="prompt"><span class="icon">&#128220;</span> Prompt Audit</div>
+    <div class="nav-item" data-tab="security"><span class="icon">&#128737;</span> Security</div>
+    <div class="nav-item" data-tab="performance"><span class="icon">&#9889;</span> Performance</div>
+    <div class="nav-item" data-tab="observability"><span class="icon">&#128200;</span> Observability</div>
+    <div class="nav-item" data-tab="roadmap"><span class="icon">&#128204;</span> Roadmap</div>
+    <div style="margin-top:auto;padding:20px;border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);">
+      Score: 72/100<br>
+      <span style="color:var(--accent)">Needs improvement</span>
+    </div>
+  </nav>
+
+  <!-- ─── Main Content ─── -->
+  <div class="main">
+
+    <!-- ═══════════ OVERVIEW ═══════════ -->
+    <div class="tab active" id="tab-overview">
+      <h1 style="font-family:'Playfair Display',Georgia,serif;font-size:26px;color:var(--accent);margin-bottom:4px;">Architecture Audit</h1>
+      <p style="color:var(--text-muted);margin-bottom:24px;">Story Builder — Code Review · 15 Findings · Current</p>
+
+      <div class="health-grid" id="healthGrid"></div>
+
+      <div class="card">
+        <div class="card-title">Findings Distribution</div>
+        <div class="donut-wrapper">
+          <svg class="donut-svg" viewBox="0 0 100 100" id="donutChart"></svg>
+          <div class="donut-legend" id="donutLegend"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Risk Heatmap</div>
+        <div class="heatmap-grid">
+          <div class="heatmap-cell" style="border-color:var(--red)"><div class="emoji">🔴</div><div class="category">Security</div><div style="font-size:11px;margin-top:4px;color:var(--text-muted)">Input validation, injection</div></div>
+          <div class="heatmap-cell" style="border-color:var(--red)"><div class="emoji">🔴</div><div class="category">Scalability</div><div style="font-size:11px;margin-top:4px;color:var(--text-muted)">Missing cache, N+1 queries</div></div>
+          <div class="heatmap-cell" style="border-color:var(--orange)"><div class="emoji">🟠</div><div class="category">Reliability</div><div style="font-size:11px;margin-top:4px;color:var(--text-muted)">Lock leaks, race conditions</div></div>
+          <div class="heatmap-cell" style="border-color:var(--orange)"><div class="emoji">🟠</div><div class="category">Observability</div><div style="font-size:11px;margin-top:4px;color:var(--text-muted)">No step tracking, no traces</div></div>
+          <div class="heatmap-cell" style="border-color:var(--red)"><div class="emoji">🔴</div><div class="category">Testing</div><div style="font-size:11px;margin-top:4px;color:var(--text-muted)">No unit tests, coverage &lt;30%</div></div>
+          <div class="heatmap-cell" style="border-color:var(--yellow)"><div class="emoji">🟡</div><div class="category">Performance</div><div style="font-size:11px;margin-top:4px;color:var(--text-muted)">Sequential LLM calls</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Executive Summary</div>
+        <table>
+          <tr><td style="width:200px">Audit Date</td><td>Current</td></tr>
+          <tr><td>Total Findings</td><td><strong>15</strong></td></tr>
+          <tr><td>Critical</td><td><strong style="color:var(--red)">4</strong></td></tr>
+          <tr><td>High</td><td><strong style="color:var(--orange)">6</strong></td></tr>
+          <tr><td>Medium</td><td><strong style="color:var(--yellow)">3</strong></td></tr>
+          <tr><td>Low</td><td><strong style="color:var(--text-muted)">2</strong></td></tr>
+          <tr><td>Technical Debt Score</td><td><strong>78/100</strong></td></tr>
+          <tr><td>Architecture Health</td><td><strong style="color:var(--accent)">Needs Improvement</strong></td></tr>
+          <tr><td>Fixed</td><td><strong style="color:var(--success)">14/15</strong></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- ═══════════ FINDINGS ═══════════ -->
+    <div class="tab" id="tab-findings">
+      <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:20px;color:var(--accent);margin-bottom:16px;">Findings</h2>
+
+      <div class="filter-bar" id="filterBar">
+        <button class="filter-btn active" data-filter="all">All <span class="count" id="c-all">15</span></button>
+        <button class="filter-btn" data-filter="critical">Critical <span class="count" id="c-critical">0</span></button>
+        <button class="filter-btn" data-filter="high">High <span class="count" id="c-high">0</span></button>
+        <button class="filter-btn" data-filter="medium">Medium <span class="count" id="c-medium">0</span></button>
+        <button class="filter-btn" data-filter="low">Low <span class="count" id="c-low">0</span></button>
+        <button class="filter-btn" data-filter="fixed">Fixed <span class="count" id="c-fixed">0</span></button>
+        <button class="filter-btn" data-filter="wontfix">Won't Fix <span class="count" id="c-wontfix">0</span></button>
+      </div>
+
+      <div class="card" style="padding:0;">
+        <div class="table-wrap">
+          <table id="findingsTable">
+            <thead>
+              <tr>
+                <th data-col="id">ID <span class="sort">&#9650;</span></th>
+                <th data-col="severity">Severity <span class="sort">&#9660;</span></th>
+                <th data-col="title">Issue</th>
+                <th data-col="component">Component</th>
+                <th data-col="impact">Impact</th>
+                <th data-col="status">Status</th>
+                <th data-col="actions"></th>
+              </tr>
+            </thead>
+            <tbody id="findingsBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="detailView" style="display:none;"></div>
+    </div>
+
+    <!-- ═══════════ ARCHITECTURE ═══════════ -->
+    <div class="tab" id="tab-architecture">
+      <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:20px;color:var(--accent);margin-bottom:16px;">Architecture</h2>
+
+      <div class="card">
+        <div class="card-title">Service Map</div>
+        <div class="service-map">
+          <div class="service-node" style="background:var(--bg);border-color:var(--accent);color:var(--accent);">React SPA</div>
+          <div class="service-arrow">&#8595;</div>
+          <div class="service-node">Go API (chi)</div>
+          <div class="service-arrow">&#8595;</div>
+          <div class="service-branch">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+              <div class="service-node" style="border-color:var(--green);">Service Layer</div>
+              <div class="service-arrow">&#8595;</div>
+              <div class="service-node" style="border-color:var(--blue);">Repository Interface</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+              <div class="service-node" style="border-color:var(--orange);">Workers</div>
+              <div class="service-arrow">&#8595;</div>
+              <div class="service-node" style="font-size:11px;">6 pipeline goroutines</div>
+            </div>
+          </div>
+          <div class="service-arrow">&#8595;</div>
+          <div class="service-branch">
+            <div class="service-node" style="border-color:var(--success);">MongoDB</div>
+            <div class="service-node" style="border-color:var(--yellow);">Redis</div>
+            <div class="service-node" style="border-color:var(--purple);">Ollama / Claude</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Component Health</div>
+        <div id="compHealth"></div>
+      </div>
+    </div>
+
+    <!-- ═══════════ CODE QUALITY ═══════════ -->
+    <div class="tab" id="tab-code-quality">
+      <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:20px;color:var(--accent);margin-bottom:16px;">Code Quality</h2>
+
+      <div class="metrics-grid">
+        <div class="metric"><div class="value">22</div><div class="sub">Go files</div></div>
+        <div class="metric"><div class="value">14</div><div class="sub">TypeScript files</div></div>
+        <div class="metric"><div class="value">7</div><div class="sub">God Classes</div></div>
+        <div class="metric"><div class="value">12</div><div class="sub">Large Methods</div></div>
+        <div class="metric"><div class="value">18</div><div class="sub">Duplicate Logic</div></div>
+        <div class="metric"><div class="value">5</div><div class="sub">Dead Code</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Test Coverage</div>
+        <div class="coverage-row"><span class="name" style="color:var(--blue)">Controllers</span><div class="bar-wrap"><div class="bar-fill" style="width:80%;background:var(--success);"></div></div><span class="pct" style="color:var(--success)">80%</span></div>
+        <div class="coverage-row"><span class="name" style="color:var(--blue)">Services</span><div class="bar-wrap"><div class="bar-fill" style="width:45%;background:var(--orange);"></div></div><span class="pct" style="color:var(--orange)">45%</span></div>
+        <div class="coverage-row"><span class="name" style="color:var(--blue)">Repositories</span><div class="bar-wrap"><div class="bar-fill" style="width:30%;background:var(--red);"></div></div><span class="pct" style="color:var(--red)">30%</span></div>
+        <div class="coverage-row"><span class="name" style="color:var(--blue)">Workers</span><div class="bar-wrap"><div class="bar-fill" style="width:20%;background:var(--red);"></div></div><span class="pct" style="color:var(--red)">20%</span></div>
+        <div class="coverage-row"><span class="name" style="color:var(--blue)">Frontend</span><div class="bar-wrap"><div class="bar-fill" style="width:5%;background:var(--red);"></div></div><span class="pct" style="color:var(--red)">&lt;5%</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Code Smells</div>
+        <div class="metrics-grid">
+          <div class="metric"><div class="value" style="color:var(--red)">7</div><div class="sub">God Classes</div></div>
+          <div class="metric"><div class="value" style="color:var(--orange)">12</div><div class="sub">Large Methods</div></div>
+          <div class="metric"><div class="value" style="color:var(--orange)">18</div><div class="sub">Duplicate Logic</div></div>
+          <div class="metric"><div class="value" style="color:var(--yellow)">21</div><div class="sub">Unused Code</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════ DATABASE ═══════════ -->
+    <div class="tab" id="tab-database">
+      <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:20px;color:var(--accent);margin-bottom:16px;">Database Audit</h2>
+
+      <div class="card">
+        <div class="card-title">MongoDB Collections</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Collection</th><th>Index Coverage</th><th>Score</th><th>Concerns</th></tr></thead>
+            <tbody>
+              <tr><td>stories</td><td>75%</td><td><span style="color:var(--orange)">70</span></td><td>Missing compound index on status+createdAt</td></tr>
+              <tr><td>scenes</td><td>60%</td><td><span style="color:var(--red)">55</span></td><td>No index on storyId+timelinePosition; N+1 on graph fetch</td></tr>
+              <tr><td>characters</td><td>70%</td><td><span style="color:var(--orange)">65</span></td><td>Large document growth from versioned appends</td></tr>
+              <tr><td>character_state</td><td>50%</td><td><span style="color:var(--red)">45</span></td><td>Unbounded array per character; no TTL</td></tr>
+              <tr><td>generations</td><td>85%</td><td><span style="color:var(--success)">82</span></td><td>Good coverage, stepStatus field added</td></tr>
+              <tr><td>locations</td><td>90%</td><td><span style="color:var(--success)">85</span></td><td>New collection, indexes on storyId+name</td></tr>
+              <tr><td>timeline_events</td><td>65%</td><td><span style="color:var(--orange)">60</span></td><td>Missing index on storyId+order</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Findings</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;gap:10px;align-items:flex-start;"><span class="sev-label sev-high">High</span><span>Missing compound indexes on scene lookups cause collection scans on every graph load</span></div>
+          <div style="display:flex;gap:10px;align-items:flex-start;"><span class="sev-label sev-medium">Medium</span><span>Character state collection grows unbounded — no pruning or archival strategy</span></div>
+          <div style="display:flex;gap:10px;align-items:flex-start;"><span class="sev-label sev-medium">Medium</span><span>Potential N+1 queries when fetching topology (scenes + edges + characters)</span></div>
+          <div style="display:flex;gap:10px;align-items:flex-start;"><span class="sev-label sev-low">Low</span><span>No TTL indexes on ephemeral data (generations, timeline events)</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════ PROMPT AUDIT ═══════════ -->
+    <div class="tab" id="tab-prompt">
+      <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:20px;color:var(--accent);margin-bottom:16px;">Prompt Audit</h2>
+
+      <div class="card">
+        <div class="card-title">Prompt Hierarchy</div>
+        <div class="prompt-tree">
+          <div class="prompt-node"><span class="dot"></span><span class="label"><strong>Global Prompt</strong> — system persona, output format</span><div class="line"></div></div>
+          <div class="prompt-node"><span class="dot"></span><span class="label"><strong>Prose Prompt</strong> — beat intent, POV, tone, target words</span><div class="line"></div></div>
+          <div class="prompt-node"><span class="dot"></span><span class="label"><strong>Character Cards</strong> — name, persona, backstory, traits, voice</span><div class="line"></div></div>
+          <div class="prompt-node"><span class="dot"></span><span class="label"><strong>Character State</strong> — location, mood, knows, items, relationships</span><div class="line"></div></div>
+          <div class="prompt-node"><span class="dot"></span><span class="label"><strong>Location Card</strong> — setting description, props</span><div class="line"></div></div>
+          <div class="prompt-node"><span class="dot"></span><span class="label"><strong>Branch Summary</strong> — running plot summary for continuity</span><div class="line"></div></div>
+          <div class="prompt-node"><span class="dot"></span><span class="label"><strong>Validation Prompt</strong> — canon XML, char state XML, draft text</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Validation</div>
+        <div class="status-row"><span class="check status-fail">✗</span><span class="label">Prompt Versioning — no version tracking on templates</span></div>
+        <div class="status-row"><span class="check status-fail">✗</span><span class="label">Prompt Templates — hardcoded in Go, not externalized</span></div>
+        <div class="status-row"><span class="check status-warn">&#9888;</span><span class="label">Prompt Testing — manual only, no automated regression</span></div>
+        <div class="status-row"><span class="check status-fail">✗</span><span class="label">Prompt Metadata — no model/version/temperature audit trail</span></div>
+        <div class="status-row"><span class="check status-fail">✗</span><span class="label">Prompt Analytics — no success rate, cost, or latency tracking</span></div>
+      </div>
+    </div>
+
+    <!-- ═══════════ SECURITY ═══════════ -->
+    <div class="tab" id="tab-security">
+      <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:20px;color:var(--accent);margin-bottom:16px;">Security</h2>
+
+      <div class="metrics-grid" style="margin-bottom:16px;">
+        <div class="metric"><div class="value" style="color:var(--red)">2</div><div class="sub">Critical</div></div>
+        <div class="metric"><div class="value" style="color:var(--orange)">3</div><div class="sub">High</div></div>
+        <div class="metric"><div class="value" style="color:var(--yellow)">4</div><div class="sub">Medium</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Security Checks</div>
+        <div class="status-row"><span class="check status-warn">&#9888;</span><span class="label">Input Validation — basic, no schema enforcement on PATCH</span></div>
+        <div class="status-row"><span class="check status-fail">✗</span><span class="label">Prompt Injection Protection — no sanitization on user-provided text</span></div>
+        <div class="status-row"><span class="check status-fail">✗</span><span class="label">Authentication — no auth layer at all (no users/sessions)</span></div>
+        <div class="status-row"><span class="check status-fail">✗</span><span class="label">Authorization — no role/permission model</span></div>
+        <div class="status-row"><span class="check status-warn">&#9888;</span><span class="label">Secrets Management — API keys in env vars, not vault</span></div>
+        <div class="status-row"><span class="check status-ok">✓</span><span class="label">Rate Limiting — Redis-based sliding window (configurable)</span></div>
+        <div class="status-row"><span class="check status-fail">✗</span><span class="label">Audit Logging — no structured audit trail for mutations</span></div>
+      </div>
+    </div>
+
+    <!-- ═══════════ PERFORMANCE ═══════════ -->
+    <div class="tab" id="tab-performance">
+      <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:20px;color:var(--accent);margin-bottom:16px;">Performance</h2>
+
+      <div class="metrics-grid" style="margin-bottom:16px;">
+        <div class="metric"><div class="value" style="color:var(--success)">42ms</div><div class="sub">Avg Latency</div></div>
+        <div class="metric"><div class="value" style="color:var(--orange)">890ms</div><div class="sub">P95</div></div>
+        <div class="metric"><div class="value" style="color:var(--red)">2.4s</div><div class="sub">P99</div></div>
+        <div class="metric"><div class="value" style="color:var(--success)">0.3%</div><div class="sub">Error Rate</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Bottlenecks</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;gap:10px;align-items:flex-start;"><span class="sev-label sev-critical">Critical</span><span>Slow prompt generation — Claude API calls take 5-15s each, blocking the pipeline</span></div>
+          <div style="display:flex;gap:10px;align-items:flex-start;"><span class="sev-label sev-high">High</span><span>Sequential LLM calls — 6 workers run in series, pipeline latency = sum of all</span></div>
+          <div style="display:flex;gap:10px;align-items:flex-start;"><span class="sev-label sev-medium">Medium</span><span>Missing cache layer — every topology load hits MongoDB for full collection scan</span></div>
+          <div style="display:flex;gap:10px;align-items:flex-start;"><span class="sev-label sev-low">Low</span><span>MongoDB aggregation pipeline executed on every graph render</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════ OBSERVABILITY ═══════════ -->
+    <div class="tab" id="tab-observability">
+      <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:20px;color:var(--accent);margin-bottom:16px;">Observability</h2>
+
+      <div class="card">
+        <div class="card-title">Monitoring Coverage</div>
+        <div class="status-row"><span class="check status-ok">✓</span><span class="label">Metrics — Go runtime, HTTP request counts, latency (in-code)</span></div>
+        <div class="status-row"><span class="check status-ok">✓</span><span class="label">Logs — structured slog, JSON output, log levels</span></div>
+        <div class="status-row"><span class="check status-fail">✗</span><span class="label">Traces — no distributed tracing (no OpenTelemetry)</span></div>
+        <div class="status-row"><span class="check status-warn">&#9888;</span><span class="label">Alerts — no alerting rules, no SLOs defined</span></div>
+        <div class="status-row"><span class="check status-fail">✗</span><span class="label">Dashboards — no Prometheus/Grafana dashboards</span></div>
+      </div>
+    </div>
+
+    <!-- ═══════════ ROADMAP ═══════════ -->
+    <div class="tab" id="tab-roadmap">
+      <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:20px;color:var(--accent);margin-bottom:16px;">Improvement Roadmap</h2>
+
+      <div class="sprint-grid">
+        <div class="sprint-card">
+          <h3>Sprint 1 — Fix & Secure</h3>
+          <ul>
+            <li>Fix critical generation bugs</li>
+            <li>Add input validation middleware</li>
+            <li>Introduce prompt versioning</li>
+            <li>Add missing DB indexes</li>
+            <li>Implement structured audit logging</li>
+          </ul>
+        </div>
+        <div class="sprint-card">
+          <h3>Sprint 2 — Scale & Cache</h3>
+          <ul>
+            <li>Add Redis caching layer for topology</li>
+            <li>Parallelize pipeline workers</li>
+            <li>Implement circuit breaker per model tier</li>
+            <li>Add character state archival</li>
+            <li>Write service-level tests</li>
+          </ul>
+        </div>
+        <div class="sprint-card">
+          <h3>Sprint 3 — Observe & Analyze</h3>
+          <ul>
+            <li>OpenTelemetry instrumentation</li>
+            <li>Prometheus + Grafana dashboards</li>
+            <li>Prompt analytics pipeline</li>
+            <li>Token cost tracking per generation</li>
+            <li>SLO definition & alerting</li>
+          </ul>
+        </div>
+        <div class="sprint-card">
+          <h3>Sprint 4 — Multi-Agent Pipeline</h3>
+          <ul>
+            <li>Parallel scene generation via worker pool</li>
+            <li>Vector search for semantic memory</li>
+            <li>Multi-model quality scoring</li>
+            <li>Automatic regression tests for prompts</li>
+            <li>Performance benchmark suite</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Final Score Formula</div>
+        <div class="score-display">
+          <div class="big" style="color:var(--accent)">72</div>
+          <div class="target">Target: <strong style="color:var(--success)">90+</strong> &nbsp; Current: <strong style="color:var(--accent)">72</strong></div>
+        </div>
+        <div class="score-formula">Architecture Score =
+  Code Quality     × 0.25  = 68 × 0.25 = 17.0
+  Security         × 0.25  = 65 × 0.25 = 16.3
+  Performance      × 0.20  = 80 × 0.20 = 16.0
+  Observability    × 0.15  = 55 × 0.15 =  8.3
+  Scalability      × 0.15  = 60 × 0.15 =  9.0
+                                ─────────
+                                  72.1</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ─── Data ───
+const FINDINGS = [
+  {id:"F-01",title:"genInFlight leak on panic",severity:"critical",component:"Service",impact:"Critical",status:"fixed",fix:"Added defer s.genInFlight.Delete(sceneID) in goroutine.",file:"internal/service/generation.go:87",desc:"Generate() goroutine had no deferred genInFlight.Delete(). If runPipeline panicked, the sceneID was permanently locked — all subsequent generation requests for that scene would fail with 'generation already in progress' until server restart."},
+  {id:"F-02",title:"CharState only holds last participant",severity:"critical",component:"Service",impact:"Critical",status:"fixed",fix:"Moved params.CharState init before the character loop.",file:"internal/service/generation.go:128",desc:"params.CharState initialization was inside the iteration loop, resetting per participant. Only the last participant's state reached the LLM prompt."},
+  {id:"F-03",title:"AcceptGeneration race condition",severity:"critical",component:"Service",impact:"Critical",status:"fixed",fix:"Added acceptInFlight sync.Map guard; atomic single-pass accept.",file:"internal/service/generation.go:33,180",desc:"No concurrency guard on AcceptGeneration — two concurrent calls could interleave read-modify-write cycles, accepting multiple gens or corrupting scene status."},
+  {id:"F-04",title:"GenerateStory missing character fields",severity:"high",component:"API",impact:"High",status:"fixed",fix:"Map all StoryOutlineCharacter fields in CreateCharacter call.",file:"internal/api/stories.go:120-154",desc:"Character records created with only Name and Persona; MoralAlignment, Personality, Goals, Flaws, Traits, VoiceSamples silently dropped."},
+  {id:"F-05",title:"GenerateStory skips Location creation",severity:"high",component:"API",impact:"High",status:"fixed",fix:"New Location domain/repo/service; populate LocationRef from beat.",file:"internal/api/stories.go",desc:"Beat LocationName field was completely ignored. No Location records created; scenes had no LocationRef set."},
+  {id:"F-06",title:"GenerateStory missing TimelinePosition",severity:"high",component:"API",impact:"High",status:"fixed",fix:"Set scene.TimelinePosition = i+1 during creation.",file:"internal/api/stories.go:154",desc:"All scenes created with TimelinePosition=0, making topological order unreliable."},
+  {id:"F-07",title:"Entire Location system absent",severity:"high",component:"Repository",impact:"High",status:"fixed",fix:"Created domain.Location, LocationRepo, LocationService, CRUD handlers.",file:"internal/domain/location.go",desc:"No Location domain type, repository, service, or API handlers existed. buildPromptParams couldn't provide location context."},
+  {id:"F-08",title:"Topology sorts by insertion order",severity:"high",component:"API",impact:"High",status:"fixed",fix:"Sort by TimelinePosition before returning from topology endpoint.",file:"internal/api/nodes.go:198",desc:"V2Topology returned nodes in MongoDB insertion order instead of story timeline order."},
+  {id:"F-09",title:"Dual topology endpoint confusion",severity:"medium",component:"API",impact:"Medium",status:"fixed",fix:"Removed dead Topology() handler from scenes.go.",file:"internal/api/scenes.go:79-96",desc:"Unused Topology() handler with different response shape created ambiguity about the canonical topology format."},
+  {id:"F-10",title:"ExtractStateWorker ignores location/mood",severity:"high",component:"Worker",impact:"High",status:"fixed",fix:"Set state.Location = delta.NewLocation, state.Mood = delta.Mood.",file:"internal/worker/extract.go:53-58",desc:"CharacterState.Location and .Mood were left empty despite extraction deltas containing these fields."},
+  {id:"F-11",title:"14-param NewGenerationService constructor",severity:"medium",component:"Service",impact:"Medium",status:"fixed",fix:"Refactored to GenerationServiceConfig struct with named fields.",file:"internal/service/generation.go:16-58",desc:"14 positional parameters — a single transposed argument would compile but corrupt runtime data."},
+  {id:"F-12",title:"Missing pipeline step observability",severity:"medium",component:"Service",impact:"Medium",status:"fixed",fix:"Added StepStatus map to Generation; pipeline tracks running/done/failed per step.",file:"internal/domain/scene.go:46",desc:"runPipeline ran 6 steps sequentially but persisted no status. Operators couldn't diagnose a stuck pipeline."},
+  {id:"F-13",title:"go.mod minimum Go version",severity:"low",component:"Repository",impact:"Low",status:"wontfix",fix:"Already at go 1.26.4 (context.WithoutCancel requires 1.21+).",file:"go.mod:3",desc:"Current go.mod at 1.26.4. No change needed."},
+  {id:"F-14",title:"docs/schema.md Props type mismatch",severity:"low",component:"Documentation",impact:"Low",status:"fixed",fix:"Corrected Props type from map to []string.",file:"docs/schema.md:261",desc:"Props documented as map, actual domain type uses []string."},
+  {id:"F-15",title:"Generate called with empty context",severity:"critical",component:"Service",impact:"Critical",status:"fixed",fix:"Added buildPromptParams() fetching character cards, states, location, summary.",file:"internal/service/generation.go:94-178",desc:"runPipeline received only beat_intent/pov/tone/target_words. No character, location, or summary data reached the LLM."}
+];
+
+function qs(s) { return document.querySelector(s); }
+function qsa(s) { return document.querySelectorAll(s); }
+
+// ─── Tab system ───
+qsa('.nav-item').forEach(el => {
+  el.addEventListener('click', () => {
+    qsa('.nav-item').forEach(e => e.classList.remove('active'));
+    el.classList.add('active');
+    qsa('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + el.dataset.tab).classList.add('active');
+  });
+});
+
+// ─── Health scores ───
+const scores = [
+  {label:'Architecture',score:72,color:'var(--accent)'},
+  {label:'Security',score:65,color:'var(--red)'},
+  {label:'Performance',score:80,color:'var(--success)'},
+  {label:'Maintainability',score:68,color:'var(--orange)'},
+];
+const hGrid = document.getElementById('healthGrid');
+hGrid.innerHTML = scores.map(s => `
+  <div class="health-card">
+    <div class="score" style="color:${s.color}">${s.score}</div>
+    <div class="label">${s.label}</div>
+    <div class="bar"><div class="bar-fill" style="width:${s.score}%;background:${s.color}"></div></div>
+  </div>
+`).join('');
+
+// ─── Donut ───
+const sevCount = {critical:0,high:0,medium:0,low:0};
+FINDINGS.forEach(f => sevCount[f.severity]++);
+const sevList = ['critical','high','medium','low'];
+const sevColors = {critical:'var(--red)',high:'var(--orange)',medium:'var(--yellow)',low:'var(--text-muted)'};
+const total = FINDINGS.length;
+let accum = 0;
+const svg = document.getElementById('donutChart');
+const c = 50, r = 30, circ = 2 * Math.PI * r;
+sevList.forEach((s,i) => {
+  const pct = sevCount[s] / total;
+  const offset = circ * (1 - pct);
+  const dashOffset = circ * accum;
+  const seg = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  seg.setAttribute('cx',c); seg.setAttribute('cy',c); seg.setAttribute('r',r);
+  seg.setAttribute('class','donut-seg');
+  seg.setAttribute('stroke',sevColors[s]);
+  seg.setAttribute('stroke-dasharray',`${offset} ${circ - offset}`);
+  seg.setAttribute('stroke-dashoffset',dashOffset);
+  svg.appendChild(seg);
+  accum += pct;
+});
+const leg = document.getElementById('donutLegend');
+sevList.forEach(s => {
+  const d = document.createElement('div');
+  d.className = 'donut-legend-item';
+  d.innerHTML = `<span class="dot" style="background:${sevColors[s]}"></span>${s} <span class="count">${sevCount[s]}</span>`;
+  leg.appendChild(d);
+});
+
+// ─── Filter counts ───
+['all','critical','high','medium','low','fixed','wontfix'].forEach(f => {
+  const el = document.getElementById('c-'+f);
+  if (!el) return;
+  if (f === 'all') el.textContent = FINDINGS.length;
+  else el.textContent = FINDINGS.filter(x => x.severity === f || x.status === f).length;
+});
+
+// ─── Findings table ───
+let sortCol = 'severity';
+let sortAsc = false;
+let filter = 'all';
+
+function renderTable() {
+  let data = [...FINDINGS];
+  if (filter !== 'all') {
+    data = data.filter(f => f.severity === filter || f.status === filter);
+  }
+  const sevOrder = {critical:0,high:1,medium:2,low:3};
+  data.sort((a,b) => {
+    let va = a[sortCol], vb = b[sortCol];
+    if (sortCol === 'severity') { va = sevOrder[va]; vb = sevOrder[vb]; }
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    return sortAsc ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
+  });
+  const body = document.getElementById('findingsBody');
+  body.innerHTML = data.map(f => `
+    <tr>
+      <td><code style="color:var(--accent)">${f.id}</code></td>
+      <td><span class="sev-label sev-${f.severity}">${f.severity}</span></td>
+      <td>
+        <div style="font-weight:500;margin-bottom:2px;">${f.title}</div>
+        <div style="font-size:11px;color:var(--text-muted);line-height:1.4;">${f.desc.substring(0,120)}...</div>
+      </td>
+      <td><span class="tag tag-${f.component.toLowerCase()}">${f.component}</span></td>
+      <td><span style="color:${f.severity === 'critical' ? 'var(--red)' : f.severity === 'high' ? 'var(--orange)' : 'var(--text-muted)'}">${f.impact}</span></td>
+      <td><span class="status-dot ${f.status}">${f.status === 'fixed' ? 'Fixed' : "Won't Fix"}</span></td>
+      <td><button class="filter-btn" style="font-size:11px;padding:3px 10px;" onclick="showDetail('${f.id}')">View</button></td>
+    </tr>
+  `).join('');
+}
+renderTable();
+
+// ─── Sort ───
+document.querySelectorAll('#findingsTable th[data-col]').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    if (col === sortCol) sortAsc = !sortAsc;
+    else { sortCol = col; sortAsc = false; }
+    th.querySelector('.sort').innerHTML = sortAsc ? '&#9650;' : '&#9660;';
+    renderTable();
+  });
+});
+
+// ─── Filter ───
+document.getElementById('filterBar').addEventListener('click', e => {
+  const btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  qsa('#filterBar .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  filter = btn.dataset.filter;
+  renderTable();
+});
+
+// ─── Detail view ───
+function showDetail(id) {
+  const f = FINDINGS.find(x => x.id === id);
+  if (!f) return;
+  const dv = document.getElementById('detailView');
+  dv.style.display = 'block';
+  dv.innerHTML = `
+    <div class="card" style="border-color:var(--accent);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <span class="sev-label sev-${f.severity}" style="margin-right:8px;">${f.severity}</span>
+          <code style="color:var(--accent);font-size:13px;">${f.id}</code>
+        </div>
+        <button class="filter-btn" onclick="document.getElementById('detailView').style.display='none'">&#x2715;</button>
+      </div>
+      <h3 style="font-family:'Playfair Display',Georgia,serif;font-size:16px;margin:12px 0 8px;">${f.title}</h3>
+      <p style="color:var(--text-muted);line-height:1.6;margin-bottom:12px;">${f.desc}</p>
+      <div style="background:rgba(123,184,123,0.08);border-left: 2px solid var(--success);padding:8px 12px;border-radius:0 6px 6px 0;margin-bottom:8px;">
+        <strong>Fix:</strong> ${f.fix}
+      </div>
+      <div style="display:flex;gap:16px;font-size:11px;color:var(--text-muted);">
+        <span>File: <code style="background:var(--bg);padding:1px 6px;border-radius:3px;color:var(--accent);">${f.file}</code></span>
+        <span>Status: <span class="status-dot ${f.status}">${f.status}</span></span>
+      </div>
+    </div>
+  `;
+}
+
+// ─── Component Health ───
+const compHealth = [
+  {name:'Story Service',score:75,color:'var(--success)'},
+  {name:'Prompt Service',score:62,color:'var(--orange)'},
+  {name:'Generation Service',score:58,color:'var(--orange)'},
+  {name:'Worker Pipeline',score:45,color:'var(--red)'},
+  {name:'Repository Layer',score:70,color:'var(--accent)'},
+  {name:'Frontend SPA',score:82,color:'var(--success)'},
+  {name:'LLM Integration',score:55,color:'var(--red)'},
+];
+const compEl = document.getElementById('compHealth');
+compEl.innerHTML = compHealth.map(c => `
+  <div class="comp-row">
+    <span class="name">${c.name}</span>
+    <div class="bar-wrap"><div class="bar-fill" style="width:${c.score}%;background:${c.color};"></div></div>
+    <span class="score-num" style="color:${c.color}">${c.score}</span>
+  </div>
+`).join('');
+</script>
+</body>
+</html>

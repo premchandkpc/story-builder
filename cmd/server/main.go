@@ -120,7 +120,12 @@ func main() {
 	charSvc := service.NewCharacterService(charRepo)
 	locSvc := service.NewLocationService(locRepo)
 
-	genSvc := service.NewGenerationService(genRepo, sceneRepo, storyRepo, charRepo, stateRepo, memRepo, tlRepo, sumRepo, locRepo, proseSvc, extractSvc, summarySvc, validateSvc)
+	genSvc := service.NewGenerationService(service.GenerationServiceConfig{
+		GenRepo: genRepo, SceneRepo: sceneRepo, StoryRepo: storyRepo,
+		CharRepo: charRepo, StateRepo: stateRepo, MemRepo: memRepo,
+		TlRepo: tlRepo, SumRepo: sumRepo, LocRepo: locRepo,
+		ProseSvc: proseSvc, ExtractSvc: extractSvc, SummarySvc: summarySvc, ValidateSvc: validateSvc,
+	})
 	tlSvc := service.NewTimelineService(tlRepo)
 	sumSvc := service.NewSummaryService(sumRepo)
 	memSvc := service.NewMemoryService(memRepo)

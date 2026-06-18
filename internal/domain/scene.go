@@ -35,17 +35,25 @@ type SceneEdge struct {
 }
 
 type Generation struct {
-	ID               string         `bson:"_id" json:"id"`
-	StoryID          string         `bson:"storyId" json:"storyId"`
-	SceneID          string         `bson:"sceneId" json:"sceneId"`
-	ContextHash      string         `bson:"contextHash,omitempty" json:"contextHash,omitempty"`
-	PromptSnapshot   string         `bson:"promptSnapshot,omitempty" json:"promptSnapshot,omitempty"`
-	Output           string         `bson:"output,omitempty" json:"output,omitempty"`
-	Model            string         `bson:"model,omitempty" json:"model,omitempty"`
-	Accepted         bool           `bson:"accepted" json:"accepted"`
-	ValidationResult map[string]any `bson:"validationResult,omitempty" json:"validationResult,omitempty"`
-	CreatedAt        time.Time      `bson:"createdAt" json:"createdAt"`
+	ID               string            `bson:"_id" json:"id"`
+	StoryID          string            `bson:"storyId" json:"storyId"`
+	SceneID          string            `bson:"sceneId" json:"sceneId"`
+	ContextHash      string            `bson:"contextHash,omitempty" json:"contextHash,omitempty"`
+	PromptSnapshot   string            `bson:"promptSnapshot,omitempty" json:"promptSnapshot,omitempty"`
+	Output           string            `bson:"output,omitempty" json:"output,omitempty"`
+	Model            string            `bson:"model,omitempty" json:"model,omitempty"`
+	Accepted         bool              `bson:"accepted" json:"accepted"`
+	StepStatus       map[string]string `bson:"stepStatus,omitempty" json:"stepStatus,omitempty"`
+	ValidationResult map[string]any    `bson:"validationResult,omitempty" json:"validationResult,omitempty"`
+	CreatedAt        time.Time         `bson:"createdAt" json:"createdAt"`
 }
+
+const (
+	StepPending = "pending"
+	StepRunning = "running"
+	StepDone    = "done"
+	StepFailed  = "failed"
+)
 
 const (
 	EdgeTypeSeq      = "seq"

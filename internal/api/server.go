@@ -48,7 +48,7 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 		r.Route("/stories", func(r chi.Router) {
 			r.Post("/", h.CreateStory)
 			r.Get("/", h.ListStories)
-			r.Post("/generate", h.GenerateStory)
+			r.With(contextTimeout(5*time.Minute)).Post("/generate", h.GenerateStory)
 			r.Post("/generate-title", h.NotImplemented)
 
 			r.Route("/{storyID}", func(r chi.Router) {

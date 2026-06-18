@@ -360,31 +360,26 @@ export interface StoryGenerateResult {
 
 // ---- Shared UI style objects ----
 
-// inputStyle: a reusable style object for input fields across the app.
-// Record<string, string | number> means it's an object with keys→values that are either strings or numbers.
 const inputStyle: Record<string, string | number> = {
   width: "100%",
   padding: "10px 12px",
-  background: "#1e293b",
-  border: "1px solid #334155",
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
   borderRadius: 6,
-  color: "#e2e8f0",
+  color: "var(--text)",
   fontSize: 14,
   boxSizing: "border-box",
   outline: "none",
 }
 
-// btnStyle: a function that returns a style object for buttons.
-// @param bg - background color (CSS value)
-// @param disabled - if true, uses gray background and "not-allowed" cursor
 export function btnStyle(bg: string, disabled = false): Record<string, string | number> {
   return {
     padding: "10px 16px",
-    background: disabled ? "#64748b" : bg,     // gray out if disabled
+    background: disabled ? "var(--text-muted)" : bg,
     color: "#fff",
     border: "none",
     borderRadius: 6,
-    cursor: disabled ? "not-allowed" : "pointer", // change cursor when disabled
+    cursor: disabled ? "not-allowed" : "pointer",
     fontWeight: 600,
     fontSize: 14,
   }

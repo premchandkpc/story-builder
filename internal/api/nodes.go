@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -192,9 +193,14 @@ func (h *Handlers) V2Topology(w http.ResponseWriter, r *http.Request) {
 	for _, e := range edges {
 		ge = append(ge, edgeToGraphEdge(e))
 	}
+	sorted := make([]*domain.Scene, len(scenes))
+	copy(sorted, scenes)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		return sorted[i].TimelinePosition < sorted[j].TimelinePosition
+	})
 	writeJSON(w, http.StatusOK, topologyResponse{
 		Nodes:            nodes,
 		Edges:            ge,
-		TopologicalOrder: extractIDs(scenes),
+		TopologicalOrder: extractIDs(sorted),
 	})
 }

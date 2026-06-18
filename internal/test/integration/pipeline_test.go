@@ -53,10 +53,13 @@ func TestIntegration_GenerationPipeline(t *testing.T) {
 	summarySvc := &mockSummaryService{}
 	validateSvc := &mockValidationService{}
 
-	genSvc := service.NewGenerationService(
-		genRepo, sceneRepo, storyRepo, stateRepo, memRepo, tlRepo, sumRepo,
-		llmSvc, extractSvc, summarySvc, validateSvc,
-	)
+	locRepo := mgorepo.NewLocationRepo(testDB)
+	genSvc := service.NewGenerationService(service.GenerationServiceConfig{
+		GenRepo: genRepo, SceneRepo: sceneRepo, StoryRepo: storyRepo,
+		CharRepo: charRepo, StateRepo: stateRepo, MemRepo: memRepo,
+		TlRepo: tlRepo, SumRepo: sumRepo, LocRepo: locRepo,
+		ProseSvc: llmSvc, ExtractSvc: extractSvc, SummarySvc: summarySvc, ValidateSvc: validateSvc,
+	})
 
 	t.Run("generation creates record and runs pipeline", func(t *testing.T) {
 		gen, err := genSvc.Generate(ctx, scene.ID)
@@ -254,10 +257,14 @@ func TestIntegration_GenerationCustomProse(t *testing.T) {
 		},
 	}
 
-	genSvc := service.NewGenerationService(
-		genRepo, sceneRepo, storyRepo, stateRepo, memRepo, tlRepo, sumRepo,
-		customProse, &mockExtractionService{}, &mockSummaryService{}, &mockValidationService{},
-	)
+	locRepo := mgorepo.NewLocationRepo(testDB)
+	genSvc := service.NewGenerationService(service.GenerationServiceConfig{
+		GenRepo: genRepo, SceneRepo: sceneRepo, StoryRepo: storyRepo,
+		CharRepo: charRepo, StateRepo: stateRepo, MemRepo: memRepo,
+		TlRepo: tlRepo, SumRepo: sumRepo, LocRepo: locRepo,
+		ProseSvc: customProse, ExtractSvc: &mockExtractionService{},
+		SummarySvc: &mockSummaryService{}, ValidateSvc: &mockValidationService{},
+	})
 
 	gen, err := genSvc.Generate(ctx, scene.ID)
 	if err != nil {
