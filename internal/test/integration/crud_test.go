@@ -151,7 +151,8 @@ func TestIntegration_Scenes(t *testing.T) {
 	storyRepo := mgorepo.NewStoryRepo(testDB)
 	sceneRepo := mgorepo.NewSceneRepo(testDB)
 	edgeRepo := mgorepo.NewSceneEdgeRepo(testDB)
-	svc := service.NewSceneService(sceneRepo, edgeRepo)
+	genRepo := mgorepo.NewGenerationRepo(testDB)
+	svc := service.NewSceneService(sceneRepo, edgeRepo, genRepo)
 	ctx := context.Background()
 
 	story := &domain.Story{Title: "Scene Test Story", Status: domain.StoryStatusDraft}
@@ -247,7 +248,7 @@ func TestIntegration_Edges(t *testing.T) {
 	storyRepo := mgorepo.NewStoryRepo(testDB)
 	edgeRepo := mgorepo.NewSceneEdgeRepo(testDB)
 	svc := service.NewEdgeService(edgeRepo)
-	sceneSvc := service.NewSceneService(mgorepo.NewSceneRepo(testDB), edgeRepo)
+	sceneSvc := service.NewSceneService(mgorepo.NewSceneRepo(testDB), edgeRepo, mgorepo.NewGenerationRepo(testDB))
 	ctx := context.Background()
 
 	story := &domain.Story{Title: "Edge Test", Status: domain.StoryStatusDraft}
@@ -316,8 +317,7 @@ func TestIntegration_Characters(t *testing.T) {
 
 	storyRepo := mgorepo.NewStoryRepo(testDB)
 	charRepo := mgorepo.NewCharacterRepo(testDB)
-	stateRepo := mgorepo.NewCharacterStateRepo(testDB)
-	svc := service.NewCharacterService(charRepo, stateRepo)
+	svc := service.NewCharacterService(charRepo)
 	ctx := context.Background()
 
 	story := &domain.Story{Title: "Char Test", Status: domain.StoryStatusDraft}

@@ -137,7 +137,7 @@ export interface Story {
   id: string                              // unique identifier
   title: string                           // story title
   canon_pins: Record<string, unknown>     // pinned canon facts (key-value map)
-  created_at: string                      // ISO timestamp
+  createdAt: string                       // ISO timestamp
 }
 
 // ---- Interface: CreateChapterPayload ----

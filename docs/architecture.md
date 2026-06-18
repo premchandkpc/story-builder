@@ -69,6 +69,7 @@ cmd/server/main.go
     │   ├── handlers_scenes.go
     │   ├── handlers_edges.go
     │   ├── handlers_characters.go
+    │   ├── handlers_locations.go
     │   ├── handlers_generation.go
     │   ├── handlers_timeline.go
     │   ├── handlers_memory.go
@@ -78,10 +79,12 @@ cmd/server/main.go
     │   ├── story/
     │   ├── scene/
     │   ├── character/
+    │   ├── location/
     │   ├── memory/
     │   └── timeline/
     │
     ├── internal/service       ─── Business logic
+    │   ├── location.go        ─── Location CRUD + GetByName
     │   ├── generation/        ─── Generation pipeline orchestration
     │   ├── validation/        ─── Canon/timeline/character validation
     │   └── graph/             ─── DAG traversal + validation

@@ -118,27 +118,57 @@ func (h *Handlers) GenerateStory(w http.ResponseWriter, r *http.Request) {
 
 	charIDByName := make(map[string]string, len(outline.Beats))
 	for _, c := range outline.Characters {
+		personality := make(map[string]any)
+		if len(c.Personality) > 0 {
+			personality["traits"] = c.Personality
+		}
 		char := &domain.Character{
-			StoryID:   story.ID,
-			Name:      c.Name,
-			Persona:   c.Persona,
-			Backstory: c.Backstory,
+			StoryID:        story.ID,
+			Name:           c.Name,
+			Persona:        c.Persona,
+			Backstory:      c.Backstory,
+			MoralAlignment: c.MoralAlignment,
+			Personality:    personality,
+			Goals:          c.Goals,
+			Flaws:          c.Flaws,
+			Traits:         c.Personality,
+			VoiceSamples:   c.VoiceSamples,
 		}
 		created, err := h.charSvc.Create(r.Context(), char)
-		if err == nil {
-			charIDByName[c.Name] = created.ID
+		if err != nil {
+			slog.Error("generate story: create character failed", "name", c.Name, "error", err)
+			continue
 		}
+		charIDByName[c.Name] = created.ID
 	}
 
+	locIDByName := make(map[string]string)
 	beatIDByTitle := make(map[string]string, len(outline.Beats))
-	for _, b := range outline.Beats {
+	for i, b := range outline.Beats {
+		if b.LocationName != "" {
+			if id, ok := locIDByName[b.LocationName]; ok {
+				_ = id
+			} else {
+				loc := &domain.Location{
+					StoryID: story.ID,
+					Name:    b.LocationName,
+				}
+				if err := h.locSvc.Create(r.Context(), loc); err != nil {
+					slog.Error("generate story: create location failed", "name", b.LocationName, "error", err)
+				} else {
+					locIDByName[b.LocationName] = loc.ID
+				}
+			}
+		}
 		scene := &domain.Scene{
-			StoryID:     story.ID,
-			Title:       b.Title,
-			BeatIntent:  b.BeatIntent,
-			POV:         b.POV,
-			Tone:        b.Tone,
-			TargetWords: b.TargetWords,
+			StoryID:          story.ID,
+			Title:            b.Title,
+			BeatIntent:       b.BeatIntent,
+			POV:              b.POV,
+			Tone:             b.Tone,
+			TargetWords:      b.TargetWords,
+			LocationRef:      b.LocationName,
+			TimelinePosition: i + 1,
 		}
 		for _, cn := range b.CharacterNames {
 			if id, ok := charIDByName[cn]; ok {

@@ -101,6 +101,8 @@ func main() {
 		slog.Info("no REDIS_ADDR set, running without cache")
 	}
 
+	locRepo := mgorepo.NewLocationRepo(db)
+
 	// ─── Services ──────────────────────────────────────────
 	storySvc := service.NewStoryService(storyRepo, &service.StoryCascadeDeleter{
 		SceneRepo: sceneRepo,
@@ -111,17 +113,20 @@ func main() {
 		MemRepo:   memRepo,
 		TlRepo:    tlRepo,
 		SumRepo:   sumRepo,
+		LocRepo:   locRepo,
 	})
-	sceneSvc := service.NewSceneService(sceneRepo, edgeRepo)
+	sceneSvc := service.NewSceneService(sceneRepo, edgeRepo, genRepo)
 	edgeSvc := service.NewEdgeService(edgeRepo)
-	charSvc := service.NewCharacterService(charRepo, stateRepo)
-	genSvc := service.NewGenerationService(genRepo, sceneRepo, charRepo, stateRepo, memRepo, tlRepo, sumRepo, proseSvc, extractSvc, summarySvc, validateSvc)
+	charSvc := service.NewCharacterService(charRepo)
+	locSvc := service.NewLocationService(locRepo)
+
+	genSvc := service.NewGenerationService(genRepo, sceneRepo, storyRepo, charRepo, stateRepo, memRepo, tlRepo, sumRepo, locRepo, proseSvc, extractSvc, summarySvc, validateSvc)
 	tlSvc := service.NewTimelineService(tlRepo)
 	sumSvc := service.NewSummaryService(sumRepo)
 	memSvc := service.NewMemoryService(memRepo)
 
 	// ─── Handlers ──────────────────────────────────────────
-	h := api.NewHandlers(storySvc, sceneSvc, edgeSvc, charSvc, genSvc, tlSvc, sumSvc, memSvc, outlineSvc)
+	h := api.NewHandlers(storySvc, sceneSvc, edgeSvc, charSvc, genSvc, tlSvc, sumSvc, memSvc, locSvc, outlineSvc)
 
 	// ─── Server ────────────────────────────────────────────
 	srv := api.NewServer(h, rateLimiter)

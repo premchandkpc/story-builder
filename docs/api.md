@@ -351,6 +351,46 @@ List all timeline events, sorted by order.
 
 ---
 
+## Locations
+
+### `GET /api/v1/stories/{storyID}/locations`
+
+List all locations for a story.
+
+### `POST /api/v1/stories/{storyID}/locations`
+
+**Request:**
+```json
+{
+  "name": "Castle Gates",
+  "description": "The imposing main entrance",
+  "props": {"architecture": "gothic"}
+}
+```
+
+**Response 201:** Full location object.
+
+### `GET /api/v1/locations/{id}`
+
+Get location by ID.
+
+### `PUT /api/v1/locations/{id}`
+
+Update a location.
+
+**Request:**
+```json
+{
+  "name": "Castle Gates",
+  "description": "The heavily fortified main entrance",
+  "props": {"architecture": "gothic", "defenses": ["portcullis"]}
+}
+```
+
+**Response 200:** Updated location object.
+
+---
+
 ## Summaries
 
 ### `GET /api/v1/stories/{storyID}/summaries/level`

@@ -250,6 +250,28 @@ The AI heart. Each memory is a document with an embedding for vector search.
 
 ---
 
+### `locations`
+
+```json
+{
+  "_id": "loc_1",
+  "storyId": "story_1",
+  "name": "Castle Gates",
+  "description": "The imposing main entrance to the castle",
+  "props": {
+    "architecture": "gothic",
+    "defenses": ["portcullis", "moat"]
+  },
+  "createdAt": "2026-06-16T00:00:00Z"
+}
+```
+
+**Indexes:**
+- `{ storyId: 1 }`
+- `{ storyId: 1, name: 1 }` (unique)
+
+---
+
 ### `timeline_events`
 
 ```json
@@ -301,6 +323,7 @@ The frontend mirrors backend models as TypeScript interfaces in `web/src/api/typ
 ## Entity Relationships
 
 ```
+stories 1──* locations             (storyId)
 stories 1──* scenes                (storyId)
 stories 1──* scene_edges           (storyId)
 stories 1──* characters            (storyId)
@@ -330,6 +353,7 @@ func ensureIndexes(ctx context.Context, db *mongo.Database) error {
     // Stories
     // Scenes
     // SceneEdges
+    // Locations
     // Characters
     // CharacterState
     // CharacterMemories

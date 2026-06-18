@@ -16,6 +16,7 @@ type Handlers struct {
 	tlSvc      *service.TimelineService
 	sumSvc     *service.SummaryService
 	memSvc     *service.MemoryService
+	locSvc     *service.LocationService
 	outlineSvc *llm.OutlineServiceImpl
 }
 
@@ -28,12 +29,14 @@ func NewHandlers(
 	tlSvc *service.TimelineService,
 	sumSvc *service.SummaryService,
 	memSvc *service.MemoryService,
+	locSvc *service.LocationService,
 	outlineSvc *llm.OutlineServiceImpl,
 ) *Handlers {
 	return &Handlers{
 		storySvc: storySvc, sceneSvc: sceneSvc, edgeSvc: edgeSvc,
 		charSvc: charSvc, genSvc: genSvc, tlSvc: tlSvc,
-		sumSvc: sumSvc, memSvc: memSvc, outlineSvc: outlineSvc,
+		sumSvc: sumSvc, memSvc: memSvc, locSvc: locSvc,
+		outlineSvc: outlineSvc,
 	}
 }
 

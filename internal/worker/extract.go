@@ -54,6 +54,8 @@ func (w *ExtractStateWorker) Work(ctx context.Context, args ExtractStateArgs) er
 			CharacterID: delta.Character,
 			StoryID:     args.StoryID,
 			SceneID:     args.SceneID,
+			Location:    delta.NewLocation,
+			Mood:        delta.Mood,
 			Changes:     changes,
 		}
 		if err := w.stateRepo.Append(ctx, state); err != nil {

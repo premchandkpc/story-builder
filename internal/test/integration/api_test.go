@@ -53,10 +53,10 @@ func buildServer(t *testing.T) (*api.Server, *mgorepo.StoryRepo) {
 
 	h := api.NewHandlers(
 		service.NewStoryService(storyRepo, deleter),
-		service.NewSceneService(sceneRepo, edgeRepo),
+		service.NewSceneService(sceneRepo, edgeRepo, genRepo),
 		service.NewEdgeService(edgeRepo),
-		service.NewCharacterService(charRepo, stateRepo),
-		service.NewGenerationService(genRepo, sceneRepo, charRepo, stateRepo, memRepo, tlRepo, sumRepo, prose, extract, summary, validate),
+		service.NewCharacterService(charRepo),
+		service.NewGenerationService(genRepo, sceneRepo, storyRepo, stateRepo, memRepo, tlRepo, sumRepo, prose, extract, summary, validate),
 		service.NewTimelineService(tlRepo),
 		service.NewSummaryService(sumRepo),
 		service.NewMemoryService(memRepo),

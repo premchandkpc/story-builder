@@ -20,6 +20,7 @@ type StoryCascadeDeleter struct {
 	MemRepo    repository.MemoryRepository
 	TlRepo     repository.TimelineRepository
 	SumRepo    repository.SummaryRepository
+	LocRepo    repository.LocationRepository
 }
 
 type StoryService struct {
@@ -56,7 +57,7 @@ type UpdateStoryParams struct {
 func (s *StoryService) Update(ctx context.Context, id string, params UpdateStoryParams) (*domain.Story, error) {
 	st, err := s.repo.Get(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get story for update: %w", err)
 	}
 	if st == nil {
 		return nil, fmt.Errorf("story not found")
@@ -103,6 +104,7 @@ func (d *StoryCascadeDeleter) cascade(ctx context.Context, storyID string) error
 		{"scene_edges",        d.EdgeRepo.DeleteByStory},
 		{"scenes",             d.SceneRepo.DeleteByStory},
 		{"characters",         d.CharRepo.DeleteByStory},
+		{"locations",          d.LocRepo.DeleteByStory},
 	}
 
 	var firstErr error
@@ -120,10 +122,11 @@ func (d *StoryCascadeDeleter) cascade(ctx context.Context, storyID string) error
 type SceneService struct {
 	sceneRepo repository.SceneRepository
 	edgeRepo  repository.SceneEdgeRepository
+	genRepo   repository.GenerationRepository
 }
 
-func NewSceneService(sceneRepo repository.SceneRepository, edgeRepo repository.SceneEdgeRepository) *SceneService {
-	return &SceneService{sceneRepo: sceneRepo, edgeRepo: edgeRepo}
+func NewSceneService(sceneRepo repository.SceneRepository, edgeRepo repository.SceneEdgeRepository, genRepo repository.GenerationRepository) *SceneService {
+	return &SceneService{sceneRepo: sceneRepo, edgeRepo: edgeRepo, genRepo: genRepo}
 }
 
 func (s *SceneService) Create(ctx context.Context, scene *domain.Scene) (*domain.Scene, error) {
@@ -149,6 +152,28 @@ func (s *SceneService) List(ctx context.Context, storyID string) ([]*domain.Scen
 }
 
 func (s *SceneService) Delete(ctx context.Context, id string) error {
+	// Determine storyId from the scene for edge cleanup.
+	scene, err := s.sceneRepo.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	if scene == nil {
+		return s.sceneRepo.Delete(ctx, id)
+	}
+
+	// Clean up edges referencing this scene.
+	fromEdges, _ := s.edgeRepo.ListFrom(ctx, id)
+	for _, e := range fromEdges {
+		_ = s.edgeRepo.Delete(ctx, e.StoryID, e.FromSceneID, e.ToSceneID)
+	}
+	toEdges, _ := s.edgeRepo.ListTo(ctx, id)
+	for _, e := range toEdges {
+		_ = s.edgeRepo.Delete(ctx, e.StoryID, e.FromSceneID, e.ToSceneID)
+	}
+
+	// Clean up generations for this scene.
+	_ = s.genRepo.DeleteByScene(ctx, id)
+
 	return s.sceneRepo.Delete(ctx, id)
 }
 
@@ -188,12 +213,11 @@ func (s *EdgeService) Delete(ctx context.Context, storyID, from, to string) erro
 }
 
 type CharacterService struct {
-	charRepo  repository.CharacterRepository
-	stateRepo repository.CharacterStateRepository
+	charRepo repository.CharacterRepository
 }
 
-func NewCharacterService(charRepo repository.CharacterRepository, stateRepo repository.CharacterStateRepository) *CharacterService {
-	return &CharacterService{charRepo: charRepo, stateRepo: stateRepo}
+func NewCharacterService(charRepo repository.CharacterRepository) *CharacterService {
+	return &CharacterService{charRepo: charRepo}
 }
 
 func (s *CharacterService) Create(ctx context.Context, c *domain.Character) (*domain.Character, error) {

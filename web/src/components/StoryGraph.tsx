@@ -165,8 +165,8 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
     try {
       // Fetch topology (nodes + edges + topological order)
       const topo = await api.topology.get(storyId)
-      setNodes((prev) => toReactFlowNodes(topo.nodes, prev)) // preserve positions
-      setEdges(toReactFlowEdges(topo.edges))
+      setNodes((prev) => toReactFlowNodes(topo.nodes || [], prev)) // preserve positions
+      setEdges(toReactFlowEdges(topo.edges || []))
     } catch (err) {
       console.error("fetch graph:", err)
     }

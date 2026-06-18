@@ -72,6 +72,14 @@ type TimelineRepository interface {
 	DeleteByStory(ctx context.Context, storyID string) error
 }
 
+type LocationRepository interface {
+	Create(ctx context.Context, l *domain.Location) error
+	Get(ctx context.Context, id string) (*domain.Location, error)
+	ListByStory(ctx context.Context, storyID string) ([]*domain.Location, error)
+	Update(ctx context.Context, l *domain.Location) error
+	DeleteByStory(ctx context.Context, storyID string) error
+}
+
 type SummaryRepository interface {
 	Upsert(ctx context.Context, s *domain.Summary) error
 	GetByLevel(ctx context.Context, storyID, level string) (*domain.Summary, error)

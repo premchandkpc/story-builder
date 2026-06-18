@@ -54,7 +54,7 @@ func TestIntegration_GenerationPipeline(t *testing.T) {
 	validateSvc := &mockValidationService{}
 
 	genSvc := service.NewGenerationService(
-		genRepo, sceneRepo, charRepo, stateRepo, memRepo, tlRepo, sumRepo,
+		genRepo, sceneRepo, storyRepo, stateRepo, memRepo, tlRepo, sumRepo,
 		llmSvc, extractSvc, summarySvc, validateSvc,
 	)
 
@@ -255,7 +255,7 @@ func TestIntegration_GenerationCustomProse(t *testing.T) {
 	}
 
 	genSvc := service.NewGenerationService(
-		genRepo, sceneRepo, charRepo, stateRepo, memRepo, tlRepo, sumRepo,
+		genRepo, sceneRepo, storyRepo, stateRepo, memRepo, tlRepo, sumRepo,
 		customProse, &mockExtractionService{}, &mockSummaryService{}, &mockValidationService{},
 	)
 

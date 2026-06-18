@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -15,11 +16,13 @@ import (
 type GenerationService struct {
 	genRepo     repository.GenerationRepository
 	sceneRepo   repository.SceneRepository
+	storyRepo   repository.StoryRepository
 	charRepo    repository.CharacterRepository
 	stateRepo   repository.CharacterStateRepository
 	memRepo     repository.MemoryRepository
 	tlRepo      repository.TimelineRepository
 	sumRepo     repository.SummaryRepository
+	locRepo     repository.LocationRepository
 
 	proseSvc    llm.ProseService
 	extractSvc  llm.ExtractionService
@@ -32,19 +35,22 @@ type GenerationService struct {
 func NewGenerationService(
 	genRepo repository.GenerationRepository,
 	sceneRepo repository.SceneRepository,
+	storyRepo repository.StoryRepository,
 	charRepo repository.CharacterRepository,
 	stateRepo repository.CharacterStateRepository,
 	memRepo repository.MemoryRepository,
 	tlRepo repository.TimelineRepository,
 	sumRepo repository.SummaryRepository,
+	locRepo repository.LocationRepository,
 	proseSvc llm.ProseService,
 	extractSvc llm.ExtractionService,
 	summarySvc llm.SummaryService,
 	validateSvc llm.ValidationService,
 ) *GenerationService {
 	return &GenerationService{
-		genRepo: genRepo, sceneRepo: sceneRepo, charRepo: charRepo,
-		stateRepo: stateRepo, memRepo: memRepo, tlRepo: tlRepo, sumRepo: sumRepo,
+		genRepo: genRepo, sceneRepo: sceneRepo, storyRepo: storyRepo,
+		charRepo: charRepo, stateRepo: stateRepo, memRepo: memRepo,
+		tlRepo: tlRepo, sumRepo: sumRepo, locRepo: locRepo,
 		proseSvc: proseSvc, extractSvc: extractSvc, summarySvc: summarySvc, validateSvc: validateSvc,
 	}
 }
@@ -74,6 +80,17 @@ func (s *GenerationService) Generate(ctx context.Context, sceneID string) (*doma
 		return nil, fmt.Errorf("create generation: %w", err)
 	}
 
+	params := s.buildPromptParams(ctx, scene)
+
+	go func() {
+		s.runPipeline(context.WithoutCancel(ctx), gen.ID, scene, params)
+		s.inFlight.Delete(sceneID)
+	}()
+
+	return gen, nil
+}
+
+func (s *GenerationService) buildPromptParams(ctx context.Context, scene *domain.Scene) llm.PromptParams {
 	params := llm.PromptParams{
 		BeatIntent:  scene.BeatIntent,
 		POV:         scene.POV,
@@ -81,12 +98,81 @@ func (s *GenerationService) Generate(ctx context.Context, sceneID string) (*doma
 		TargetWords: scene.TargetWords,
 	}
 
-	go func() {
-		s.runPipeline(ctx, gen.ID, scene, params)
-		s.inFlight.Delete(sceneID)
-	}()
+	allChars, err := s.charRepo.ListByStory(ctx, scene.StoryID)
+	if err != nil {
+		slog.Warn("buildPromptParams: list characters", "storyId", scene.StoryID, "error", err)
+	} else {
+		participantIDs := make(map[string]bool, len(scene.Participants))
+		for _, pid := range scene.Participants {
+			participantIDs[pid] = true
+		}
+		for _, c := range allChars {
+			if !participantIDs[c.ID] && !participantIDs[c.CharID] {
+				continue
+			}
+			card := llm.CharacterCard{
+				Name:         c.Name,
+				Description:  c.Persona,
+				Type:         "character",
+				Traits:       c.Traits,
+				VoiceSamples: c.VoiceSamples,
+			}
+			if c.Backstory != "" {
+				card.Description = c.Persona + ". " + c.Backstory
+			}
+			if c.Relationships != nil {
+				card.Relationships = c.Relationships
+			}
+			params.CharacterCards = append(params.CharacterCards, card)
 
-	return gen, nil
+			states, _ := s.stateRepo.ListByCharacter(ctx, c.CharID)
+			if len(states) > 0 {
+				latest := states[len(states)-1]
+				cs := llm.CharacterState{
+					StoryID:     latest.StoryID,
+					CharacterID: latest.CharacterID,
+					AsOfScene:   latest.SceneID,
+					Location:    latest.Location,
+					Mood:        latest.Mood,
+					Items:       latest.Inventory,
+				}
+				if latest.Relationships != nil {
+					cs.Relationships = latest.Relationships
+				}
+				if m, ok := latest.Changes["learned"].([]string); ok {
+					cs.Knows = m
+				}
+				if m, ok := latest.Changes["does_not_know"].([]string); ok {
+					cs.DoesNotKnow = m
+				}
+				params.CharState = make(map[string]interface{})
+				params.CharState[c.Name] = cs
+			}
+		}
+	}
+
+	if scene.LocationRef != "" {
+		locs, err := s.locRepo.ListByStory(ctx, scene.StoryID)
+		if err == nil {
+			for _, loc := range locs {
+				if loc.Name == scene.LocationRef || loc.ID == scene.LocationRef {
+					params.LocationCard = &llm.CharacterCard{
+						Name:        loc.Name,
+						Description: loc.Description,
+						Type:        "location",
+						Props:       loc.Props,
+					}
+					break
+				}
+			}
+		}
+	}
+
+	if existing, _ := s.sumRepo.GetByLevel(ctx, scene.StoryID, "story"); existing != nil {
+		params.BranchSummary = existing.Content
+	}
+
+	return params
 }
 
 func (s *GenerationService) AcceptGeneration(ctx context.Context, sceneID, genID string) error {
@@ -177,14 +263,35 @@ func (s *GenerationService) runPipeline(ctx context.Context, genID string, scene
 		slog.Error("timeline step failed", "genId", genID, "error", err)
 	}
 
+	prevSummary := ""
+	if existing, _ := s.sumRepo.GetByLevel(ctx, scene.StoryID, "story"); existing != nil {
+		prevSummary = existing.Content
+	}
+
 	if err := sumWorker.Work(ctx, worker.SummaryArgs{
-		StoryID: scene.StoryID, SceneID: scene.ID, AcceptedScene: sceneText,
+		StoryID: scene.StoryID, SceneID: scene.ID,
+		PreviousSummary: prevSummary,
+		AcceptedScene:   sceneText,
 	}); err != nil {
 		slog.Error("summary step failed", "genId", genID, "error", err)
 	}
 
+	canonXML := ""
+	if story, _ := s.storyRepo.Get(ctx, scene.StoryID); story != nil {
+		if len(story.CanonPins) > 0 {
+			b, _ := json.Marshal(story.CanonPins)
+			canonXML = string(b)
+		}
+	}
+
+	charState := ""
+	if states, _ := s.stateRepo.ListByScene(ctx, scene.ID); len(states) > 0 {
+		b, _ := json.Marshal(states)
+		charState = string(b)
+	}
+
 	if err := valWorker.Work(ctx, worker.ValidateArgs{
-		GenerationID: genID, SceneText: sceneText,
+		GenerationID: genID, CanonXML: canonXML, CharState: charState, SceneText: sceneText,
 	}); err != nil {
 		slog.Error("validation step failed", "genId", genID, "error", err)
 	}

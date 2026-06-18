@@ -60,6 +60,10 @@ func EnsureIndexes(ctx context.Context, db *mongo.Database) error {
 			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "characterId", Value: 1}, {Key: "createdAt", Value: -1}}},
 			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "characterId", Value: 1}, {Key: "importance", Value: -1}}},
 		},
+		"locations": {
+			{Keys: bson.D{{Key: "storyId", Value: 1}}},
+			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "name", Value: 1}}},
+		},
 		"generations": {
 			{Keys: bson.D{{Key: "sceneId", Value: 1}, {Key: "createdAt", Value: -1}}},
 			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "createdAt", Value: -1}}},

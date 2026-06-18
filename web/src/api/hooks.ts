@@ -87,7 +87,7 @@ export function useAllStoryStats(stories: Story[]) {
     queryKey: ["allStoryStats", stories.map((s) => s.id).sort()],
     queryFn: async () => {
       const concurrency = 6
-      const results: [string, StoryStats][] = []
+      const results: (readonly [string, StoryStats])[] = []
       for (let i = 0; i < stories.length; i += concurrency) {
         const batch = stories.slice(i, i + concurrency)
         const entries = await Promise.all(

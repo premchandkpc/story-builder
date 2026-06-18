@@ -85,6 +85,17 @@ type StoryHandler struct {
 | `GetState(characterID, sceneID)` | Gets state at a specific scene |
 | `GetStateHistory(characterID)` | Gets all state changes (event-sourced) |
 
+### Location Service
+
+| Method | Description |
+|---|---|
+| `Create(storyID, name, description, props)` | Creates a new location |
+| `Get(id)` | Gets location by ID |
+| `ListByStory(storyID)` | Lists all locations in a story |
+| `Update(id, name, description, props)` | Updates a location |
+| `DeleteByStory(storyID)` | Deletes all locations for a story |
+| `GetByName(storyID, name)` | Finds location by name within a story |
+
 ### Memory Service
 
 | Method | Description |
@@ -124,6 +135,8 @@ type GenerationService struct {
     timeline  TimelineService
     summary   SummaryService
     validate  ValidationService
+    charRepo  CharacterRepository
+    locRepo   LocationRepository
 }
 ```
 
@@ -131,7 +144,8 @@ type GenerationService struct {
 
 ```
 GenerateScene
-    → compiles context (characters + state + memories + lore)
+    → buildPromptParams fetches: characters, character states, locations, story summary
+    → compiles rich PromptParams for LLM
     → calls ProseService.GenerateScene (claude-sonnet)
     → stores generation in Mongo
     → spawns pipeline goroutine:

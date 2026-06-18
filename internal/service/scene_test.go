@@ -128,10 +128,20 @@ func (m *mockEdgeRepo) DeleteByStory(ctx context.Context, storyID string) error 
 	return nil
 }
 
+type mockGenRepo struct{}
+
+func (m *mockGenRepo) Create(ctx context.Context, g *domain.Generation) error { return nil }
+func (m *mockGenRepo) Get(ctx context.Context, id string) (*domain.Generation, error) { return nil, nil }
+func (m *mockGenRepo) Update(ctx context.Context, g *domain.Generation) error { return nil }
+func (m *mockGenRepo) ListByScene(ctx context.Context, sceneID string) ([]*domain.Generation, error) { return nil, nil }
+func (m *mockGenRepo) ListByStory(ctx context.Context, storyID string) ([]*domain.Generation, error) { return nil, nil }
+func (m *mockGenRepo) DeleteByScene(ctx context.Context, sceneID string) error { return nil }
+func (m *mockGenRepo) DeleteByStory(ctx context.Context, storyID string) error { return nil }
+
 func TestSceneService_Topology(t *testing.T) {
 	sceneMock := newMockSceneRepo()
 	edgeMock := newMockEdgeRepo()
-	svc := NewSceneService(sceneMock, edgeMock)
+	svc := NewSceneService(sceneMock, edgeMock, &mockGenRepo{})
 
 	s1 := &domain.Scene{StoryID: "story-1", Title: "Scene 1"}
 	s2 := &domain.Scene{StoryID: "story-1", Title: "Scene 2"}
@@ -154,7 +164,7 @@ func TestSceneService_Topology(t *testing.T) {
 
 func TestSceneService_Create(t *testing.T) {
 	sceneMock := newMockSceneRepo()
-	svc := NewSceneService(sceneMock, newMockEdgeRepo())
+	svc := NewSceneService(sceneMock, newMockEdgeRepo(), &mockGenRepo{})
 
 	s, err := svc.Create(context.Background(), &domain.Scene{StoryID: "s1", Title: "New Scene"})
 	if err != nil {
@@ -167,8 +177,7 @@ func TestSceneService_Create(t *testing.T) {
 
 func TestCharacterService(t *testing.T) {
 	charMock := newMockCharacterRepo()
-	stateMock := &mockStateRepo{states: make(map[string][]*domain.CharacterState)}
-	svc := NewCharacterService(charMock, stateMock)
+	svc := NewCharacterService(charMock)
 
 	t.Run("create and get", func(t *testing.T) {
 		c, err := svc.Create(context.Background(), &domain.Character{StoryID: "s1", Name: "Alice"})
@@ -258,36 +267,5 @@ func (m *mockCharacterRepo) GetLatest(ctx context.Context, charID string) (*doma
 }
 
 func (m *mockCharacterRepo) DeleteByStory(ctx context.Context, storyID string) error {
-	return nil
-}
-
-// ── Mock CharacterStateRepository ─────────────────────────────────────
-
-type mockStateRepo struct {
-	states map[string][]*domain.CharacterState
-	err    error
-}
-
-func (m *mockStateRepo) Append(ctx context.Context, s *domain.CharacterState) error {
-	if m.err != nil {
-		return m.err
-	}
-	m.states[s.CharacterID] = append(m.states[s.CharacterID], s)
-	return nil
-}
-
-func (m *mockStateRepo) Get(ctx context.Context, characterID, sceneID string) (*domain.CharacterState, error) {
-	return nil, nil
-}
-
-func (m *mockStateRepo) ListByCharacter(ctx context.Context, characterID string) ([]*domain.CharacterState, error) {
-	return m.states[characterID], nil
-}
-
-func (m *mockStateRepo) ListByScene(ctx context.Context, sceneID string) ([]*domain.CharacterState, error) {
-	return nil, nil
-}
-
-func (m *mockStateRepo) DeleteByStory(ctx context.Context, storyID string) error {
 	return nil
 }

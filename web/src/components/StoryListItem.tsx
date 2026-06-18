@@ -44,7 +44,7 @@ export default function StoryListItem({
                                                "#64748b"    // gray
 
   // Format the creation date as a locale-aware string (e.g. "6/17/2026")
-  const date = new Date(story.created_at).toLocaleDateString()
+  const date = story.createdAt ? new Date(story.createdAt).toLocaleDateString() : ""
 
   return (
     // The whole item is a <button> so it's keyboard-accessible.

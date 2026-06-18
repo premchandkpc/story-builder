@@ -129,6 +129,11 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 					r.Get("/", h.ListCharacters)
 				})
 
+				r.Route("/locations", func(r chi.Router) {
+					r.Post("/", h.CreateLocation)
+					r.Get("/", h.ListStoryLocations)
+				})
+
 				r.Route("/timeline", func(r chi.Router) {
 					r.Post("/", h.CreateTimelineEvent)
 					r.Get("/", h.ListTimelineEvents)
@@ -170,12 +175,10 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 		r.Get("/character-traits/{id}", h.NotImplemented)
 		r.Post("/character-traits", h.NotImplemented)
 
-		// ─── Locations (stub) ────────────────────────────────
-		r.Get("/locations", h.EmptyArray)
-		r.Post("/locations", h.NotImplemented)
+		// ─── Locations ───────────────────────────────────────
 		r.Route("/locations/{id}", func(r chi.Router) {
-			r.Get("/", h.NotImplemented)
-			r.Put("/", h.NotImplemented)
+			r.Get("/", h.GetLocation)
+			r.Put("/", h.UpdateLocation)
 		})
 
 		// ─── Lore (stub) ─────────────────────────────────────
