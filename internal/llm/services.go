@@ -224,12 +224,11 @@ func (s *OutlineServiceImpl) GenerateOutline(ctx context.Context, synopsis strin
 		return nil, fmt.Errorf("compile prompt: %w", err)
 	}
 	req := CompletionRequest{
-		Model:        ModelTier(compiled.Model),
-		System:       compiled.System,
-		UserMessage:  compiled.User,
-		Temperature:  compiled.Temperature,
-		MaxTokens:    compiled.MaxTokens,
-		ValidateJSON: true,
+		Model:       ModelTier(compiled.Model),
+		System:      compiled.System,
+		UserMessage: compiled.User,
+		Temperature: compiled.Temperature,
+		MaxTokens:   compiled.MaxTokens,
 	}
 	res, err := s.client.Complete(ctx, req)
 	if err != nil {
@@ -237,7 +236,7 @@ func (s *OutlineServiceImpl) GenerateOutline(ctx context.Context, synopsis strin
 	}
 	var outline StoryOutline
 	if err := parseJSONPayload(res.Content, &outline); err != nil {
-		return nil, fmt.Errorf("outline: %w", err)
+		return nil, fmt.Errorf("outline parse: %w", err)
 	}
 	return &outline, nil
 }
@@ -287,12 +286,67 @@ func parseJSONPayload[T any](content string, out *T) error {
 		}
 	}
 	if !json.Valid([]byte(payload)) {
+		payload = fixOutlineJSON(payload)
+	}
+	if !json.Valid([]byte(payload)) {
 		payload = fixJSONQuotes(payload)
 	}
 	if !json.Valid([]byte(payload)) {
 		return fmt.Errorf("invalid JSON: %s", payload)
 	}
 	return json.Unmarshal([]byte(payload), out)
+}
+
+func fixOutlineJSON(s string) string {
+	s = strings.ReplaceAll(s, "\\\"", "\"")
+	s = strings.ReplaceAll(s, "],[\"name\"", "},{\"name\"")
+	s = strings.ReplaceAll(s, "],[\"name\":", "},{\"name\":")
+	s = strings.ReplaceAll(s, "], [\"name\"", "}, {\"name\"")
+	s = strings.ReplaceAll(s, "], [\"name\":", "}, {\"name\":")
+	s = strings.ReplaceAll(s, "\\_", "_")
+	s = fixEdgeTos(s)
+	return s
+}
+
+func fixEdgeTos(s string) string {
+	var b strings.Builder
+	b.Grow(len(s) + 128)
+	i := 0
+	for i < len(s) {
+		idx := strings.Index(s[i:], "\"from\":")
+		if idx < 0 {
+			b.WriteString(s[i:])
+			break
+		}
+		b.WriteString(s[i : i+idx])
+		edgeStart := i + idx
+		edgeEnd := strings.Index(s[edgeStart:], "}")
+		if edgeEnd < 0 {
+			b.WriteString(s[edgeStart:])
+			break
+		}
+		edgeEnd += edgeStart + 1
+		edgeObj := s[edgeStart:edgeEnd]
+		if strings.Contains(edgeObj, "\"to\":") {
+			b.WriteString(edgeObj)
+		} else {
+			commaIdx := strings.Index(edgeObj, ",")
+			if commaIdx >= 0 {
+				fromVal := edgeObj[commaIdx+1:]
+				fromVal = strings.TrimSpace(fromVal)
+				fromVal = strings.TrimRight(fromVal, "}")
+				fromVal = strings.TrimSpace(fromVal)
+				b.WriteString(edgeObj[:commaIdx])
+				b.WriteString(",\"to\":")
+				b.WriteString(fromVal)
+				b.WriteString("}")
+			} else {
+				b.WriteString(edgeObj)
+			}
+		}
+		i = edgeEnd
+	}
+	return b.String()
 }
 
 func fixJSONQuotes(s string) string {

@@ -99,13 +99,12 @@ func NewOllamaClient(baseURL, defaultModel string) *OllamaClient {
 	if defaultModel == "" {
 		defaultModel = "llama3.2:3b"
 	}
-	transport := &http.Transport{
-		ResponseHeaderTimeout: 60 * time.Second,
-		IdleConnTimeout:       90 * time.Second,
-	}
 	return &OllamaClient{baseURL: baseURL, defaultModel: defaultModel, http: &http.Client{
-		Timeout:   120 * time.Second,
-		Transport: transport,
+		Timeout: 300 * time.Second,
+		Transport: &http.Transport{
+			ResponseHeaderTimeout: 120 * time.Second,
+			IdleConnTimeout:       90 * time.Second,
+		},
 	}}
 }
 

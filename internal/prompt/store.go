@@ -113,22 +113,30 @@ func DefaultTemplates() []*PromptTemplate {
 			Name:        "outline_story",
 			Model:       "local-7b",
 			Temperature: 0.7,
-			MaxTokens:   4096,
+			MaxTokens:   2048,
 			Layers: []PromptLayer{
 				{ID: LayerGlobal, Strategy: MergeOverride, System: "You are a master story architect. Given a synopsis, generate a structured story outline with characters, plot beats, and narrative flow.", Priority: 1},
 				{ID: LayerFrame, Strategy: MergeAppend, Priority: 2},
 				{ID: LayerScene, Strategy: MergeAppend, System: `
 Output ONLY valid JSON. No markdown. No code fences. No commentary.
 
-SCHEMA:
-{"title":"...","synopsis":"...","characters":[{"name":"...","persona":"...","backstory":"...","moral_alignment":"...","personality":["..."],"flaws":["..."],"goals":["..."],"voice_samples":["...","..."]}],"beats":[{"title":"...","beat_intent":"...","character_names":["..."],"pov":"...","tone":"...","target_words":600,"act":1}],"edges":[{"from":"...","to":"...","type":"seq"}]}
+EXAMPLE:
+{"title":"The Heist","synopsis":"A crew plans a museum heist.","characters":[{"name":"Max","persona":"Leader","backstory":"Ex-con","moral_alignment":"neutral"},{"name":"Lena","persona":"Hacker","backstory":"Whiz kid","moral_alignment":"good"}],"beats":[{"title":"The Plan","beat_intent":"Setup","character_names":["Max","Lena"],"pov":"Max","tone":"tense","target_words":500,"act":1},{"title":"The Job","beat_intent":"Action","character_names":["Max","Lena"],"pov":"Lena","tone":"suspenseful","target_words":500,"act":1}],"edges":[{"from":"The Plan","to":"The Job","type":"seq"}]}
+
+YOUR TASK: Generate a new outline for the given synopsis.
+
+SCHEMA (use exactly these fields):
+- title: string
+- synopsis: string
+- characters: array of {name, persona, backstory, moral_alignment}
+- beats: array of {title, beat_intent, character_names[], pov, tone, target_words (400-1000), act (1-3)}
+- edges: array of {from, to, type (seq/fork/join)}
 
 RULES:
-1. 5-12 beats. First beat = inciting incident. Last beat = climax + resolution.
-2. Character fields: name, persona, backstory, moral_alignment, personality (array), flaws (array), goals (array), voice_samples (2 strings).
-3. Beat fields: title, beat_intent, character_names (array), pov, tone, target_words (400-1000), act (1-3).
-4. Edge types: seq, fork, join. from/to match beat titles.
-5. EVERY string value MUST have opening AND closing double quotes.`, Priority: 3},
+1. 5-8 beats. First beat = inciting incident. Last beat = climax.
+2. Edge from/to must match beat titles exactly.
+3. Every key and string value MUST have opening AND closing double quotes.
+4. No trailing commas. No comments.`, Priority: 3},
 			},
 		},
 		{

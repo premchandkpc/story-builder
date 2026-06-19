@@ -1,0 +1,1214 @@
+{
+  "info": {
+    "name": "Story Builder API",
+    "description": "Complete API collection for the Story Builder DAG-based plot editor.\n\nBase URL: `{{base_url}}`\n\nVariables are auto-set via test scripts on create endpoints. Run in logical order (Stories → Graph → Characters → etc).\n\n## Workflow\n1. Create a Story → `story_id` set\n2. Generate an outline via LLM → more nodes added\n3. Create characters, locations, nodes, edges\n4. Generate prose for nodes\n5. Accept generations",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8080", "type": "string" },
+    { "key": "story_id", "value": "", "type": "string" },
+    { "key": "node_id", "value": "", "type": "string" },
+    { "key": "scene_id", "value": "", "type": "string" },
+    { "key": "char_id", "value": "", "type": "string" },
+    { "key": "gen_id", "value": "", "type": "string" },
+    { "key": "loc_id", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/v1/healthz", "host": ["{{base_url}}"], "path": ["api", "v1", "healthz"] }
+          },
+          "response": [
+            {
+              "name": "OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"status\": \"ok\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Stories",
+      "item": [
+        {
+          "name": "Manage",
+          "item": [
+            {
+              "name": "Create Story",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"title\": \"The Lost Kingdom\"\n}" },
+                "url": { "raw": "{{base_url}}/api/v1/stories", "host": ["{{base_url}}"], "path": ["api", "v1", "stories"] }
+              },
+              "event": [{
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "var json = pm.response.json();",
+                    "if (json.id) pm.collectionVariables.set('story_id', json.id);"
+                  ]
+                }
+              }],
+              "response": [
+                {
+                  "name": "Created",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "{\n  \"id\": \"6a31a6bab21a1af6e0004db1\",\n  \"title\": \"The Lost Kingdom\",\n  \"status\": \"draft\",\n  \"createdAt\": \"2026-06-19T08:00:00Z\",\n  \"updatedAt\": \"2026-06-19T08:00:00Z\"\n}"
+                },
+                {
+                  "name": "Bad Request",
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "{\n  \"error\": \"title is required\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Stories",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{base_url}}/api/v1/stories", "host": ["{{base_url}}"], "path": ["api", "v1", "stories"] }
+              },
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "[\n  {\n    \"id\": \"6a31a6bab21a1af6e0004db1\",\n    \"title\": \"The Lost Kingdom\",\n    \"status\": \"draft\",\n    \"createdAt\": \"2026-06-19T08:00:00Z\",\n    \"updatedAt\": \"2026-06-19T08:00:00Z\"\n  }\n]"
+                }
+              ]
+            },
+            {
+              "name": "Get Story",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}"] }
+              },
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "{\n  \"id\": \"6a31a6bab21a1af6e0004db1\",\n  \"title\": \"The Lost Kingdom\",\n  \"status\": \"draft\",\n  \"createdAt\": \"2026-06-19T08:00:00Z\",\n  \"updatedAt\": \"2026-06-19T08:00:00Z\"\n}"
+                },
+                {
+                  "name": "Not Found",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "{\n  \"error\": \"story not found\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Story",
+              "request": {
+                "method": "PUT",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"title\": \"The Lost Kingdom: Reborn\"\n}" },
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}"] }
+              },
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "{\n  \"id\": \"6a31a6bab21a1af6e0004db1\",\n  \"title\": \"The Lost Kingdom: Reborn\",\n  \"status\": \"draft\",\n  \"createdAt\": \"2026-06-19T08:00:00Z\",\n  \"updatedAt\": \"2026-06-19T08:01:00Z\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Delete Story",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}"] }
+              },
+              "response": [
+                {
+                  "name": "No Content",
+                  "status": "No Content",
+                  "code": 204,
+                  "header": [],
+                  "body": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Generate",
+          "item": [
+            {
+              "name": "Generate Story Outline (LLM)",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"synopsis\": \"A young blacksmith discovers an ancient artifact that grants the power to reshape reality, but using it comes at a terrible cost.\"\n}" },
+                "url": { "raw": "{{base_url}}/api/v1/stories/generate", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "generate"] }
+              },
+              "event": [{
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "var json = pm.response.json();",
+                    "if (json.story_id) pm.collectionVariables.set('story_id', json.story_id);"
+                  ]
+                }
+              }],
+              "response": [
+                {
+                  "name": "Accepted",
+                  "status": "Accepted",
+                  "code": 202,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "{\n  \"story_id\": \"6a31a6bab21a1af6e0004db1\",\n  \"status\": \"outlined\"\n}"
+                },
+                {
+                  "name": "Internal Server Error",
+                  "status": "Internal Server Error",
+                  "code": 500,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "{\n  \"error\": \"outline generation failed: outline: context canceled\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Generate Title (LLM)",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"synopsis\": \"A young blacksmith discovers an ancient artifact that grants the power to reshape reality.\"\n}" },
+                "url": { "raw": "{{base_url}}/api/v1/stories/generate-title", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "generate-title"] }
+              },
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "{\n  \"title\": \"Paws of Homecoming Lead the Way Back\"\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Blueprint",
+          "item": [
+            {
+              "name": "Get Blueprint",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/blueprint", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "blueprint"] }
+              },
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "{\n  \"premise\": \"A young blacksmith discovers ancient power\",\n  \"theme\": \"Power and responsibility\",\n  \"genre\": \"Fantasy\",\n  \"mainConflict\": \"Using power without becoming corrupted\",\n  \"acts\": [\n    { \"number\": 1, \"title\": \"Discovery\", \"summary\": \"The artifact is found\" },\n    { \"number\": 2, \"title\": \"Temptation\", \"summary\": \"The cost becomes clear\" },\n    { \"number\": 3, \"title\": \"Sacrifice\", \"summary\": \"The final choice\" }\n  ],\n  \"characterArcs\": [\n    { \"characterId\": \"char1\", \"characterName\": \"Kael\", \"arcType\": \"redemption\" }\n  ],\n  \"plotThreads\": [\n    { \"id\": \"thread-1\", \"description\": \"The artifact's origin\", \"status\": \"active\" }\n  ],\n  \"endingState\": \"ambiguous\"\n}"
+                },
+                {
+                  "name": "No Blueprint",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "{\n  \"blueprint\": \"none\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Blueprint",
+              "request": {
+                "method": "PUT",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"premise\": \"A young blacksmith discovers ancient power\",\n  \"theme\": \"Power and responsibility\",\n  \"genre\": \"Fantasy\",\n  \"acts\": [\n    { \"number\": 1, \"title\": \"Discovery\", \"summary\": \"The artifact is found\" }\n  ]\n}" },
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/blueprint", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "blueprint"] }
+              },
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "{\n  \"status\": \"updated\"\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Topology",
+          "item": [
+            {
+              "name": "Get Story Topology",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/topology", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "topology"] }
+              },
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "{\n  \"nodes\": [\n    {\n      \"id\": \"node1\",\n      \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n      \"beatIntent\": \"Hero discovers artifact\",\n      \"status\": \"draft\",\n      \"timelinePosition\": 1\n    },\n    {\n      \"id\": \"node2\",\n      \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n      \"beatIntent\": \"Hero faces temptation\",\n      \"status\": \"draft\",\n      \"timelinePosition\": 2\n    }\n  ],\n  \"edges\": [\n    {\n      \"id\": \"edge1\",\n      \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n      \"fromSceneId\": \"node1\",\n      \"toSceneId\": \"node2\",\n      \"type\": \"seq\"\n    }\n  ]\n}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Graph (V2)",
+      "item": [
+        {
+          "name": "Nodes",
+          "item": [
+            {
+              "name": "Create Node",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"beat_intent\": \"The hero discovers the ancient artifact in the ruins\",\n  \"character_refs\": [],\n  \"location_ref\": \"ancient ruins\",\n  \"pov\": \"third-limited\",\n  \"tone\": \"mysterious\",\n  \"target_words\": 500\n}" },
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/nodes", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "nodes"] }
+              },
+              "event": [{
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "var json = pm.response.json();",
+                    "if (json.id) pm.collectionVariables.set('node_id', json.id);"
+                  ]
+                }
+              }],
+              "response": [
+                {
+                  "name": "Created",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "{\n  \"id\": \"6a31b123b21a1af6e0004db2\",\n  \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n  \"beatIntent\": \"The hero discovers the ancient artifact in the ruins\",\n  \"characterRefs\": [],\n  \"locationRef\": \"ancient ruins\",\n  \"pov\": \"third-limited\",\n  \"tone\": \"mysterious\",\n  \"targetWords\": 500,\n  \"status\": \"draft\",\n  \"createdAt\": \"2026-06-19T08:00:00Z\",\n  \"updatedAt\": \"2026-06-19T08:00:00Z\"\n}"
+                },
+                {
+                  "name": "Bad Request",
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "{\n  \"error\": \"beat_intent is required\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Nodes",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/nodes", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "nodes"] }
+              },
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "[\n  {\n    \"id\": \"6a31b123b21a1af6e0004db2\",\n    \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n    \"beatIntent\": \"The hero discovers the ancient artifact in the ruins\",\n    \"characterRefs\": [],\n    \"locationRef\": \"ancient ruins\",\n    \"status\": \"draft\",\n    \"timelinePosition\": 1\n  }\n]"
+                }
+              ]
+            },
+            {
+              "name": "Get Node",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/nodes/{{node_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "nodes", "{{node_id}}"] }
+              },
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "{\n  \"id\": \"6a31b123b21a1af6e0004db2\",\n  \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n  \"beatIntent\": \"The hero discovers the ancient artifact in the ruins\",\n  \"characterRefs\": [],\n  \"locationRef\": \"ancient ruins\",\n  \"pov\": \"third-limited\",\n  \"tone\": \"mysterious\",\n  \"targetWords\": 500,\n  \"status\": \"draft\",\n  \"createdAt\": \"2026-06-19T08:00:00Z\",\n  \"updatedAt\": \"2026-06-19T08:00:00Z\"\n}"
+                },
+                {
+                  "name": "Not Found",
+                  "status": "Not Found",
+                  "code": 404,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "{\n  \"error\": \"node not found\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Node",
+              "request": {
+                "method": "PUT",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"beat_intent\": \"The hero discovers the artifact but it triggers a trap\",\n  \"tone\": \"suspenseful\",\n  \"target_words\": 800\n}" },
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/nodes/{{node_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "nodes", "{{node_id}}"] }
+              },
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "{\n  \"id\": \"6a31b123b21a1af6e0004db2\",\n  \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n  \"beatIntent\": \"The hero discovers the artifact but it triggers a trap\",\n  \"tone\": \"suspenseful\",\n  \"targetWords\": 800,\n  \"status\": \"draft\",\n  \"updatedAt\": \"2026-06-19T08:01:00Z\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Delete Node",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/nodes/{{node_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "nodes", "{{node_id}}"] }
+              },
+              "response": [
+                {
+                  "name": "No Content",
+                  "status": "No Content",
+                  "code": 204,
+                  "header": [],
+                  "body": ""
+                }
+              ]
+            },
+            {
+              "name": "Generate Node Prose (LLM)",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/nodes/{{node_id}}/generate", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "nodes", "{{node_id}}", "generate"] }
+              },
+              "event": [{
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "var json = pm.response.json();",
+                    "if (json.id) pm.collectionVariables.set('gen_id', json.id);"
+                  ]
+                }
+              }],
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "{\n  \"id\": \"gen-abc123\",\n  \"sceneId\": \"6a31b123b21a1af6e0004db2\",\n  \"content\": \"Kael stepped into the crumbling chamber...\",\n  \"model\": \"claude-sonnet\",\n  \"status\": \"completed\",\n  \"createdAt\": \"2026-06-19T08:02:00Z\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Node Generations",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/nodes/{{node_id}}/generations", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "nodes", "{{node_id}}", "generations"] }
+              },
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "[\n  {\n    \"id\": \"gen-abc123\",\n    \"sceneId\": \"6a31b123b21a1af6e0004db2\",\n    \"content\": \"Kael stepped into the crumbling chamber...\",\n    \"model\": \"claude-sonnet\",\n    \"status\": \"completed\",\n    \"createdAt\": \"2026-06-19T08:02:00Z\"\n  }\n]"
+                }
+              ]
+            },
+            {
+              "name": "Accept Generation",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"generation_id\": \"{{gen_id}}\"\n}" },
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/nodes/{{node_id}}/accept", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "nodes", "{{node_id}}", "accept"] }
+              },
+              "response": [
+                {
+                  "name": "No Content",
+                  "status": "No Content",
+                  "code": 204,
+                  "header": [],
+                  "body": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Edges",
+          "item": [
+            {
+              "name": "Create Edge",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"from_node\": \"{{node_id}}\",\n  \"to_node\": \"NEXT_NODE_ID_HERE\",\n  \"edge_type\": \"seq\"\n}" },
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/edges", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "edges"] }
+              },
+              "response": [
+                {
+                  "name": "Created",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "{\n  \"id\": \"edge-abc123\",\n  \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n  \"fromSceneId\": \"6a31b123b21a1af6e0004db2\",\n  \"toSceneId\": \"6a31b456b21a1af6e0004db3\",\n  \"type\": \"seq\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Edges",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/edges", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "edges"] }
+              },
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "[\n  {\n    \"id\": \"edge-abc123\",\n    \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n    \"fromSceneId\": \"6a31b123b21a1af6e0004db2\",\n    \"toSceneId\": \"6a31b456b21a1af6e0004db3\",\n    \"type\": \"seq\"\n  }\n]"
+                }
+              ]
+            },
+            {
+              "name": "Delete Edge",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/edges?from={{node_id}}&to=TARGET_ID", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "edges"], "query": [{ "key": "from", "value": "{{node_id}}" }, { "key": "to", "value": "TARGET_ID" }] }
+              },
+              "response": [
+                {
+                  "name": "No Content",
+                  "status": "No Content",
+                  "code": 204,
+                  "header": [],
+                  "body": ""
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Scenes (Legacy)",
+      "item": [
+        {
+          "name": "Scenes",
+          "item": [
+            {
+              "name": "Create Scene",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"title\": \"The Awakening\",\n  \"beatIntent\": \"The hero awakens to their destiny\",\n  \"participants\": [],\n  \"timelinePosition\": 1\n}" },
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/scenes", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "scenes"] }
+              },
+              "event": [{
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "var json = pm.response.json();",
+                    "if (json.id) pm.collectionVariables.set('scene_id', json.id);"
+                  ]
+                }
+              }],
+              "response": [
+                {
+                  "name": "Created",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "{\n  \"id\": \"6a31b789b21a1af6e0004db4\",\n  \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n  \"title\": \"The Awakening\",\n  \"beatIntent\": \"The hero awakens to their destiny\",\n  \"participants\": [],\n  \"timelinePosition\": 1,\n  \"status\": \"draft\",\n  \"createdAt\": \"2026-06-19T08:00:00Z\",\n  \"updatedAt\": \"2026-06-19T08:00:00Z\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Scenes",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/scenes", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "scenes"] }
+              },
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "[\n  {\n    \"id\": \"6a31b789b21a1af6e0004db4\",\n    \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n    \"title\": \"The Awakening\",\n    \"status\": \"draft\",\n    \"timelinePosition\": 1\n  }\n]"
+                }
+              ]
+            },
+            {
+              "name": "Get Scene",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/scenes/{{scene_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "scenes", "{{scene_id}}"] }
+              },
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [{ "key": "Content-Type", "value": "application/json" }],
+                  "body": "{\n  \"id\": \"6a31b789b21a1af6e0004db4\",\n  \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n  \"title\": \"The Awakening\",\n  \"beatIntent\": \"The hero awakens to their destiny\",\n  \"status\": \"draft\",\n  \"timelinePosition\": 1,\n  \"createdAt\": \"2026-06-19T08:00:00Z\",\n  \"updatedAt\": \"2026-06-19T08:00:00Z\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Scene",
+              "request": {
+                "method": "PUT",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"title\": \"The Awakening (Revised)\",\n  \"beatIntent\": \"The hero awakens, but something is wrong\",\n  \"timelinePosition\": 1\n}" },
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/scenes/{{scene_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "scenes", "{{scene_id}}"] }
+              },
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"id\": \"6a31b789b21a1af6e0004db4\",\n  \"title\": \"The Awakening (Revised)\",\n  \"beatIntent\": \"The hero awakens, but something is wrong\",\n  \"updatedAt\": \"2026-06-19T08:01:00Z\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Delete Scene",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/scenes/{{scene_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "scenes", "{{scene_id}}"] }
+              },
+              "response": [
+                {
+                  "name": "No Content",
+                  "status": "No Content",
+                  "code": 204,
+                  "header": [],
+                  "body": ""
+                }
+              ]
+            },
+            {
+              "name": "Generate Scene Prose (LLM)",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/scenes/{{scene_id}}/generate", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "scenes", "{{scene_id}}", "generate"] }
+              },
+              "event": [{
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "var json = pm.response.json();",
+                    "if (json.id) pm.collectionVariables.set('gen_id', json.id);"
+                  ]
+                }
+              }],
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"id\": \"gen-def456\",\n  \"sceneId\": \"6a31b789b21a1af6e0004db4\",\n  \"content\": \"The morning light filtered through...\",\n  \"model\": \"claude-sonnet\",\n  \"status\": \"completed\",\n  \"createdAt\": \"2026-06-19T08:02:00Z\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Scene Generations",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/scenes/{{scene_id}}/generations", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "scenes", "{{scene_id}}", "generations"] }
+              },
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "[\n  {\n    \"id\": \"gen-def456\",\n    \"sceneId\": \"6a31b789b21a1af6e0004db4\",\n    \"content\": \"The morning light filtered through...\",\n    \"model\": \"claude-sonnet\",\n    \"status\": \"completed\",\n    \"createdAt\": \"2026-06-19T08:02:00Z\"\n  }\n]"
+                }
+              ]
+            },
+            {
+              "name": "Accept Scene Generation",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"generation_id\": \"{{gen_id}}\"\n}" },
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/scenes/{{scene_id}}/accept", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "scenes", "{{scene_id}}", "accept"] }
+              },
+              "response": [
+                {
+                  "name": "No Content",
+                  "status": "No Content",
+                  "code": 204,
+                  "header": [],
+                  "body": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Scene Edges",
+          "item": [
+            {
+              "name": "Create Scene Edge",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"fromSceneId\": \"{{scene_id}}\",\n  \"toSceneId\": \"TARGET_SCENE_ID\",\n  \"type\": \"seq\"\n}" },
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/scene-edges", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "scene-edges"] }
+              },
+              "response": [
+                {
+                  "name": "Created",
+                  "status": "Created",
+                  "code": 201,
+                  "body": "{\n  \"id\": \"sedge-abc123\",\n  \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n  \"fromSceneId\": \"6a31b789b21a1af6e0004db4\",\n  \"toSceneId\": \"6a31b012b21a1af6e0004db5\",\n  \"type\": \"seq\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Scene Edges",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/scene-edges", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "scene-edges"] }
+              },
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "[\n  {\n    \"id\": \"sedge-abc123\",\n    \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n    \"fromSceneId\": \"6a31b789b21a1af6e0004db4\",\n    \"toSceneId\": \"6a31b012b21a1af6e0004db5\",\n    \"type\": \"seq\"\n  }\n]"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Characters",
+      "item": [
+        {
+          "name": "Manage",
+          "item": [
+            {
+              "name": "Create Character (Top-Level)",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"name\": \"Kael Ironhand\",\n  \"storyId\": \"{{story_id}}\",\n  \"persona\": \"A humble blacksmith with a noble heart\",\n  \"backstory\": \"Grew up in a small village at the foot of the mountains\",\n  \"personality\": {\n    \"bravery\": 8,\n    \"stubbornness\": 6\n  },\n  \"goals\": [\"Protect his village\", \"Master the artifact\"],\n  \"flaws\": [\"Reckless\", \"Stubborn\"],\n  \"want\": \"Save his village from destruction\",\n  \"need\": \"Learn that some things cannot be saved\",\n  \"arcType\": \"redemption\"\n}" },
+                "url": { "raw": "{{base_url}}/api/v1/characters", "host": ["{{base_url}}"], "path": ["api", "v1", "characters"] }
+              },
+              "event": [{
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "var json = pm.response.json();",
+                    "if (json.char_id) pm.collectionVariables.set('char_id', json.char_id);",
+                    "if (json.id) pm.collectionVariables.set('char_id', json.id);"
+                  ]
+                }
+              }],
+              "response": [
+                {
+                  "name": "Created",
+                  "status": "Created",
+                  "code": 201,
+                  "body": "{\n  \"id\": \"char-abc123\",\n  \"char_id\": \"char-abc123\",\n  \"version\": 1,\n  \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n  \"name\": \"Kael Ironhand\",\n  \"persona\": \"A humble blacksmith with a noble heart\",\n  \"backstory\": \"Grew up in a small village at the foot of the mountains\",\n  \"goals\": [\"Protect his village\", \"Master the artifact\"],\n  \"flaws\": [\"Reckless\", \"Stubborn\"],\n  \"want\": \"Save his village from destruction\",\n  \"need\": \"Learn that some things cannot be saved\",\n  \"arcType\": \"redemption\",\n  \"createdAt\": \"2026-06-19T08:00:00Z\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Create Character (Story-Based)",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"name\": \"Elena Moonweaver\",\n  \"persona\": \"A mysterious sorceress\",\n  \"backstory\": \"Once a royal advisor, now an outcast\",\n  \"goals\": [\"Regain her honor\"],\n  \"flaws\": [\"Secretive\"],\n  \"want\": \"Clear her name\",\n  \"need\": \"Accept her past\",\n  \"arcType\": \"fall\"\n}" },
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/characters", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "characters"] }
+              },
+              "event": [{
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "var json = pm.response.json();",
+                    "if (json.char_id) pm.collectionVariables.set('char_id', json.char_id);",
+                    "if (json.id) pm.collectionVariables.set('char_id', json.id);"
+                  ]
+                }
+              }],
+              "response": [
+                {
+                  "name": "Created",
+                  "status": "Created",
+                  "code": 201,
+                  "body": "{\n  \"id\": \"char-def456\",\n  \"char_id\": \"char-def456\",\n  \"version\": 1,\n  \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n  \"name\": \"Elena Moonweaver\",\n  \"persona\": \"A mysterious sorceress\",\n  \"goals\": [\"Regain her honor\"],\n  \"arcType\": \"fall\",\n  \"createdAt\": \"2026-06-19T08:00:00Z\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Characters (Top-Level)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{base_url}}/api/v1/characters", "host": ["{{base_url}}"], "path": ["api", "v1", "characters"] }
+              },
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "[\n  {\n    \"char_id\": \"char-abc123\",\n    \"name\": \"Kael Ironhand\",\n    \"storyId\": \"6a31a6bab21a1af6e0004db1\"\n  }\n]"
+                }
+              ]
+            },
+            {
+              "name": "List Characters (Story-Based)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/characters", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "characters"] }
+              },
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "[\n  {\n    \"char_id\": \"char-abc123\",\n    \"name\": \"Kael Ironhand\",\n    \"storyId\": \"6a31a6bab21a1af6e0004db1\"\n  }\n]"
+                }
+              ]
+            },
+            {
+              "name": "Get Character",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{base_url}}/api/v1/characters/{{char_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "characters", "{{char_id}}"] }
+              },
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"id\": \"char-abc123\",\n  \"char_id\": \"char-abc123\",\n  \"version\": 1,\n  \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n  \"name\": \"Kael Ironhand\",\n  \"persona\": \"A humble blacksmith with a noble heart\",\n  \"goals\": [\"Protect his village\", \"Master the artifact\"],\n  \"want\": \"Save his village from destruction\",\n  \"need\": \"Learn that some things cannot be saved\",\n  \"arcType\": \"redemption\",\n  \"createdAt\": \"2026-06-19T08:00:00Z\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Character",
+              "request": {
+                "method": "PUT",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"name\": \"Kael Ironhand\",\n  \"storyId\": \"{{story_id}}\",\n  \"persona\": \"A weary blacksmith burdened by destiny\",\n  \"goals\": [\"Protect his village\", \"Master the artifact\", \"Find peace\"],\n  \"arcType\": \"redemption\"\n}" },
+                "url": { "raw": "{{base_url}}/api/v1/characters/{{char_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "characters", "{{char_id}}"] }
+              },
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"id\": \"char-abc123\",\n  \"char_id\": \"char-abc123\",\n  \"version\": 2,\n  \"name\": \"Kael Ironhand\",\n  \"persona\": \"A weary blacksmith burdened by destiny\",\n  \"goals\": [\"Protect his village\", \"Master the artifact\", \"Find peace\"],\n  \"arcType\": \"redemption\",\n  \"createdAt\": \"2026-06-19T08:01:00Z\"\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Memories",
+          "item": [
+            {
+              "name": "List Memories",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{base_url}}/api/v1/characters/{{char_id}}/memories", "host": ["{{base_url}}"], "path": ["api", "v1", "characters", "{{char_id}}", "memories"] }
+              },
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "[\n  {\n    \"id\": \"mem-abc123\",\n    \"characterId\": \"char-abc123\",\n    \"content\": \"Kael discovered the ancient artifact in the ruins\",\n    \"importance\": 0.8,\n    \"embedding\": [0.01, -0.02, ...],\n    \"createdAt\": \"2026-06-19T08:02:00Z\"\n  }\n]"
+                }
+              ]
+            },
+            {
+              "name": "Search Memories",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"query\": \"What happened at the ancient ruins?\",\n  \"limit\": 5\n}" },
+                "url": { "raw": "{{base_url}}/api/v1/characters/{{char_id}}/memories/search", "host": ["{{base_url}}"], "path": ["api", "v1", "characters", "{{char_id}}", "memories", "search"] }
+              },
+              "response": [
+                {
+                  "name": "OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "[\n  {\n    \"id\": \"mem-abc123\",\n    \"characterId\": \"char-abc123\",\n    \"content\": \"Kael discovered the ancient artifact in the ruins\",\n    \"importance\": 0.8,\n    \"similarity\": 0.92,\n    \"createdAt\": \"2026-06-19T08:02:00Z\"\n  }\n]"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Traits (Stub)",
+          "item": [
+            {
+              "name": "List Character Traits",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{base_url}}/api/v1/characters/{{char_id}}/traits", "host": ["{{base_url}}"], "path": ["api", "v1", "characters", "{{char_id}}", "traits"] }
+              },
+              "response": [
+                {
+                  "name": "OK (Empty)",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "[]"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Locations",
+      "item": [
+        {
+          "name": "Create Location",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Ancient Ruins of Aethon\",\n  \"description\": \"Crumbling stone structures covered in glowing moss\",\n  \"props\": [\"Glowing artifact pedestal\", \"Broken pillars\", \"Ancient inscriptions\"]\n}" },
+            "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/locations", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "locations"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "var json = pm.response.json();",
+                "if (json.id) pm.collectionVariables.set('loc_id', json.id);"
+              ]
+            }
+          }],
+          "response": [
+            {
+              "name": "Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"id\": \"loc-abc123\",\n  \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n  \"name\": \"Ancient Ruins of Aethon\",\n  \"description\": \"Crumbling stone structures covered in glowing moss\",\n  \"props\": [\"Glowing artifact pedestal\", \"Broken pillars\", \"Ancient inscriptions\"],\n  \"createdAt\": \"2026-06-19T08:00:00Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Locations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/locations", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "locations"] }
+          },
+          "response": [
+            {
+              "name": "OK",
+              "status": "OK",
+              "code": 200,
+              "body": "[\n  {\n    \"id\": \"loc-abc123\",\n    \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n    \"name\": \"Ancient Ruins of Aethon\",\n    \"description\": \"Crumbling stone structures covered in glowing moss\",\n    \"props\": [\"Glowing artifact pedestal\", \"Broken pillars\", \"Ancient inscriptions\"]\n  }\n]"
+            }
+          ]
+        },
+        {
+          "name": "Get Location",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/v1/locations/{{loc_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "locations", "{{loc_id}}"] }
+          },
+          "response": [
+            {
+              "name": "OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"id\": \"loc-abc123\",\n  \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n  \"name\": \"Ancient Ruins of Aethon\",\n  \"description\": \"Crumbling stone structures covered in glowing moss\",\n  \"props\": [\"Glowing artifact pedestal\", \"Broken pillars\", \"Ancient inscriptions\"],\n  \"createdAt\": \"2026-06-19T08:00:00Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Location",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Ancient Ruins of Aethon\",\n  \"description\": \"The ruins pulse with an otherworldly energy\",\n  \"props\": [\"Glowing artifact pedestal\", \"Broken pillars\", \"Ancient inscriptions\", \"Mysterious runes\"]\n}" },
+            "url": { "raw": "{{base_url}}/api/v1/locations/{{loc_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "locations", "{{loc_id}}"] }
+          },
+          "response": [
+            {
+              "name": "OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"id\": \"loc-abc123\",\n  \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n  \"name\": \"Ancient Ruins of Aethon\",\n  \"description\": \"The ruins pulse with an otherworldly energy\",\n  \"props\": [\"Glowing artifact pedestal\", \"Broken pillars\", \"Ancient inscriptions\", \"Mysterious runes\"],\n  \"updatedAt\": \"2026-06-19T08:01:00Z\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Timeline",
+      "item": [
+        {
+          "name": "Create Timeline Event",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Artifact Discovered\",\n  \"eventType\": \"discovery\",\n  \"description\": \"Kael finds the ancient artifact in the ruins\",\n  \"order\": 1\n}" },
+            "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/timeline", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "timeline"] }
+          },
+          "response": [
+            {
+              "name": "Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"id\": \"evt-abc123\",\n  \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n  \"title\": \"Artifact Discovered\",\n  \"eventType\": \"discovery\",\n  \"description\": \"Kael finds the ancient artifact in the ruins\",\n  \"order\": 1,\n  \"createdAt\": \"2026-06-19T08:00:00Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Timeline Events",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/timeline", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "timeline"] }
+          },
+          "response": [
+            {
+              "name": "OK",
+              "status": "OK",
+              "code": 200,
+              "body": "[\n  {\n    \"id\": \"evt-abc123\",\n    \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n    \"title\": \"Artifact Discovered\",\n    \"eventType\": \"discovery\",\n    \"description\": \"Kael finds the ancient artifact in the ruins\",\n    \"order\": 1,\n    \"createdAt\": \"2026-06-19T08:00:00Z\"\n  }\n]"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Summaries",
+      "item": [
+        {
+          "name": "Get Summary by Level",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/summaries/level?level=story", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "summaries", "level"], "query": [{ "key": "level", "value": "story" }] }
+          },
+          "response": [
+            {
+              "name": "OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"id\": \"sum-abc123\",\n  \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n  \"level\": \"story\",\n  \"summary\": \"A blacksmith's journey from humble beginnings to a world-altering discovery\",\n  \"createdAt\": \"2026-06-19T08:00:00Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Scene Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/summaries/scenes/{{scene_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "summaries", "scenes", "{{scene_id}}"] }
+          },
+          "response": [
+            {
+              "name": "OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"id\": \"sum-def456\",\n  \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n  \"level\": \"scene\",\n  \"sceneId\": \"6a31b789b21a1af6e0004db4\",\n  \"summary\": \"Kael enters the ruins and discovers the artifact\",\n  \"createdAt\": \"2026-06-19T08:00:00Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Node Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/summaries/nodes/{{node_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "summaries", "nodes", "{{node_id}}"] }
+          },
+          "response": [
+            {
+              "name": "OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"id\": \"sum-ghi789\",\n  \"storyId\": \"6a31a6bab21a1af6e0004db1\",\n  \"level\": \"scene\",\n  \"sceneId\": \"6a31b123b21a1af6e0004db2\",\n  \"summary\": \"Hero discovers artifact in the ruins\",\n  \"createdAt\": \"2026-06-19T08:00:00Z\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Generations",
+      "item": [
+        {
+          "name": "Get Generation Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/v1/generations/{{gen_id}}/status", "host": ["{{base_url}}"], "path": ["api", "v1", "generations", "{{gen_id}}", "status"] }
+          },
+          "response": [
+            {
+              "name": "OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"id\": \"gen-abc123\",\n  \"sceneId\": \"6a31b123b21a1af6e0004db2\",\n  \"content\": \"Kael stepped into the crumbling chamber...\",\n  \"model\": \"claude-sonnet\",\n  \"status\": \"completed\",\n  \"createdAt\": \"2026-06-19T08:02:00Z\"\n}"
+            },
+            {
+              "name": "Processing",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"id\": \"gen-abc123\",\n  \"sceneId\": \"6a31b123b21a1af6e0004db2\",\n  \"status\": \"processing\",\n  \"createdAt\": \"2026-06-19T08:02:00Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "SSE Generation Progress",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "text/event-stream" }],
+            "url": { "raw": "{{base_url}}/api/v1/generations/{{gen_id}}/progress", "host": ["{{base_url}}"], "path": ["api", "v1", "generations", "{{gen_id}}", "progress"] }
+          },
+          "response": [
+            {
+              "name": "SSE Stream",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "text/event-stream" }],
+              "body": "data: {\"type\":\"progress\",\"percent\":50,\"message\":\"Generating prose...\"}\n\ndata: {\"type\":\"progress\",\"percent\":80,\"message\":\"Validating canon...\"}\n\ndata: {\"type\":\"complete\",\"generation_id\":\"gen-abc123\"}\n\n"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Stubs (Not Implemented)",
+      "item": [
+        {
+          "name": "List Actors",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/v1/actors", "host": ["{{base_url}}"], "path": ["api", "v1", "actors"] }
+          },
+          "response": [
+            {
+              "name": "OK (Stub)",
+              "status": "OK",
+              "code": 200,
+              "body": "[]"
+            }
+          ]
+        },
+        {
+          "name": "List Character Traits (Global)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/v1/character-traits", "host": ["{{base_url}}"], "path": ["api", "v1", "character-traits"] }
+          },
+          "response": [
+            {
+              "name": "OK (Stub)",
+              "status": "OK",
+              "code": 200,
+              "body": "[]"
+            }
+          ]
+        },
+        {
+          "name": "List Lore",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/v1/lore", "host": ["{{base_url}}"], "path": ["api", "v1", "lore"] }
+          },
+          "response": [
+            {
+              "name": "OK (Stub)",
+              "status": "OK",
+              "code": 200,
+              "body": "[]"
+            }
+          ]
+        },
+        {
+          "name": "List Casting for Story",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/casting", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "casting"] }
+          },
+          "response": [
+            {
+              "name": "OK (Stub)",
+              "status": "OK",
+              "code": 200,
+              "body": "[]"
+            }
+          ]
+        },
+        {
+          "name": "List Chapters",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/v1/stories/{{story_id}}/chapters", "host": ["{{base_url}}"], "path": ["api", "v1", "stories", "{{story_id}}", "chapters"] }
+          },
+          "response": [
+            {
+              "name": "Not Implemented",
+              "status": "Not Implemented",
+              "code": 501,
+              "body": "{\n  \"error\": \"not yet implemented\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
