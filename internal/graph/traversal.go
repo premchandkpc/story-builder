@@ -219,6 +219,82 @@ func walkToJoin(start uuid.UUID, adj map[uuid.UUID][]Edge, nodeMap map[uuid.UUID
 	return path
 }
 
+type ValidationError struct {
+	Message string
+}
+
+func (e *ValidationError) Error() string {
+	return e.Message
+}
+
+func ValidateDAG(nodes []Node, edges []Edge) error {
+	nodeIDs := make(map[uuid.UUID]bool)
+	for _, n := range nodes {
+		if nodeIDs[n.ID] {
+			return &ValidationError{fmt.Sprintf("duplicate node ID: %s", n.ID)}
+		}
+		nodeIDs[n.ID] = true
+	}
+	for _, e := range edges {
+		if !nodeIDs[e.FromNode] {
+			return &ValidationError{fmt.Sprintf("edge references unknown from-node: %s", e.FromNode)}
+		}
+		if !nodeIDs[e.ToNode] {
+			return &ValidationError{fmt.Sprintf("edge references unknown to-node: %s", e.ToNode)}
+		}
+		if e.FromNode == e.ToNode {
+			return &ValidationError{fmt.Sprintf("self-loop on node: %s", e.FromNode)}
+		}
+	}
+	_, err := TopologicalSort(nodes, edges)
+	if err != nil {
+		return &ValidationError{fmt.Sprintf("cycle detected: %v", err)}
+	}
+	return nil
+}
+
+func FindDeadEnds(nodes []Node, edges []Edge) []Node {
+	sorted, err := TopologicalSort(nodes, edges)
+	if err != nil || len(sorted) == 0 {
+		return nil
+	}
+	lastID := sorted[len(sorted)-1].ID
+	outDegree := make(map[uuid.UUID]int)
+	for _, e := range edges {
+		outDegree[e.FromNode]++
+	}
+	var deadEnds []Node
+	for _, n := range nodes {
+		if outDegree[n.ID] == 0 && n.ID != lastID {
+			deadEnds = append(deadEnds, n)
+		}
+	}
+	return deadEnds
+}
+
+func FindUnreachableScenes(nodes []Node, edges []Edge) []Node {
+	sorted, err := TopologicalSort(nodes, edges)
+	if err != nil || len(sorted) == 0 {
+		return nil
+	}
+	rootID := sorted[0].ID
+	hasIncoming := make(map[uuid.UUID]bool)
+	for _, e := range edges {
+		hasIncoming[e.ToNode] = true
+	}
+	var unreachable []Node
+	for _, n := range nodes {
+		if !hasIncoming[n.ID] && n.ID != rootID {
+			unreachable = append(unreachable, n)
+		}
+	}
+	return unreachable
+}
+
+func FindBranches(nodes []Node, edges []Edge) ([]Branch, error) {
+	return IdentifyBranches(nodes, edges)
+}
+
 func BranchCharacterSets(nodes []Node, edges []Edge, forkNodeID uuid.UUID) (map[uuid.UUID][]uuid.UUID, error) {
 	adj := make(map[uuid.UUID][]Edge)
 	for _, e := range edges {

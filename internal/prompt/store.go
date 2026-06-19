@@ -113,7 +113,7 @@ func DefaultTemplates() []*PromptTemplate {
 			Name:        "outline_story",
 			Model:       "local-7b",
 			Temperature: 0.7,
-			MaxTokens:   2048,
+			MaxTokens:   4096,
 			Layers: []PromptLayer{
 				{ID: LayerGlobal, Strategy: MergeOverride, System: "You are a master story architect. Given a synopsis, generate a structured story outline with characters, plot beats, and narrative flow.", Priority: 1},
 				{ID: LayerFrame, Strategy: MergeAppend, Priority: 2},

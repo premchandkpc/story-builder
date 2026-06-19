@@ -224,11 +224,12 @@ func (s *OutlineServiceImpl) GenerateOutline(ctx context.Context, synopsis strin
 		return nil, fmt.Errorf("compile prompt: %w", err)
 	}
 	req := CompletionRequest{
-		Model:       ModelTier(compiled.Model),
-		System:      compiled.System,
-		UserMessage: compiled.User,
-		Temperature: compiled.Temperature,
-		MaxTokens:   compiled.MaxTokens,
+		Model:        ModelTier(compiled.Model),
+		System:       compiled.System,
+		UserMessage:  compiled.User,
+		Temperature:  compiled.Temperature,
+		MaxTokens:    compiled.MaxTokens,
+		ValidateJSON: true,
 	}
 	res, err := s.client.Complete(ctx, req)
 	if err != nil {
