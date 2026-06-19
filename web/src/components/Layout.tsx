@@ -21,7 +21,7 @@ const plusSvg = (
 )
 
 export default function Layout() {
-  const { toast, error: showError } = useToast()
+  const { error: showError } = useToast()
   const { storyId } = useParams<{ storyId: string }>()
 
   const { data: stories = [], isLoading } = useStories()

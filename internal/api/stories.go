@@ -238,6 +238,26 @@ func (h *Handlers) GenerateStory(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *Handlers) GenerateTitle(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Synopsis string `json:"synopsis"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if body.Synopsis == "" {
+		writeError(w, http.StatusBadRequest, "synopsis is required")
+		return
+	}
+	title, err := h.titleSvc.GenerateTitle(r.Context(), body.Synopsis)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "title generation failed: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"title": title})
+}
+
 func pickString(s []string, idx int) string {
 	if idx < len(s) {
 		return s[idx]

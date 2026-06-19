@@ -83,6 +83,7 @@ type Handlers struct {
 	memSvc     MemoryService
 	locSvc     LocationService
 	outlineSvc llm.OutlineService
+	titleSvc   llm.TitleService
 	progress   *ProgressHub
 }
 
@@ -97,13 +98,14 @@ func NewHandlers(
 	memSvc MemoryService,
 	locSvc LocationService,
 	outlineSvc llm.OutlineService,
+	titleSvc llm.TitleService,
 	progress *ProgressHub,
 ) *Handlers {
 	return &Handlers{
 		storySvc: storySvc, sceneSvc: sceneSvc, edgeSvc: edgeSvc,
 		charSvc: charSvc, genSvc: genSvc, tlSvc: tlSvc,
 		sumSvc: sumSvc, memSvc: memSvc, locSvc: locSvc,
-		outlineSvc: outlineSvc, progress: progress,
+		outlineSvc: outlineSvc, titleSvc: titleSvc, progress: progress,
 	}
 }
 

@@ -76,10 +76,12 @@ func main() {
 	summarySvc := llm.NewSummaryService(router, promptCompiler)
 	validateSvc := llm.NewValidationService(router, promptCompiler)
 	outlineSvc := llm.NewOutlineService(router, promptCompiler)
+	titleSvc := llm.NewTitleService(router)
 
 	slog.Info("llm services initialized",
 		"prose", true, "extract", true, "summary", true,
 		"validate", true, "outline", outlineSvc != nil,
+		"title", true,
 	)
 
 	// ─── Cache ─────────────────────────────────────────────
@@ -131,7 +133,7 @@ func main() {
 	genSvc.SetProgressPublisher(progressHub)
 
 	// ─── Handlers ──────────────────────────────────────────
-	h := api.NewHandlers(storySvc, sceneSvc, edgeSvc, charSvc, genSvc, tlSvc, sumSvc, memSvc, locSvc, outlineSvc, progressHub)
+	h := api.NewHandlers(storySvc, sceneSvc, edgeSvc, charSvc, genSvc, tlSvc, sumSvc, memSvc, locSvc, outlineSvc, titleSvc, progressHub)
 
 	// ─── Server ────────────────────────────────────────────
 	srv := api.NewServer(h, rateLimiter)

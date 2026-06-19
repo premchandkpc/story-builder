@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
   ReactFlow,
   Background,
@@ -18,7 +18,7 @@ import "@xyflow/react/dist/style.css"
 import SceneNode from "./SceneNode"
 import { api } from "../api/client"
 import type { GraphNode, GraphEdge, EdgeType } from "../api/types"
-import { spinnerStyle, slideUpStyle, btnStyle } from "../api/types"
+import { spinnerStyle, slideUpStyle } from "../api/types"
 import { useToast } from "./Toast"
 
 interface SceneNodeData extends Record<string, unknown> {
@@ -174,21 +174,6 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
     setEdges(toReactFlowEdges(topo.edges || []))
   }, [loadGraphData, setNodes, setEdges])
 
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        setSelectedNode(null)
-        setSelectedEdge(null)
-        setConfirmingGenerate(false)
-      }
-      if ((e.key === "Delete" || e.key === "Backspace") && selectedNode && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
-        deleteSelectedNode()
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  })
-
   const deleteSelectedNode = useCallback(async () => {
     if (!selectedNode) return
     try {
@@ -201,6 +186,25 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
       console.error("delete node:", err)
     }
   }, [storyId, selectedNode, fetchGraph, toast, showError])
+
+  const deleteFnRef = useRef<() => Promise<void>>(deleteSelectedNode)
+  useEffect(() => {
+    deleteFnRef.current = deleteSelectedNode
+  })
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setSelectedNode(null)
+        setSelectedEdge(null)
+        setConfirmingGenerate(false)
+      }
+      if ((e.key === "Delete" || e.key === "Backspace") && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
+        deleteFnRef.current()
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [])
 
   const onConnect = useCallback(
     async (connection: Connection) => {
