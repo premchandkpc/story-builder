@@ -7,7 +7,10 @@ Services live in `internal/service/`. Each service contains business logic and d
 ```
 internal/
   service/
-    generation/     Generation pipeline orchestration
+    bible.go        Story Bible CRUD + LLM generation
+    chapter.go      Chapter CRUD (Acts→Chapters→Scenes)
+    context.go      ContextBuilder (Bible + states + memories + timeline → prompt)
+    generation.go   Generation pipeline orchestration (durable, background goroutine)
     validation/     Canon/timeline/character validation
     graph/          DAG traversal + validation utilities
 ```
@@ -89,12 +92,14 @@ type StoryHandler struct {
 
 | Method | Description |
 |---|---|
-| `Create(storyID, name, description, props)` | Creates a new location |
+| `Create(storyID, name, description, props)` | Creates a new location (supports hierarchy via locType, parentId) |
 | `Get(id)` | Gets location by ID |
 | `ListByStory(storyID)` | Lists all locations in a story |
 | `Update(id, name, description, props)` | Updates a location |
 | `DeleteByStory(storyID)` | Deletes all locations for a story |
 | `GetByName(storyID, name)` | Finds location by name within a story |
+| `GetChildren(storyID, parentID)` | Lists direct children of a location |
+| `GetAncestors(storyID, locID)` | Walks parent chain up to root dimension |
 
 ### Memory Service
 
@@ -121,56 +126,114 @@ type StoryHandler struct {
 | `GetSceneSummary(storyID, sceneID)` | Gets scene summary |
 | `GetSummaryByLevel(storyID, level)` | Gets latest summary at a level |
 
+### Bible Service
+
+| Method | Description |
+|---|---|
+| `Generate(ctx, storyID)` | Generates Bible via LLM (claude-sonnet, 0.3 temp, 8192 tokens) and persists. Single-flight guard — concurrent calls return `ErrBibleExists`. |
+| `Get(ctx, storyID)` | Gets Bible for a story |
+| `Update(ctx, storyID, bible)` | Updates Bible fields |
+| `DeleteByStory(ctx, storyID)` | Removes Bible when story is deleted |
+
+### Chapter Service
+
+| Method | Description |
+|---|---|
+| `Create(ctx, storyID, actNumber, chapterNum, title, summary, goal)` | Creates a chapter in the Act→Chapter→Scene hierarchy |
+| `Get(ctx, storyID, chapterID)` | Gets chapter by ID within a story |
+| `List(ctx, storyID)` | Lists all chapters for a story, sorted by act+chapter |
+| `Update(ctx, storyID, chapterID, title, summary, goal, status)` | Updates chapter metadata |
+| `Delete(ctx, storyID, chapterID)` | Deletes a chapter |
+
+### Context Builder
+
+`internal/service/context.go` — Assembles the full narrative context for scene generation.
+
+```
+ContextBuilder.Build(ctx, storyID, scene)
+    → Loads Bible (world rules, magic, factions, cultures, tone)
+    → Loads all latest character states for participants
+    → Loads location hierarchy (parent chain for scene location)
+    → Loads top-10 memories per participant (sorted by importance)
+    → Loads recent timeline events (last 20)
+    → Loads story-level + scene-level summaries
+    → Loads blueprint (acts, plot threads, theme)
+    → Returns BuiltContext with:
+        → llm.PromptParams (10-layer compiled prompt)
+        → CanonXML (for validation step)
+        → CharStateXML (for extraction step)
+        → BranchSummary (for merge step)
+```
+
+The output is approximately 20k tokens of structured context. Bible is included as system prompt layers (Culture→Story→World layers). Character states and memories go into the Character prompt layer.
+
 ---
 
 ## Generation Service
 
-Orchestrates the generation pipeline:
+Orchestrates the durable generation pipeline:
 
 ```go
 type GenerationService struct {
-    llm       ProseService
-    extract   ExtractionService
-    mem       MemoryService
-    timeline  TimelineService
-    summary   SummaryService
-    validate  ValidationService
-    charRepo  CharacterRepository
-    locRepo   LocationRepository
+    llm        ProseService
+    extract    ExtractionService
+    mem        MemoryService
+    timeline   TimelineService
+    summary    SummaryService
+    validate   ValidationService
+    charRepo   CharacterRepository
+    locRepo    LocationRepository
+    contextBldr ContextBuilder
 }
 ```
 
 ### Pipeline
 
+Uses `context.Background()` so pipeline completion is independent of HTTP request lifetime.
+
 ```
 GenerateScene
-    → buildPromptParams fetches: characters, character states, locations, story summary
-    → compiles rich PromptParams for LLM
-    → calls ProseService.GenerateScene (claude-sonnet)
-    → stores generation in Mongo
-    → spawns pipeline goroutine:
+    → sets Generation.Status = "running" before goroutine starts
+    → spawns pipeline goroutine with background context (5-min timeout):
 
-        ExtractState (local-7b via Ollama)
-            → extracts state deltas from scene text
+        step 1: Generate (critical, 3× retry)
+            → ContextBuilder.Build(storyID, scene)
+            → ProseService.GenerateScene(builtContext)  (claude-sonnet, 0.8)
+            → stores generation in Mongo
+
+        step 2: ExtractState (critical, 3× retry)
+            → ExtractStateWorker (local-7b via Ollama, temp 0)
+            → extracts state deltas from generated scene text
             → appends to character_state collection
 
-        MemoryUpdate
+        step 3: MemoryUpdate (non-critical, best-effort)
+            → MemoryUpdateWorker
             → creates character memories from state changes
             → stores with embeddings in character_memories
 
-        TimelineUpdate
+        step 4: TimelineUpdate (non-critical, best-effort)
+            → TimelineWorker
             → creates timeline event for the scene
 
-        SummaryUpdate
+        step 5: SummaryUpdate (non-critical, best-effort)
+            → SummaryWorker (local-7b, 0.2)
             → updates scene-level summary
 
-        ValidateCanon
-            → validates scene against canon (claude-haiku)
+        step 6: ValidateCanon (non-critical, best-effort)
+            → ValidationWorker (claude-haiku, temp 0)
+            → validates scene against canon
             → checks: character consistency, timeline, lore, dialogue
             → stores validation result
+
+    → final status:
+        all critical steps succeeded + all non-critical succeeded => "success"
+        all critical steps succeeded + some non-critical failed  => "partial_success"
+        any critical step failed after 3 retries                 => "failed"
 ```
 
-Each pipeline step is a goroutine. Workers are simple structs in `internal/worker/` — no River, no Kafka.
+Each pipeline step runs via `runStep` (critical, 3× retry with exponential backoff) or `runNonCriticalStep` (best-effort, logged on failure). Workers are simple structs in `internal/worker/` — no River, no Kafka.
+
+On failure, `Generation.Error` is set and `Generation.Status` reflects the outcome. Status is queryable via `GET /api/v1/generations/{id}` (returns `Status`, `Error`, `UpdatedAt` fields) and via the existing SSE progress endpoint.
 
 ---
 

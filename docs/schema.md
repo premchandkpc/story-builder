@@ -145,7 +145,7 @@ On update, a new document is inserted with the same `charId`, incremented `versi
 
 ### `character_state`
 
-Event-sourced state history. Always append, never overwrite.
+Event-sourced state history. Always append, never overwrite. Richer fields for narrative simulation.
 
 ```json
 {
@@ -153,19 +153,24 @@ Event-sourced state history. Always append, never overwrite.
   "storyId": "story_1",
   "characterId": "char_1",
   "sceneId": "scene_100",
-  "changes": {
-    "health": -10,
-    "trust": 5,
-    "location": "dungeon"
+  "health": 80,
+  "mood": "fearful",
+  "location": "dungeon",
+  "inventory": ["dagger"],
+  "knowledge": ["The king is dead", "Castle has secret passages"],
+  "doesNotKnow": ["The queen is the real conspirator"],
+  "activeGoal": "Escape the dungeon",
+  "emotionalState": "anxious",
+  "physicalState": "injured",
+  "relationships": {
+    "char_2": "distrusts"
   },
-  "fullState": {
-    "health": 80,
-    "location": "dungeon",
-    "mood": "fearful",
-    "inventory": ["dagger"],
-    "relationships": {
-      "char_2": "trusts"
-    }
+  "relationshipData": [
+    {"targetName": "char_2", "trustDelta": -15, "note": "Betrayed me"}
+  ],
+  "changes": {
+    "learned": ["The king is dead"],
+    "mood": "fearful"
   },
   "createdAt": ""
 }
@@ -252,6 +257,8 @@ The AI heart. Each memory is a document with an embedding for vector search.
 
 ### `locations`
 
+Hierarchical location graph. Parent chain enables drill-up navigation (room→building→city→country→planet→dimension).
+
 ```json
 {
   "_id": "loc_1",
@@ -259,13 +266,105 @@ The AI heart. Each memory is a document with an embedding for vector search.
   "name": "Castle Gates",
   "description": "The imposing main entrance to the castle",
   "props": ["portcullis", "moat"],
-  "createdAt": "2026-06-16T00:00:00Z"
+  "locType": "building",
+  "parentId": "loc_0",
+  "features": ["fortified", "guarded"],
+  "atmosphere": "foreboding",
+  "children": ["loc_2"],
+  "createdAt": "2026-06-16T00:00:00Z",
+  "updatedAt": "2026-06-16T00:00:00Z"
 }
 ```
+
+**LocationType enum:** `dimension`, `planet`, `country`, `city`, `district`, `building`, `room`
 
 **Indexes:**
 - `{ storyId: 1 }`
 - `{ storyId: 1, name: 1 }`
+- `{ parentId: 1 }`
+
+---
+
+### `bibles`
+
+Generated once per story via LLM (claude-sonnet, temp 0.3, 8192 max tokens). Never regenerated. Structured domain data (not free-text blob).
+
+```json
+{
+  "_id": "bible_1",
+  "storyId": "story_1",
+  "world": "A sprawling fantasy realm of floating islands and ancient ruins...",
+  "dimensions": [
+    {
+      "name": "Material Plane",
+      "description": "The physical world where most of the story takes place",
+      "rules": ["Magic requires a catalyst object", "The old gods sleep beneath the mountains"]
+    }
+  ],
+  "worldRules": [
+    "Magic requires a catalyst object",
+    "The old gods cannot directly intervene in mortal affairs",
+    "Certain metals disrupt magical energy"
+  ],
+  "magicSystems": [
+    {
+      "name": "Catalysis",
+      "description": "Tap into ambient mana through focus objects (catalysts)",
+      "rules": ["Requires years of training", "Limited by user's stamina and focus"]
+    }
+  ],
+  "factions": [
+    {
+      "name": "The Iron Guild",
+      "beliefs": ["Might makes right", "Magic should be controlled"],
+      "goals": ["Control all mana sources", "Eliminate unlicensed mages"]
+    }
+  ],
+  "cultures": [
+    {
+      "name": "Valdori",
+      "customs": ["Ancestor worship", "Iron-fasting rites of passage"],
+      "taboos": ["Breaking a blood oath", "Consorting with spirits of the dead"]
+    }
+  ],
+  "tone": "dark fantasy with moments of hope and levity",
+  "centralTheme": "Power corrupts, but redemption is possible through sacrifice",
+  "narrativeVoice": "Third-person limited, deep POV following the protagonist",
+  "createdAt": "2026-06-16T00:00:00Z",
+  "updatedAt": "2026-06-16T00:00:00Z"
+}
+```
+
+**Indexes:**
+- `{ storyId: 1 }` (unique)
+
+---
+
+### `chapters`
+
+Bridges Act→Scene hierarchy. Enables sequential scene planning within act/chapter boundaries.
+
+```json
+{
+  "_id": "chapter_1",
+  "storyId": "story_1",
+  "actNumber": 1,
+  "chapterNum": 1,
+  "title": "Chapter One: The Awakening",
+  "summary": "The hero discovers their hidden power during a festival",
+  "goal": "Establish the hero's ordinary world and present the call to adventure",
+  "scenes": ["scene_100", "scene_101"],
+  "status": "planned",
+  "createdAt": "2026-06-16T00:00:00Z",
+  "updatedAt": "2026-06-16T00:00:00Z"
+}
+```
+
+**Status values:** `planned`, `outlined`, `in_progress`, `completed`
+
+**Indexes:**
+- `{ storyId: 1, actNumber: 1, chapterNum: 1 }` (unique)
+- `{ storyId: 1 }`
 
 ---
 
@@ -320,6 +419,8 @@ The frontend mirrors backend models as TypeScript interfaces in `web/src/api/typ
 ## Entity Relationships
 
 ```
+stories 1──1 bibles                (storyId)
+stories 1──* chapters              (storyId)
 stories 1──* locations             (storyId)
 stories 1──* scenes                (storyId)
 stories 1──* scene_edges           (storyId)
@@ -337,6 +438,8 @@ scenes 1──* summaries              (sceneId)
 
 characters 1──* character_state    (characterId)
 characters 1──* character_memories (characterId)
+
+chapters 1──* scenes               (scenes array references)
 ```
 
 ---

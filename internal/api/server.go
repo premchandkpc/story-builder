@@ -103,20 +103,15 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 					r.Delete("/", h.DeleteEdge)
 				})
 
-				// Chapters (stub — not yet implemented)
+				// Chapters
 				r.Route("/chapters", func(r chi.Router) {
-					r.Get("/", h.NotImplemented)
-					r.Post("/", h.NotImplemented)
+					r.Get("/", h.ListChapters)
+					r.Post("/", h.CreateChapter)
 					r.Route("/{chapterID}", func(r chi.Router) {
-						r.Get("/", h.NotImplemented)
-						r.Put("/", h.NotImplemented)
+						r.Get("/", h.GetChapter)
+						r.Put("/", h.UpdateChapter)
 						r.Delete("/", h.NotImplemented)
 						r.Get("/scenes", h.NotImplemented)
-						r.Post("/scenes", h.NotImplemented)
-						r.Route("/{sceneID}", func(r chi.Router) {
-							r.Get("/", h.NotImplemented)
-							r.Put("/", h.NotImplemented)
-						})
 					})
 				})
 
@@ -185,6 +180,14 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 		r.Route("/generations/{genID}", func(r chi.Router) {
 			r.Get("/status", h.GetGenerationStatus)
 			r.Get("/progress", h.SSEGenerationProgress)
+		})
+
+		// ─── Bible ────────────────────────────────────────────
+		r.Route("/stories/{storyID}/bible", func(r chi.Router) {
+			r.Get("/", h.GetBible)
+			r.Post("/generate", h.GenerateBible)
+			r.Put("/", h.UpdateBible)
+			r.Delete("/", h.DeleteBible)
 		})
 
 		// ─── Locations ───────────────────────────────────────

@@ -91,6 +91,7 @@ const (
 	PromptCanonValidate  PromptTemplate = "canon_validate"
 	PromptOutlineStory   PromptTemplate = "outline_story"
 	PromptGenerateTitle  PromptTemplate = "generate_title"
+	PromptGenerateBible PromptTemplate = "generate_bible"
 )
 
 type StoryOutlineCharacter struct {
@@ -178,5 +179,11 @@ var PromptRegistry = map[PromptTemplate]PromptConfig{
 		Model:       ModelLocal,
 		Temperature: 0.5,
 		SystemText:  "You are a creative title generator. Given a synopsis, generate a short, engaging story title (3-8 words). Return ONLY the title, no quotes or punctuation.",
+	},
+	PromptGenerateBible: {
+		Template:    PromptGenerateBible,
+		Model:       ModelSonnet,
+		Temperature: 0.3,
+		SystemText:  "You are a world-building expert. Given a story synopsis, outline, and characters, generate a complete Story Bible as JSON. Cover world, dimensions, rules, magic, factions, cultures, tone, and narrative voice. Output valid JSON only — no markdown, no code fences.",
 	},
 }

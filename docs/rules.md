@@ -82,13 +82,15 @@ internal/
 |---|---|
 | Graph | Topological sort, cycle detection, branch detection |
 | Memory | State changes, memory retrieval, importance ranking |
-| Generation | Pipeline execution, context compilation |
+| Generation | Pipeline execution, context compilation, partial success, retries |
 | Validation | All 4 validators |
+| Bible | Generation via LLM, structured output validation, single-flight guard, cascade delete |
+| Chapter | CRUD operations, act/chapter ordering, cascade delete, scene array management |
 | API | Minimal — business logic belongs in services |
 
 ## Making Changes
 
 1. **Update docs first** (or in the same PR). Every structural change updates the relevant `.md` files.
-2. **Cascade delete story.** `StoryService.Delete` calls `StoryCascadeDeleter.cascade()` which deletes child collections (character_state, memories, generations, summaries, timeline, edges, scenes, characters) in order before deleting the story document.
+2. **Cascade delete story.** `StoryService.Delete` calls `StoryCascadeDeleter.cascade()` which deletes child collections (bibles, chapters, character_state, memories, generations, summaries, timeline, edges, scenes, characters) in order before deleting the story document.
 3. **No test suite yet.** Run the server and curl endpoints to verify.
 3. **Docker Compose for local dev.** `docker compose up -d mongo redis ollama` for minimal infra.

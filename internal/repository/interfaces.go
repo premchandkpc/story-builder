@@ -89,3 +89,20 @@ type SummaryRepository interface {
 	ListByLevel(ctx context.Context, storyID, level string) ([]*domain.Summary, error)
 	DeleteByStory(ctx context.Context, storyID string) error
 }
+
+type BibleRepository interface {
+	Create(ctx context.Context, b *domain.StoryBible) error
+	Get(ctx context.Context, id string) (*domain.StoryBible, error)
+	GetByStory(ctx context.Context, storyID string) (*domain.StoryBible, error)
+	Update(ctx context.Context, b *domain.StoryBible) error
+	DeleteByStory(ctx context.Context, storyID string) error
+}
+
+type ChapterRepository interface {
+	Create(ctx context.Context, c *domain.Chapter) error
+	Get(ctx context.Context, id string) (*domain.Chapter, error)
+	ListByStory(ctx context.Context, storyID string) ([]*domain.Chapter, error)
+	ListByAct(ctx context.Context, storyID string, actNumber int) ([]*domain.Chapter, error)
+	Update(ctx context.Context, c *domain.Chapter) error
+	DeleteByStory(ctx context.Context, storyID string) error
+}

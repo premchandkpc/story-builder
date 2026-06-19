@@ -27,14 +27,20 @@ type Character struct {
 }
 
 type CharacterState struct {
-	CharacterID string         `bson:"characterId" json:"characterId"`
-	StoryID     string         `bson:"storyId" json:"storyId"`
-	SceneID     string         `bson:"sceneId" json:"sceneId"`
-	Health      int            `bson:"health,omitempty" json:"health,omitempty"`
-	Mood        string         `bson:"mood,omitempty" json:"mood,omitempty"`
-	Location    string         `bson:"location,omitempty" json:"location,omitempty"`
-	Inventory   []string       `bson:"inventory,omitempty" json:"inventory,omitempty"`
-	Relationships  map[string]string `bson:"relationships,omitempty" json:"relationships,omitempty"`
-	Changes     map[string]any `bson:"changes,omitempty" json:"changes,omitempty"`
-	CreatedAt   time.Time      `bson:"createdAt" json:"createdAt"`
+	CharacterID  string              `bson:"characterId" json:"characterId"`
+	StoryID      string              `bson:"storyId" json:"storyId"`
+	SceneID      string              `bson:"sceneId" json:"sceneId"`
+	Health       int                 `bson:"health,omitempty" json:"health,omitempty"`
+	Mood         string              `bson:"mood,omitempty" json:"mood,omitempty"`
+	Location     string              `bson:"location,omitempty" json:"location,omitempty"`
+	Inventory    []string            `bson:"inventory,omitempty" json:"inventory,omitempty"`
+	Knowledge    []string            `bson:"knowledge,omitempty" json:"knowledge,omitempty"`
+	DoesNotKnow  []string            `bson:"doesNotKnow,omitempty" json:"doesNotKnow,omitempty"`
+	ActiveGoal   string              `bson:"activeGoal,omitempty" json:"activeGoal,omitempty"`
+	EmotionalState string            `bson:"emotionalState,omitempty" json:"emotionalState,omitempty"`
+	PhysicalState string             `bson:"physicalState,omitempty" json:"physicalState,omitempty"`
+	Relationships   map[string]string `bson:"relationships,omitempty" json:"relationships,omitempty"`
+	RelationshipData []RelationshipDelta `bson:"relationshipData,omitempty" json:"relationshipData,omitempty"`
+	Changes      map[string]any      `bson:"changes,omitempty" json:"changes,omitempty"`
+	CreatedAt    time.Time           `bson:"createdAt" json:"createdAt"`
 }

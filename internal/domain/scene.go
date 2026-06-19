@@ -42,11 +42,22 @@ type Generation struct {
 	PromptSnapshot   string            `bson:"promptSnapshot,omitempty" json:"promptSnapshot,omitempty"`
 	Output           string            `bson:"output,omitempty" json:"output,omitempty"`
 	Model            string            `bson:"model,omitempty" json:"model,omitempty"`
+	Status           string            `bson:"status,omitempty" json:"status,omitempty"`
 	Accepted         bool              `bson:"accepted" json:"accepted"`
 	StepStatus       map[string]string `bson:"stepStatus,omitempty" json:"stepStatus,omitempty"`
 	ValidationResult map[string]any    `bson:"validationResult,omitempty" json:"validationResult,omitempty"`
+	Error            string            `bson:"error,omitempty" json:"error,omitempty"`
 	CreatedAt        time.Time         `bson:"createdAt" json:"createdAt"`
+	UpdatedAt        time.Time         `bson:"updatedAt,omitempty" json:"updatedAt,omitempty"`
 }
+
+const (
+	GenStatusPending        = "pending"
+	GenStatusRunning        = "running"
+	GenStatusPartialSuccess = "partial_success"
+	GenStatusSuccess        = "success"
+	GenStatusFailed         = "failed"
+)
 
 const (
 	StepPending = "pending"

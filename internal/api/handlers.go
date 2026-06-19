@@ -64,6 +64,20 @@ type MemoryService interface {
 	ListByCharacter(ctx context.Context, charID string) ([]*domain.CharacterMemory, error)
 }
 
+type BibleService interface {
+	Get(ctx context.Context, storyID string) (*domain.StoryBible, error)
+	Generate(ctx context.Context, storyID string) (*domain.StoryBible, error)
+	DeleteByStory(ctx context.Context, storyID string) error
+}
+
+type ChapterService interface {
+	Create(ctx context.Context, c *domain.Chapter) (*domain.Chapter, error)
+	Get(ctx context.Context, id string) (*domain.Chapter, error)
+	ListByStory(ctx context.Context, storyID string) ([]*domain.Chapter, error)
+	ListByAct(ctx context.Context, storyID string, actNumber int) ([]*domain.Chapter, error)
+	Update(ctx context.Context, c *domain.Chapter) (*domain.Chapter, error)
+}
+
 type LocationService interface {
 	Create(ctx context.Context, loc *domain.Location) error
 	Get(ctx context.Context, id string) (*domain.Location, error)
@@ -74,18 +88,20 @@ type LocationService interface {
 }
 
 type Handlers struct {
-	storySvc   StoryService
-	sceneSvc   SceneService
-	edgeSvc    EdgeService
-	charSvc    CharacterService
-	genSvc     GenerationService
-	tlSvc      TimelineService
-	sumSvc     SummaryService
-	memSvc     MemoryService
-	locSvc     LocationService
-	outlineSvc llm.OutlineService
-	titleSvc   llm.TitleService
-	progress   *ProgressHub
+	storySvc    StoryService
+	sceneSvc    SceneService
+	edgeSvc     EdgeService
+	charSvc     CharacterService
+	genSvc      GenerationService
+	tlSvc       TimelineService
+	sumSvc      SummaryService
+	memSvc      MemoryService
+	locSvc      LocationService
+	bibleSvc    BibleService
+	chapterSvc  ChapterService
+	outlineSvc  llm.OutlineService
+	titleSvc    llm.TitleService
+	progress    *ProgressHub
 }
 
 func NewHandlers(
@@ -98,6 +114,8 @@ func NewHandlers(
 	sumSvc SummaryService,
 	memSvc MemoryService,
 	locSvc LocationService,
+	bibleSvc BibleService,
+	chapterSvc ChapterService,
 	outlineSvc llm.OutlineService,
 	titleSvc llm.TitleService,
 	progress *ProgressHub,
@@ -106,6 +124,7 @@ func NewHandlers(
 		storySvc: storySvc, sceneSvc: sceneSvc, edgeSvc: edgeSvc,
 		charSvc: charSvc, genSvc: genSvc, tlSvc: tlSvc,
 		sumSvc: sumSvc, memSvc: memSvc, locSvc: locSvc,
+		bibleSvc: bibleSvc, chapterSvc: chapterSvc,
 		outlineSvc: outlineSvc, titleSvc: titleSvc, progress: progress,
 	}
 }

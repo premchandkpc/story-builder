@@ -50,6 +50,8 @@ func main() {
 	memRepo := mgorepo.NewMemoryRepo(db)
 	tlRepo := mgorepo.NewTimelineRepo(db)
 	sumRepo := mgorepo.NewSummaryRepo(db)
+	bibleRepo := mgorepo.NewBibleRepo(db)
+	chapterRepo := mgorepo.NewChapterRepo(db)
 
 	// ─── LLM Clients ───────────────────────────────────────
 	var anthropic llm.LLMClient
@@ -77,6 +79,7 @@ func main() {
 	validateSvc := llm.NewValidationService(router, promptCompiler)
 	outlineSvc := llm.NewOutlineService(router, promptCompiler)
 	titleSvc := llm.NewTitleService(router)
+	bibleGenSvc := llm.NewBibleService(router, promptCompiler)
 
 	slog.Info("llm services initialized",
 		"prose", true, "extract", true, "summary", true,
@@ -103,26 +106,33 @@ func main() {
 
 	// ─── Services ──────────────────────────────────────────
 	storySvc := service.NewStoryService(storyRepo, &service.StoryCascadeDeleter{
-		SceneRepo: sceneRepo,
-		EdgeRepo:  edgeRepo,
-		CharRepo:  charRepo,
-		StateRepo: stateRepo,
-		GenRepo:   genRepo,
-		MemRepo:   memRepo,
-		TlRepo:    tlRepo,
-		SumRepo:   sumRepo,
-		LocRepo:   locRepo,
+		SceneRepo:   sceneRepo,
+		EdgeRepo:    edgeRepo,
+		CharRepo:    charRepo,
+		StateRepo:   stateRepo,
+		GenRepo:     genRepo,
+		MemRepo:     memRepo,
+		TlRepo:      tlRepo,
+		SumRepo:     sumRepo,
+		LocRepo:     locRepo,
+		BibleRepo:   bibleRepo,
+		ChapterRepo: chapterRepo,
 	})
 	sceneSvc := service.NewSceneService(sceneRepo, edgeRepo, genRepo)
 	edgeSvc := service.NewEdgeService(edgeRepo)
 	charSvc := service.NewCharacterService(charRepo)
 	locSvc := service.NewLocationService(locRepo)
 
+	contextBldr := service.NewContextBuilder(bibleRepo, storyRepo, charRepo, stateRepo, locRepo, memRepo, sumRepo, tlRepo)
+	bibleSvc := service.NewBibleService(bibleRepo, storyRepo, charRepo, bibleGenSvc)
+	chapterSvc := service.NewChapterSvc(chapterRepo)
+
 	genSvc := service.NewGenerationService(service.GenerationServiceConfig{
 		GenRepo: genRepo, SceneRepo: sceneRepo, StoryRepo: storyRepo,
 		CharRepo: charRepo, StateRepo: stateRepo, EdgeRepo: edgeRepo,
 		MemRepo: memRepo, TlRepo: tlRepo, SumRepo: sumRepo, LocRepo: locRepo,
 		ProseSvc: proseSvc, ExtractSvc: extractSvc, SummarySvc: summarySvc, ValidateSvc: validateSvc,
+		ContextBldr: contextBldr,
 	})
 	tlSvc := service.NewTimelineService(tlRepo)
 	sumSvc := service.NewSummaryService(sumRepo)
@@ -133,7 +143,7 @@ func main() {
 	genSvc.SetProgressPublisher(progressHub)
 
 	// ─── Handlers ──────────────────────────────────────────
-	h := api.NewHandlers(storySvc, sceneSvc, edgeSvc, charSvc, genSvc, tlSvc, sumSvc, memSvc, locSvc, outlineSvc, titleSvc, progressHub)
+	h := api.NewHandlers(storySvc, sceneSvc, edgeSvc, charSvc, genSvc, tlSvc, sumSvc, memSvc, locSvc, bibleSvc, chapterSvc, outlineSvc, titleSvc, progressHub)
 
 	// ─── Server ────────────────────────────────────────────
 	srv := api.NewServer(h, rateLimiter)

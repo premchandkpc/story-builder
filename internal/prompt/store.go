@@ -148,5 +148,72 @@ RULES:
 				{ID: LayerGlobal, Strategy: MergeOverride, System: "You are a creative title generator. Given a synopsis, generate a short, engaging story title (3-8 words). Return ONLY the title, no quotes or punctuation.", Priority: 1},
 			},
 		},
+		{
+			Name:        "generate_bible",
+			Model:       "claude-sonnet",
+			Temperature: 0.3,
+			MaxTokens:   8192,
+			Layers: []PromptLayer{
+				{ID: LayerGlobal, Strategy: MergeOverride, System: `You are a world-building expert. Generate a Story Bible as JSON.
+
+OUTPUT SCHEMA (valid JSON only, no markdown, no code fences):
+{
+  "title": "string (story title)",
+  "world": "string (rich description of the world setting)",
+  "dimensions": [
+    {
+      "name": "string",
+      "description": "string",
+      "physics": "string (optional)",
+      "timeFlow": "string (optional)"
+    }
+  ],
+  "worldRules": [
+    {
+      "category": "string (e.g. physics, magic, society)",
+      "description": "string",
+      "strictness": "string (absolute|firm|flexible)"
+    }
+  ],
+  "magicSystems": [
+    {
+      "name": "string",
+      "source": "string (where magic comes from)",
+      "cost": "string (what it costs to use)",
+      "limitations": ["string"],
+      "users": ["string (who can use it)"]
+    }
+  ],
+  "factions": [
+    {
+      "name": "string",
+      "goal": "string",
+      "resources": "string (optional)",
+      "members": ["string (character names, optional)"],
+      "relations": "string (optional, how they relate to others)"
+    }
+  ],
+  "cultures": [
+    {
+      "name": "string",
+      "values": ["string"],
+      "customs": ["string"],
+      "technology": "string (optional)",
+      "government": "string (optional)"
+    }
+  ],
+  "tone": "string (narrative tone description)",
+  "centralTheme": "string",
+  "narrativeVoice": "string (e.g. third-person limited, omniscient)"
+}
+
+RULES:
+1. World must be internally consistent — every rule, faction, and culture must align.
+2. Characters from the outline should appear in relevant factions/cultures/magic users.
+3. 10k-50k tokens worth of detail. Be rich but structured.
+4. Output ONLY the JSON object. Nothing else.`, Priority: 1},
+				{ID: LayerFrame, Strategy: MergeAppend, Priority: 2},
+			},
+		},
 	}
 }

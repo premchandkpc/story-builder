@@ -15,38 +15,40 @@ import (
 )
 
 type GenerationServiceConfig struct {
-	GenRepo     repository.GenerationRepository
-	SceneRepo   repository.SceneRepository
-	StoryRepo   repository.StoryRepository
-	CharRepo    repository.CharacterRepository
-	StateRepo   repository.CharacterStateRepository
-	EdgeRepo    repository.SceneEdgeRepository
-	MemRepo     repository.MemoryRepository
-	TlRepo      repository.TimelineRepository
-	SumRepo     repository.SummaryRepository
-	LocRepo     repository.LocationRepository
-	ProseSvc    llm.ProseService
-	ExtractSvc  llm.ExtractionService
-	SummarySvc  llm.SummaryService
-	ValidateSvc llm.ValidationService
+	GenRepo       repository.GenerationRepository
+	SceneRepo     repository.SceneRepository
+	StoryRepo     repository.StoryRepository
+	CharRepo      repository.CharacterRepository
+	StateRepo     repository.CharacterStateRepository
+	EdgeRepo      repository.SceneEdgeRepository
+	MemRepo       repository.MemoryRepository
+	TlRepo        repository.TimelineRepository
+	SumRepo       repository.SummaryRepository
+	LocRepo       repository.LocationRepository
+	ProseSvc      llm.ProseService
+	ExtractSvc    llm.ExtractionService
+	SummarySvc    llm.SummaryService
+	ValidateSvc   llm.ValidationService
+	ContextBldr   *ContextBuilder
 }
 
 type GenerationService struct {
-	genRepo     repository.GenerationRepository
-	sceneRepo   repository.SceneRepository
-	storyRepo   repository.StoryRepository
-	charRepo    repository.CharacterRepository
-	stateRepo   repository.CharacterStateRepository
-	edgeRepo    repository.SceneEdgeRepository
-	memRepo     repository.MemoryRepository
-	tlRepo      repository.TimelineRepository
-	sumRepo     repository.SummaryRepository
-	locRepo     repository.LocationRepository
+	genRepo       repository.GenerationRepository
+	sceneRepo     repository.SceneRepository
+	storyRepo     repository.StoryRepository
+	charRepo      repository.CharacterRepository
+	stateRepo     repository.CharacterStateRepository
+	edgeRepo      repository.SceneEdgeRepository
+	memRepo       repository.MemoryRepository
+	tlRepo        repository.TimelineRepository
+	sumRepo       repository.SummaryRepository
+	locRepo       repository.LocationRepository
 
-	proseSvc    llm.ProseService
-	extractSvc  llm.ExtractionService
-	summarySvc  llm.SummaryService
-	validateSvc llm.ValidationService
+	proseSvc      llm.ProseService
+	extractSvc    llm.ExtractionService
+	summarySvc    llm.SummaryService
+	validateSvc   llm.ValidationService
+	contextBldr   *ContextBuilder
 
 	genInFlight    sync.Map
 	acceptInFlight sync.Map
@@ -59,6 +61,7 @@ func NewGenerationService(cfg GenerationServiceConfig) *GenerationService {
 		charRepo: cfg.CharRepo, stateRepo: cfg.StateRepo, edgeRepo: cfg.EdgeRepo,
 		memRepo: cfg.MemRepo, tlRepo: cfg.TlRepo, sumRepo: cfg.SumRepo, locRepo: cfg.LocRepo,
 		proseSvc: cfg.ProseSvc, extractSvc: cfg.ExtractSvc, summarySvc: cfg.SummarySvc, validateSvc: cfg.ValidateSvc,
+		contextBldr: cfg.ContextBldr,
 	}
 }
 
@@ -86,161 +89,38 @@ func (s *GenerationService) Generate(ctx context.Context, sceneID string) (*doma
 		SceneID:    sceneID,
 		Model:      string(llm.ModelSonnet),
 		StepStatus: map[string]string{},
+		Status:     domain.GenStatusPending,
 	}
 	if err := s.genRepo.Create(ctx, gen); err != nil {
 		s.genInFlight.Delete(sceneID)
 		return nil, fmt.Errorf("create generation: %w", err)
 	}
 
-	params, charNameToID := s.buildPromptParams(ctx, scene)
+	gen.Status = domain.GenStatusRunning
+	_ = s.genRepo.Update(ctx, gen)
 
 	go func() {
 		defer s.genInFlight.Delete(sceneID)
 		defer func() {
 			if r := recover(); r != nil {
 				slog.Error("pipeline panic", "genId", gen.ID, "recover", r)
-				s.setStepStatus(context.Background(), gen.ID, "pipeline", domain.StepFailed)
+				bgCtx := context.Background()
+				s.setStepStatus(bgCtx, gen.ID, "pipeline", domain.StepFailed)
+				s.setGenError(bgCtx, gen.ID, fmt.Sprintf("pipeline panic: %v", r))
 			}
 		}()
-		pCtx, pCancel := context.WithTimeout(ctx, 5*time.Minute)
+
+		bgCtx := context.Background()
+		pCtx, pCancel := context.WithTimeout(bgCtx, 5*time.Minute)
 		defer pCancel()
-		s.runPipeline(pCtx, gen.ID, scene, params, charNameToID)
+
+		s.runPipeline(pCtx, gen.ID, scene)
 	}()
 
 	return gen, nil
 }
 
-func (s *GenerationService) buildPromptParams(ctx context.Context, scene *domain.Scene) (llm.PromptParams, map[string]string) {
-	params := llm.PromptParams{
-		BeatIntent:  scene.BeatIntent,
-		POV:         scene.POV,
-		Tone:        scene.Tone,
-		TargetWords: scene.TargetWords,
-	}
 
-	allChars, err := s.charRepo.ListByStory(ctx, scene.StoryID)
-	if err != nil {
-		slog.Warn("buildPromptParams: list characters", "storyId", scene.StoryID, "error", err)
-		return params, nil
-	}
-
-	charNameToID := make(map[string]string, len(scene.Participants))
-
-	participantIDs := make(map[string]bool, len(scene.Participants))
-	for _, pid := range scene.Participants {
-		participantIDs[pid] = true
-	}
-	params.CharState = make(map[string]interface{})
-	for _, c := range allChars {
-		if !participantIDs[c.ID] && !participantIDs[c.CharID] {
-			continue
-		}
-		charNameToID[c.Name] = c.CharID
-
-		card := llm.CharacterCard{
-			Name:         c.Name,
-			Description:  c.Persona,
-			Type:         "character",
-			Traits:       c.Traits,
-			VoiceSamples: c.VoiceSamples,
-			Want:         c.Want,
-			Need:         c.Need,
-			FalseBelief:  c.FalseBelief,
-			ArcType:      c.ArcType,
-		}
-		if c.Backstory != "" {
-			card.Description = c.Persona + ". " + c.Backstory
-		}
-		if c.Relationships != nil {
-			card.Relationships = c.Relationships
-		}
-		if len(c.RelData) > 0 {
-			relData := make(map[string]llm.NumericRelationships, len(c.RelData))
-			for _, r := range c.RelData {
-				relData[r.TargetName] = llm.NumericRelationships{
-					Trust:     r.Trust,
-					Respect:   r.Respect,
-					Fear:      r.Fear,
-					Affection: r.Affection,
-				}
-			}
-			card.RelData = relData
-		}
-		params.CharacterCards = append(params.CharacterCards, card)
-
-		states, _ := s.stateRepo.ListByCharacter(ctx, c.CharID)
-		if len(states) > 0 {
-			latest := states[len(states)-1]
-			cs := llm.CharacterState{
-				StoryID:     latest.StoryID,
-				CharacterID: latest.CharacterID,
-				AsOfScene:   latest.SceneID,
-				Location:    latest.Location,
-				Mood:        latest.Mood,
-				Items:       latest.Inventory,
-			}
-			if latest.Relationships != nil {
-				cs.Relationships = latest.Relationships
-			}
-			if m, ok := latest.Changes["learned"].([]string); ok {
-				cs.Knows = m
-			}
-			if m, ok := latest.Changes["does_not_know"].([]string); ok {
-				cs.DoesNotKnow = m
-			}
-			params.CharState[c.Name] = cs
-		}
-	}
-
-	if scene.LocationRef != "" {
-		locs, err := s.locRepo.ListByStory(ctx, scene.StoryID)
-		if err == nil {
-			for _, loc := range locs {
-				if loc.Name == scene.LocationRef || loc.ID == scene.LocationRef {
-					params.LocationCard = &llm.CharacterCard{
-						Name:        loc.Name,
-						Description: loc.Description,
-						Type:        "location",
-						Props:       loc.Props,
-					}
-					break
-				}
-			}
-		}
-	}
-
-	if existing, _ := s.sumRepo.GetByLevel(ctx, scene.StoryID, "story"); existing != nil {
-		params.BranchSummary = existing.Content
-	}
-
-	memories := make(map[string][]string)
-	for charID := range participantIDs {
-		mems, err := s.memRepo.ListByCharacter(ctx, charID)
-		if err != nil || len(mems) == 0 {
-			continue
-		}
-		charName := ""
-		for _, c := range allChars {
-			if c.CharID == charID || c.ID == charID {
-				charName = c.Name
-				break
-			}
-		}
-		if charName == "" {
-			continue
-		}
-		snippets := make([]string, 0, len(mems))
-		for _, m := range mems {
-			snippets = append(snippets, m.Content)
-		}
-		memories[charName] = snippets
-	}
-	if len(memories) > 0 {
-		params.Memories = memories
-	}
-
-	return params, charNameToID
-}
 
 func (s *GenerationService) AcceptGeneration(ctx context.Context, sceneID, genID string) error {
 	if _, loaded := s.acceptInFlight.LoadOrStore(sceneID, true); loaded {
@@ -300,7 +180,61 @@ func (s *GenerationService) setStepStatus(ctx context.Context, genID, step, stat
 	}
 }
 
-func (s *GenerationService) runPipeline(ctx context.Context, genID string, scene *domain.Scene, params llm.PromptParams, charNameToID map[string]string) {
+func (s *GenerationService) setGenError(ctx context.Context, genID, errMsg string) {
+	gen, err := s.genRepo.Get(ctx, genID)
+	if err != nil || gen == nil {
+		return
+	}
+	gen.Error = errMsg
+	_ = s.genRepo.Update(ctx, gen)
+}
+
+func (s *GenerationService) setGenStatus(ctx context.Context, genID, status string) {
+	gen, err := s.genRepo.Get(ctx, genID)
+	if err != nil || gen == nil {
+		return
+	}
+	gen.Status = status
+	_ = s.genRepo.Update(ctx, gen)
+}
+
+func (s *GenerationService) runStep(ctx context.Context, genID, stepName string, fn func(context.Context) error) bool {
+	s.setStepStatus(ctx, genID, stepName, domain.StepRunning)
+
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			slog.Info("retrying step", "genId", genID, "step", stepName, "attempt", attempt)
+		}
+		lastErr = fn(ctx)
+		if lastErr == nil {
+			s.setStepStatus(ctx, genID, stepName, domain.StepDone)
+			return true
+		}
+		if ctx.Err() != nil {
+			break
+		}
+	}
+
+	slog.Error("step failed after retries", "genId", genID, "step", stepName, "error", lastErr)
+	s.setStepStatus(ctx, genID, stepName, domain.StepFailed)
+	return false
+}
+
+func (s *GenerationService) runNonCriticalStep(ctx context.Context, genID, stepName string, fn func(context.Context) error) {
+	if ctx.Err() != nil {
+		return
+	}
+	s.setStepStatus(ctx, genID, stepName, domain.StepRunning)
+	if err := fn(ctx); err != nil {
+		slog.Warn("non-critical step failed", "genId", genID, "step", stepName, "error", err)
+		s.setStepStatus(ctx, genID, stepName, domain.StepFailed)
+		return
+	}
+	s.setStepStatus(ctx, genID, stepName, domain.StepDone)
+}
+
+func (s *GenerationService) runPipeline(ctx context.Context, genID string, scene *domain.Scene) {
 	genWorker := worker.NewGenerateSceneWorker(s.proseSvc, s.genRepo, s.sceneRepo)
 	extractWorker := worker.NewExtractStateWorker(s.extractSvc, s.stateRepo)
 	memWorker := worker.NewMemoryUpdateWorker(s.memRepo)
@@ -310,91 +244,132 @@ func (s *GenerationService) runPipeline(ctx context.Context, genID string, scene
 
 	slog.Info("generation pipeline starting", "genId", genID)
 
-	s.setStepStatus(ctx, genID, "generate", domain.StepRunning)
-	sceneText, err := genWorker.Work(ctx, worker.GenerateSceneArgs{
-		SceneID: scene.ID,
-		GenID:   genID,
-		Context: params,
+	criticalFailed := false
+	anyFailed := false
+
+	var builtContext *BuiltContext
+
+	if s.contextBldr != nil {
+		bCtx, err := s.contextBldr.Build(ctx, scene)
+		if err != nil {
+			slog.Warn("context builder failed, falling back to simple params", "genId", genID, "error", err)
+			builtContext = nil
+		} else {
+			builtContext = bCtx
+		}
+	}
+
+	charNameToID := make(map[string]string)
+	for _, name := range builtContext.CharacterNames {
+		for _, c := range builtContext.Params.CharacterCards {
+			if c.Name == name {
+				charNameToID[name] = c.Name
+				break
+			}
+		}
+	}
+
+	params := builtContext.Params
+
+	if !s.runStep(ctx, genID, "generate", func(sCtx context.Context) error {
+		_, err := genWorker.Work(sCtx, worker.GenerateSceneArgs{
+			SceneID: scene.ID,
+			GenID:   genID,
+			Context: params,
+		})
+		return err
+	}) {
+		criticalFailed = true
+		anyFailed = true
+	}
+
+	sceneText, _ := func() (string, error) {
+		gen, err := s.genRepo.Get(ctx, genID)
+		if err != nil || gen == nil {
+			return "", err
+		}
+		return gen.Output, nil
+	}()
+	if sceneText == "" {
+		sceneText = scene.GeneratedContent
+	}
+
+	if !criticalFailed && sceneText != "" {
+		if !s.runStep(ctx, genID, "extract", func(sCtx context.Context) error {
+			return extractWorker.Work(sCtx, worker.ExtractStateArgs{
+				StoryID: scene.StoryID, SceneID: scene.ID, SceneText: sceneText,
+				CharacterRefs: scene.Participants, CharNameToID: charNameToID,
+			})
+		}) {
+			anyFailed = true
+		}
+	}
+
+	if sceneText != "" {
+		s.runNonCriticalStep(ctx, genID, "memory", func(sCtx context.Context) error {
+			for _, charID := range scene.Participants {
+				if err := memWorker.Work(sCtx, worker.MemoryUpdateArgs{
+					StoryID: scene.StoryID, CharacterID: charID, SceneID: scene.ID,
+					Content: sceneText, Importance: 0.5,
+				}); err != nil {
+					slog.Error("memory step failed", "genId", genID, "charId", charID, "error", err)
+				}
+			}
+			return nil
+		})
+	}
+
+	s.runNonCriticalStep(ctx, genID, "timeline", func(sCtx context.Context) error {
+		return tlWorker.Work(sCtx, worker.TimelineArgs{
+			StoryID: scene.StoryID, SceneID: scene.ID,
+			Title: scene.Title, Order: scene.TimelinePosition,
+		})
 	})
-	if err != nil {
-		slog.Error("generate step failed", "genId", genID, "error", err)
-		s.setStepStatus(ctx, genID, "generate", domain.StepFailed)
-		return
-	}
-	s.setStepStatus(ctx, genID, "generate", domain.StepDone)
 
-	s.setStepStatus(ctx, genID, "extract", domain.StepRunning)
-	if err := extractWorker.Work(ctx, worker.ExtractStateArgs{
-		StoryID: scene.StoryID, SceneID: scene.ID, SceneText: sceneText, CharacterRefs: scene.Participants, CharNameToID: charNameToID,
-	}); err != nil {
-		slog.Error("extract step failed", "genId", genID, "error", err)
-		s.setStepStatus(ctx, genID, "extract", domain.StepFailed)
-		return
-	}
-	s.setStepStatus(ctx, genID, "extract", domain.StepDone)
-
-	s.setStepStatus(ctx, genID, "memory", domain.StepRunning)
-	for _, charID := range scene.Participants {
-		if err := memWorker.Work(ctx, worker.MemoryUpdateArgs{
-			StoryID: scene.StoryID, CharacterID: charID, SceneID: scene.ID,
-			Content: sceneText, Importance: 0.5,
-		}); err != nil {
-			slog.Error("memory step failed", "genId", genID, "error", err)
-		}
-	}
-	s.setStepStatus(ctx, genID, "memory", domain.StepDone)
-
-	s.setStepStatus(ctx, genID, "timeline", domain.StepRunning)
-	if err := tlWorker.Work(ctx, worker.TimelineArgs{
-		StoryID: scene.StoryID, SceneID: scene.ID,
-		Title: scene.Title, Order: scene.TimelinePosition,
-	}); err != nil {
-		slog.Error("timeline step failed", "genId", genID, "error", err)
-		s.setStepStatus(ctx, genID, "timeline", domain.StepFailed)
-		return
-	}
-	s.setStepStatus(ctx, genID, "timeline", domain.StepDone)
-
-	prevSummary := ""
-	if existing, _ := s.sumRepo.GetByLevel(ctx, scene.StoryID, "story"); existing != nil {
-		prevSummary = existing.Content
+	if sceneText != "" {
+		s.runNonCriticalStep(ctx, genID, "summary", func(sCtx context.Context) error {
+			prevSummary := ""
+			if existing, _ := s.sumRepo.GetByLevel(sCtx, scene.StoryID, "story"); existing != nil {
+				prevSummary = existing.Content
+			}
+			return sumWorker.Work(sCtx, worker.SummaryArgs{
+				StoryID: scene.StoryID, SceneID: scene.ID,
+				PreviousSummary: prevSummary,
+				AcceptedScene:   sceneText,
+			})
+		})
 	}
 
-	s.setStepStatus(ctx, genID, "summary", domain.StepRunning)
-	if err := sumWorker.Work(ctx, worker.SummaryArgs{
-		StoryID: scene.StoryID, SceneID: scene.ID,
-		PreviousSummary: prevSummary,
-		AcceptedScene:   sceneText,
-	}); err != nil {
-		slog.Error("summary step failed", "genId", genID, "error", err)
-		s.setStepStatus(ctx, genID, "summary", domain.StepFailed)
-		return
-	}
-	s.setStepStatus(ctx, genID, "summary", domain.StepDone)
-
-	canonXML := ""
-	if story, _ := s.storyRepo.Get(ctx, scene.StoryID); story != nil {
-		if len(story.CanonPins) > 0 {
-			b, _ := json.Marshal(story.CanonPins)
-			canonXML = string(b)
-		}
-	}
-
-	charState := ""
-	if states, _ := s.stateRepo.ListByScene(ctx, scene.ID); len(states) > 0 {
-		b, _ := json.Marshal(states)
-		charState = string(b)
+	if sceneText != "" {
+		s.runNonCriticalStep(ctx, genID, "validate", func(sCtx context.Context) error {
+			canonXML := ""
+			if story, _ := s.storyRepo.Get(sCtx, scene.StoryID); story != nil {
+				if len(story.CanonPins) > 0 {
+					b, _ := json.Marshal(story.CanonPins)
+					canonXML = string(b)
+				}
+			}
+			charState := ""
+			if states, _ := s.stateRepo.ListByScene(sCtx, scene.ID); len(states) > 0 {
+				b, _ := json.Marshal(states)
+				charState = string(b)
+			}
+			return valWorker.Work(sCtx, worker.ValidateArgs{
+				GenerationID: genID, CanonXML: canonXML, CharState: charState, SceneText: sceneText,
+			})
+		})
 	}
 
-	s.setStepStatus(ctx, genID, "validate", domain.StepRunning)
-	if err := valWorker.Work(ctx, worker.ValidateArgs{
-		GenerationID: genID, CanonXML: canonXML, CharState: charState, SceneText: sceneText,
-	}); err != nil {
-		slog.Error("validation step failed", "genId", genID, "error", err)
-		s.setStepStatus(ctx, genID, "validate", domain.StepFailed)
-		return
+	switch {
+	case criticalFailed:
+		s.setGenStatus(ctx, genID, domain.GenStatusFailed)
+		s.setGenError(ctx, genID, "generate step failed after retries")
+		slog.Error("generation pipeline failed", "genId", genID)
+	case anyFailed:
+		s.setGenStatus(ctx, genID, domain.GenStatusPartialSuccess)
+		slog.Warn("generation pipeline completed with partial failures", "genId", genID)
+	default:
+		s.setGenStatus(ctx, genID, domain.GenStatusSuccess)
+		slog.Info("generation pipeline complete", "genId", genID)
 	}
-	s.setStepStatus(ctx, genID, "validate", domain.StepDone)
-
-	slog.Info("generation pipeline complete", "genId", genID)
 }

@@ -74,21 +74,30 @@ cmd/server/main.go
     │   ├── scenes.go          ─── Legacy scene CRUD
     │   ├── locations.go       ─── Location CRUD
     │   ├── timeline.go        ─── Timeline events
-    │   └── generations.go     ─── Generate prose, list/accept generations
+    │   ├── generations.go     ─── Generate prose, list/accept generations
+    │   ├── bible.go           ─── Story Bible get/generate
+    │   └── chapters.go        ─── Chapter CRUD
     │
     ├── internal/domain        ─── Domain models (no infra deps)
-    │   ├── story/
-    │   ├── scene/
-    │   ├── character/
-    │   ├── location/
-    │   ├── memory/
-    │   └── timeline/
+    │   ├── story.go           ─── Story entity
+    │   ├── scene.go           ─── Scene + SceneEdge + Generation
+    │   ├── character.go       ─── Character + CharacterState
+    │   ├── location.go        ─── Hierarchical Location (dimension→room)
+    │   ├── bible.go           ─── StoryBible (world, rules, magic, factions)
+    │   ├── chapter.go         ─── Chapter (Act→Chapter→Scene)
+    │   ├── blueprint.go       ─── StoryBlueprint (acts, arcs, threads)
+    │   ├── memory.go          ─── CharacterMemory
+    │   ├── timeline.go        ─── TimelineEvent
+    │   ├── summary.go         ─── Summary
+    │   └── relationship.go    ─── Relationship + RelationshipDelta
     │
     ├── internal/service       ─── Business logic
+    │   ├── story.go           ─── Story CRUD, cascade delete, Scene/Edge/Character/Timeline/Summary/Memory services
     │   ├── location.go        ─── Location CRUD + GetByName
-    │   ├── generation/        ─── Generation pipeline orchestration
-    │   ├── validation/        ─── Canon/timeline/character validation
-    │   └── graph/             ─── DAG traversal + validation
+    │   ├── generation.go      ─── Durable pipeline orchestration (context.Background, partial success)
+    │   ├── bible.go           ─── Bible generation + storage
+    │   ├── chapter.go         ─── Chapter CRUD
+    │   └── context.go         ─── ContextBuilder — assembles Bible + states + memories + timeline → 20k prompt
     │
     ├── internal/repository    ─── Data access interfaces
     │   └── mongo/             ─── MongoDB implementations
@@ -205,32 +214,46 @@ User clicks "Generate" on a node
 api.GenerationHandler.Generate()
     │
     │ 1. Load scene from Mongo
-    │ 2. Compile context (characters, location, memories, state)
-    │ 3. Check PromptCache (Redis)
-    │ 4. Spawn GenerateSceneWorker
+    │ 2. Create Generation doc (status=running)
+    │ 3. Spawn goroutine with context.Background() — survives request
     │
     ▼
-worker.GenerateSceneWorker
+service.GenerationService.runPipeline()
+    │  ┌── service.ContextBuilder.Build()
+    │  │   → Bible + character states + locations (hierarchical)
+    │  │   → Memories (top-K per character) + timeline
+    │  │   → Summaries + blueprint/arcs
+    │  │   → Produces ~20k token CompiledContext
+    │  └────────────────────────────────────────────
     │
-    │ 1. Call ProseService.GenerateScene(params)
-    │    → Router routes to Anthropic (claude-sonnet) or Ollama (local-7b)
-    │ 2. Store generation output in Mongo
-    │ 3. Pipeline continues:
+    │ 1. generate (critical — retries 3×)
+    │    → ProseService.GenerateScene → Anthropic/Ollama
+    │    → Stores output in Mongo
+    │
+    │ 2. extract state (critical — retries 3×)
+    │    → ExtractStateWorker → local-7b
+    │
+    │ 3. create memories (best-effort)
+    │    → MemoryUpdateWorker → MongoDB
+    │
+    │ 4. record timeline (best-effort)
+    │    → TimelineWorker → MongoDB
+    │
+    │ 5. update summary (best-effort)
+    │    → SummaryWorker → local-7b
+    │
+    │ 6. validate canon (best-effort)
+    │    → ValidationWorker → claude-haiku
     │
     ▼
-worker.ExtractStateWorker  →  LLM extracts state deltas from scene text
-    │                         (local-7b via Ollama)
-    ▼
-worker.MemoryUpdateWorker  →  Create memories from state changes
-    ▼
-worker.TimelineWorker      →  Update timeline events
-    ▼
-worker.SummaryWorker       →  Update scene summary
-    ▼
-worker.ValidationWorker    →  Validate draft against canon (Haiku via Anthropic)
+Generation Status:
+  - success       → all steps complete
+  - partial_success → generate + extract passed, non-critical failed
+  - failed        → generate failed after retries
 ```
 
-Each worker runs in its own goroutine. Workers communicate through MongoDB (writes are visible to subsequent stages).
+Non-critical steps never fail the pipeline. Status is queryable via GET /api/v1/generations/{id}/status.
+Pipeline uses context.Background() so it survives HTTP request timeout or client disconnect.
 
 ## LLM Router
 
@@ -238,9 +261,9 @@ Each worker runs in its own goroutine. Workers communicate through MongoDB (writ
 
 | Model Tier | Provider | Use |
 |---|---|---|
-| `claude-sonnet` | Anthropic | High-quality prose generation |
+| `claude-sonnet` | Anthropic | High-quality prose generation, Bible generation |
 | `claude-haiku` | Anthropic | Fast validation |
-| `local-7b` | Ollama | Extraction, summarization, outline |
+| `local-7b` | Ollama | Extraction, summarization, outline, title |
 
 Retries: 1 initial + 2 retries = 3 attempts total, exponential backoff + jitter.
 - Anthropic: 1s base, 15s max, 2× (±25% jitter)
@@ -294,16 +317,27 @@ When Redis is unavailable, all features degrade gracefully (no caching, no rate 
 
 ## Evolution Path
 
-This project evolves from DAG-based story generation toward richer narrative intelligence — better character memory, better validation, better story planning. Infrastructure stays minimal:
+This project has evolved from DAG-based scene generation to a persistent narrative simulation engine. Current architecture (Phase 2):
 
-**Phase 1 — Current:**
+**Phase 2 — Narrative Simulation:**
 ```
-MongoDB + Redis → Go API → React Flow
+MongoDB + Redis → Go API (chi) → React Flow
+  Layers:
+    1. Story Bible — world rules, dimensions, magic, factions, cultures (generated once, ~50k tokens)
+    2. Location Graph — hierarchical dimension→planet→country→city→building→room
+    3. Character State Engine — append-only state per scene, knowledge/health/mood/inventory
+    4. Scene Planner — Act→Chapter→Scene hierarchy, guided progression
+    5. Context Builder — assembles Bible + states + memories + timeline → ~20k prompt
+    6. Durable Pipeline — context.Background(), partial success, retries, status tracking
 ```
 
-**Future additions only when measured bottlenecks prove them:**
-- MongoDB replica sets for HA
-- Sharding for scale
-- (No Kafka, no Qdrant, no Postgres unless forced)
+**Phase 3 — Planned:**
+- Sequential generation: whole acts, not individual scenes
+- Semantic memory recall (embedding-based top-K per character)
+- Branch-aware summary merging
 
-No infrastructure is added before it's needed. The moat is story intelligence, not database count.
+**Infrastructure philosophy:**
+- MongoDB + Redis only (no Kafka, no Qdrant, no Postgres)
+- Workers run in-process as goroutines (no message queue)
+- New data layers proven out before any infra addition
+- The moat is narrative intelligence, not database count

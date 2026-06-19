@@ -12,15 +12,17 @@ import (
 
 // StoryCascadeDeleter collects all repositories needed for cascade-deleting a story.
 type StoryCascadeDeleter struct {
-	SceneRepo  repository.SceneRepository
-	EdgeRepo   repository.SceneEdgeRepository
-	CharRepo   repository.CharacterRepository
-	StateRepo  repository.CharacterStateRepository
-	GenRepo    repository.GenerationRepository
-	MemRepo    repository.MemoryRepository
-	TlRepo     repository.TimelineRepository
-	SumRepo    repository.SummaryRepository
-	LocRepo    repository.LocationRepository
+	SceneRepo   repository.SceneRepository
+	EdgeRepo    repository.SceneEdgeRepository
+	CharRepo    repository.CharacterRepository
+	StateRepo   repository.CharacterStateRepository
+	GenRepo     repository.GenerationRepository
+	MemRepo     repository.MemoryRepository
+	TlRepo      repository.TimelineRepository
+	SumRepo     repository.SummaryRepository
+	LocRepo     repository.LocationRepository
+	BibleRepo   repository.BibleRepository
+	ChapterRepo repository.ChapterRepository
 }
 
 type StoryService struct {
@@ -129,6 +131,8 @@ func (d *StoryCascadeDeleter) cascade(ctx context.Context, storyID string) error
 		{"scenes",             d.SceneRepo.DeleteByStory},
 		{"characters",         d.CharRepo.DeleteByStory},
 		{"locations",          d.LocRepo.DeleteByStory},
+		{"chapters",           d.ChapterRepo.DeleteByStory},
+		{"bibles",             d.BibleRepo.DeleteByStory},
 	}
 
 	var firstErr error

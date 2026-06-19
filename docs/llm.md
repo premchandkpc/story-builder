@@ -85,9 +85,18 @@ All interfaces defined in `internal/llm/types.go`, implementations in `internal/
 - Temperature: 0.5, MaxTokens: 64
 - Model: local-7b
 
+### BibleService
+- `GenerateBible(ctx, story domain.Story) (*domain.StoryBible, error)`
+- Generates complete story bible (world, rules, magic, factions, cultures, tone)
+- Exists as a standalone service (not part of scene generation pipeline)
+- Output is valid JSON matching the bible schema
+- Temperature: 0.3, MaxTokens: 8192
+- Model: claude-sonnet
+- One-shot generation — bible is generated once, never regenerated
+
 ## Prompt Compiler
 
-`internal/prompt/compiler.go` — Built and wired into all 6 LLM services (Prose, Extraction, Summary, Merge, Validation, Outline).
+`internal/prompt/compiler.go` — Built and wired into all 7 LLM services (Prose, Extraction, Summary, Merge, Validation, Outline, Bible).
 
 ### 10-Layer Hierarchy
 
@@ -106,7 +115,7 @@ Global Prompt         Genre, rating, safety rules
 
 Each layer supports 5 merge strategies: `override`, `merge`, `append`, `replace`, `disable`.
 
-### Templates (7 built-in)
+### Templates (8 built-in)
 
 | Name | Model | Temp | System |
 |---|---|---|---|
@@ -117,6 +126,7 @@ Each layer supports 5 merge strategies: `override`, `merge`, `append`, `replace`
 | `join_merge` | claude-haiku | 0.2 | "You merge parallel branch summaries" |
 | `outline_story` | local-7b | 0.7 | "You generate structured story outlines" |
 | `generate_title` | local-7b | 0.5 | "You generate short story titles" |
+| `generate_bible` | claude-sonnet | 0.3 | "You are a world-building assistant" |
 
 ## Pipeline Flow (per scene generation)
 
