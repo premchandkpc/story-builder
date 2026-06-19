@@ -347,6 +347,32 @@ func (s *GenerationService) runPipeline(ctx context.Context, genID string, scene
 		s.publishEvent(ctx, events.Event{
 			Type: events.EventCharacterStatesExtracted, StoryID: scene.StoryID, SceneID: scene.ID, GenID: genID,
 		})
+
+		// Post-generation invariant validation
+		if s.sceneValidator != nil {
+			newStates, _ := s.stateRepo.ListByScene(ctx, scene.ID)
+			var checks []validation.PostGenerationCheck
+			for _, ns := range newStates {
+				check := validation.PostGenerationCheck{
+					CharacterID: ns.CharacterID,
+					NewLocation: ns.Location,
+					Learned:     extractLearned(ns.Changes),
+				}
+				prevStates, _ := s.stateRepo.ListByCharacter(ctx, ns.CharacterID)
+				for _, ps := range prevStates {
+					if ps.SceneID != scene.ID {
+						check.PreviousLocation = ps.Location
+						check.PreviousKnowledge = ps.Knowledge
+						break
+					}
+				}
+				checks = append(checks, check)
+			}
+			violations := s.sceneValidator.ValidatePostGeneration(ctx, scene, checks)
+			for _, v := range violations {
+				slog.Warn("post-generation validation", "genId", genID, "severity", v.Severity, "field", v.Field, "message", v.Message)
+			}
+		}
 	}
 
 	if sceneText != "" {
@@ -439,4 +465,29 @@ func (s *GenerationService) runPipeline(ctx context.Context, genID string, scene
 			Data: map[string]any{"status": domain.GenStatusSuccess},
 		})
 	}
+}
+
+func extractLearned(changes map[string]any) []string {
+	if changes == nil {
+		return nil
+	}
+	raw, ok := changes["learned"]
+	if !ok {
+		return nil
+	}
+	learned, ok := raw.([]string)
+	if !ok {
+		rawList, ok := raw.([]any)
+		if !ok {
+			return nil
+		}
+		learned = make([]string, 0, len(rawList))
+		for _, item := range rawList {
+			if s, ok := item.(string); ok {
+				learned = append(learned, s)
+			}
+		}
+		return learned
+	}
+	return learned
 }

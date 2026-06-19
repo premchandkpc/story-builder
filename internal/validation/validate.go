@@ -97,9 +97,9 @@ func (v *SceneValidator) ValidatePostGeneration(ctx context.Context, scene *doma
 	}
 
 	for _, c := range checks {
-		// Location continuity: character was in a different location than the scene
+		// Location continuity: character is at a different location than the scene
 		if c.PreviousLocation != "" && c.NewLocation != "" && scene.LocationRef != "" {
-			if c.PreviousLocation != scene.LocationRef && c.PreviousLocation != c.NewLocation {
+			if c.NewLocation != scene.LocationRef && c.PreviousLocation != scene.LocationRef {
 				violations = append(violations, Violation{
 					Severity: "warning",
 					Field:    "location_continuity",
