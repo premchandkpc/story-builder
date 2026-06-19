@@ -175,6 +175,18 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 		r.Get("/character-traits/{id}", h.NotImplemented)
 		r.Post("/character-traits", h.NotImplemented)
 
+		// ─── Story Blueprint ──────────────────────────────────
+		r.Route("/stories/{storyID}/blueprint", func(r chi.Router) {
+			r.Get("/", h.GetBlueprint)
+			r.Put("/", h.UpdateBlueprint)
+		})
+
+		// ─── Generations ─────────────────────────────────────
+		r.Route("/generations/{genID}", func(r chi.Router) {
+			r.Get("/status", h.GetGenerationStatus)
+			r.Get("/progress", h.SSEGenerationProgress)
+		})
+
 		// ─── Locations ───────────────────────────────────────
 		r.Route("/locations/{id}", func(r chi.Router) {
 			r.Get("/", h.GetLocation)

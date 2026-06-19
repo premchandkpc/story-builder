@@ -15,6 +15,8 @@ type StoryService interface {
 	Update(ctx context.Context, id string, params service.UpdateStoryParams) (*domain.Story, error)
 	List(ctx context.Context) ([]*domain.Story, error)
 	Delete(ctx context.Context, id string) error
+	GetBlueprint(ctx context.Context, id string) (*domain.StoryBlueprint, error)
+	UpdateBlueprint(ctx context.Context, id string, bp *domain.StoryBlueprint) error
 }
 
 type SceneService interface {
@@ -42,6 +44,7 @@ type CharacterService interface {
 
 type GenerationService interface {
 	Generate(ctx context.Context, sceneID string) (*domain.Generation, error)
+	GetGeneration(ctx context.Context, genID string) (*domain.Generation, error)
 	AcceptGeneration(ctx context.Context, sceneID, genID string) error
 	ListGenerations(ctx context.Context, sceneID string) ([]*domain.Generation, error)
 }
@@ -79,7 +82,8 @@ type Handlers struct {
 	sumSvc     SummaryService
 	memSvc     MemoryService
 	locSvc     LocationService
-	outlineSvc *llm.OutlineServiceImpl
+	outlineSvc llm.OutlineService
+	progress   *ProgressHub
 }
 
 func NewHandlers(
@@ -92,13 +96,14 @@ func NewHandlers(
 	sumSvc SummaryService,
 	memSvc MemoryService,
 	locSvc LocationService,
-	outlineSvc *llm.OutlineServiceImpl,
+	outlineSvc llm.OutlineService,
+	progress *ProgressHub,
 ) *Handlers {
 	return &Handlers{
 		storySvc: storySvc, sceneSvc: sceneSvc, edgeSvc: edgeSvc,
 		charSvc: charSvc, genSvc: genSvc, tlSvc: tlSvc,
 		sumSvc: sumSvc, memSvc: memSvc, locSvc: locSvc,
-		outlineSvc: outlineSvc,
+		outlineSvc: outlineSvc, progress: progress,
 	}
 }
 

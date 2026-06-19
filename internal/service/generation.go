@@ -20,6 +20,7 @@ type GenerationServiceConfig struct {
 	StoryRepo   repository.StoryRepository
 	CharRepo    repository.CharacterRepository
 	StateRepo   repository.CharacterStateRepository
+	EdgeRepo    repository.SceneEdgeRepository
 	MemRepo     repository.MemoryRepository
 	TlRepo      repository.TimelineRepository
 	SumRepo     repository.SummaryRepository
@@ -36,6 +37,7 @@ type GenerationService struct {
 	storyRepo   repository.StoryRepository
 	charRepo    repository.CharacterRepository
 	stateRepo   repository.CharacterStateRepository
+	edgeRepo    repository.SceneEdgeRepository
 	memRepo     repository.MemoryRepository
 	tlRepo      repository.TimelineRepository
 	sumRepo     repository.SummaryRepository
@@ -48,15 +50,20 @@ type GenerationService struct {
 
 	genInFlight    sync.Map
 	acceptInFlight sync.Map
+	progress       ProgressPublisher
 }
 
 func NewGenerationService(cfg GenerationServiceConfig) *GenerationService {
 	return &GenerationService{
 		genRepo: cfg.GenRepo, sceneRepo: cfg.SceneRepo, storyRepo: cfg.StoryRepo,
-		charRepo: cfg.CharRepo, stateRepo: cfg.StateRepo, memRepo: cfg.MemRepo,
-		tlRepo: cfg.TlRepo, sumRepo: cfg.SumRepo, locRepo: cfg.LocRepo,
+		charRepo: cfg.CharRepo, stateRepo: cfg.StateRepo, edgeRepo: cfg.EdgeRepo,
+		memRepo: cfg.MemRepo, tlRepo: cfg.TlRepo, sumRepo: cfg.SumRepo, locRepo: cfg.LocRepo,
 		proseSvc: cfg.ProseSvc, extractSvc: cfg.ExtractSvc, summarySvc: cfg.SummarySvc, validateSvc: cfg.ValidateSvc,
 	}
+}
+
+func (s *GenerationService) SetProgressPublisher(p ProgressPublisher) {
+	s.progress = p
 }
 
 func (s *GenerationService) Generate(ctx context.Context, sceneID string) (*domain.Generation, error) {
@@ -136,12 +143,28 @@ func (s *GenerationService) buildPromptParams(ctx context.Context, scene *domain
 			Type:         "character",
 			Traits:       c.Traits,
 			VoiceSamples: c.VoiceSamples,
+			Want:         c.Want,
+			Need:         c.Need,
+			FalseBelief:  c.FalseBelief,
+			ArcType:      c.ArcType,
 		}
 		if c.Backstory != "" {
 			card.Description = c.Persona + ". " + c.Backstory
 		}
 		if c.Relationships != nil {
 			card.Relationships = c.Relationships
+		}
+		if len(c.RelData) > 0 {
+			relData := make(map[string]llm.NumericRelationships, len(c.RelData))
+			for _, r := range c.RelData {
+				relData[r.TargetName] = llm.NumericRelationships{
+					Trust:     r.Trust,
+					Respect:   r.Respect,
+					Fear:      r.Fear,
+					Affection: r.Affection,
+				}
+			}
+			card.RelData = relData
 		}
 		params.CharacterCards = append(params.CharacterCards, card)
 
@@ -190,6 +213,32 @@ func (s *GenerationService) buildPromptParams(ctx context.Context, scene *domain
 		params.BranchSummary = existing.Content
 	}
 
+	memories := make(map[string][]string)
+	for charID := range participantIDs {
+		mems, err := s.memRepo.ListByCharacter(ctx, charID)
+		if err != nil || len(mems) == 0 {
+			continue
+		}
+		charName := ""
+		for _, c := range allChars {
+			if c.CharID == charID || c.ID == charID {
+				charName = c.Name
+				break
+			}
+		}
+		if charName == "" {
+			continue
+		}
+		snippets := make([]string, 0, len(mems))
+		for _, m := range mems {
+			snippets = append(snippets, m.Content)
+		}
+		memories[charName] = snippets
+	}
+	if len(memories) > 0 {
+		params.Memories = memories
+	}
+
 	return params, charNameToID
 }
 
@@ -234,6 +283,10 @@ func (s *GenerationService) AcceptGeneration(ctx context.Context, sceneID, genID
 	return nil
 }
 
+func (s *GenerationService) GetGeneration(ctx context.Context, genID string) (*domain.Generation, error) {
+	return s.genRepo.Get(ctx, genID)
+}
+
 func (s *GenerationService) ListGenerations(ctx context.Context, sceneID string) ([]*domain.Generation, error) {
 	return s.genRepo.ListByScene(ctx, sceneID)
 }
@@ -242,13 +295,16 @@ func (s *GenerationService) setStepStatus(ctx context.Context, genID, step, stat
 	if err := s.genRepo.SetStepStatus(ctx, genID, step, status); err != nil {
 		slog.Error("set step status failed", "genId", genID, "step", step, "status", status, "error", err)
 	}
+	if s.progress != nil {
+		s.progress.Publish(genID, ProgressEvent{GenID: genID, Step: step, Status: status})
+	}
 }
 
 func (s *GenerationService) runPipeline(ctx context.Context, genID string, scene *domain.Scene, params llm.PromptParams, charNameToID map[string]string) {
 	genWorker := worker.NewGenerateSceneWorker(s.proseSvc, s.genRepo, s.sceneRepo)
 	extractWorker := worker.NewExtractStateWorker(s.extractSvc, s.stateRepo)
 	memWorker := worker.NewMemoryUpdateWorker(s.memRepo)
-	tlWorker := worker.NewTimelineWorker(s.tlRepo)
+	tlWorker := worker.NewTimelineWorker(s.tlRepo, s.edgeRepo)
 	sumWorker := worker.NewSummaryWorker(s.summarySvc, s.sumRepo)
 	valWorker := worker.NewValidationWorker(s.validateSvc, s.genRepo)
 

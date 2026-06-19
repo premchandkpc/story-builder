@@ -59,25 +59,38 @@ func (c *CircuitBreakerClient) Complete(ctx context.Context, req CompletionReque
 
 	if halfOpen {
 		c.probe.Lock()
-		defer c.probe.Unlock()
+
+		c.mu.Lock()
+		if c.state != circuitHalfOpen {
+			c.mu.Unlock()
+			c.probe.Unlock()
+			halfOpen = false
+		} else {
+			c.mu.Unlock()
+		}
 	}
 
 	resp, err := c.client.Complete(ctx, req)
 
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if err != nil {
 		c.failures++
 		c.lastFailureAt = time.Now()
 		if c.failures >= c.config.threshold {
 			c.state = circuitOpen
 		}
+		if halfOpen {
+			c.probe.Unlock()
+		}
+		c.mu.Unlock()
 		return nil, err
 	}
 
 	if halfOpen {
 		c.state = circuitClosed
+		c.probe.Unlock()
 	}
 	c.failures = 0
+	c.mu.Unlock()
 	return resp, nil
 }

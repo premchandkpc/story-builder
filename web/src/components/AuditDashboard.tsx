@@ -112,10 +112,11 @@ export default function AuditDashboard() {
         ))}
       </div>
 
-      {filtered.map(f => (
+      {filtered.map((f, i) => (
         <div key={f.id} style={{
           background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8,
           padding: "14px 18px", marginBottom: 8, display: "flex", gap: 12,
+          animation: `slideUp 0.25s var(--ease-out) ${i * 0.03}s both`,
         }}>
           <span style={{
             width: 10, height: 10, borderRadius: "50%", flexShrink: 0, marginTop: 4,

@@ -22,6 +22,7 @@ type PromptParams struct {
 	POV            string
 	Tone           string
 	TargetWords    int
+	Memories       map[string][]string
 }
 
 type ToolDefinition struct {

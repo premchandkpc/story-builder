@@ -117,6 +117,7 @@ export const api = {
     get:    (id: string)                => request<Story>(`/stories/${id}`),
     create: (data: CreateStoryPayload)  =>
       request<Story>("/stories", { method: "POST", body: JSON.stringify(data) }),
+    delete: (id: string)                => request<void>(`/stories/${id}`, { method: "DELETE" }),
     // generate: LLM-based full story generation from a synopsis
     generate: (data: { synopsis: string }) =>
       request<StoryGenerateResult>("/stories/generate", { method: "POST", body: JSON.stringify(data) }),
@@ -170,6 +171,8 @@ export const api = {
       request<GraphNode>(`/stories/${storyId}/nodes`, { method: "POST", body: JSON.stringify(data) }),
     update: (storyId: string, id: string, data: CreateNodePayload) =>
       request<GraphNode>(`/stories/${storyId}/nodes/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    delete: (storyId: string, id: string) =>
+      request<void>(`/stories/${storyId}/nodes/${id}`, { method: "DELETE" }),
   },
 
   // ==========================================
@@ -208,8 +211,10 @@ export const api = {
   // ==========================================
   edges: {
     list:   (storyId: string) => request<GraphEdge[]>(`/stories/${storyId}/edges`),
+    get:    (storyId: string, id: string) => request<GraphEdge>(`/stories/${storyId}/edges/${id}`),
     create: (storyId: string, data: CreateEdgePayload) =>
       request<void>(`/stories/${storyId}/edges`, { method: "POST", body: JSON.stringify(data) }),
+    delete: (storyId: string, id: string) => request<void>(`/stories/${storyId}/edges/${id}`, { method: "DELETE" }),
   },
 
   // ==========================================

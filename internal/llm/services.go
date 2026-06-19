@@ -28,6 +28,7 @@ func (s *ProseServiceImpl) GenerateScene(ctx context.Context, params PromptParam
 		POV:            params.POV,
 		Tone:           params.Tone,
 		TargetWords:    params.TargetWords,
+		Memories:       params.Memories,
 	}
 	if params.CharState != nil {
 		cc.CharState = make(map[string]CharacterState)

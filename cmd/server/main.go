@@ -118,16 +118,20 @@ func main() {
 
 	genSvc := service.NewGenerationService(service.GenerationServiceConfig{
 		GenRepo: genRepo, SceneRepo: sceneRepo, StoryRepo: storyRepo,
-		CharRepo: charRepo, StateRepo: stateRepo, MemRepo: memRepo,
-		TlRepo: tlRepo, SumRepo: sumRepo, LocRepo: locRepo,
+		CharRepo: charRepo, StateRepo: stateRepo, EdgeRepo: edgeRepo,
+		MemRepo: memRepo, TlRepo: tlRepo, SumRepo: sumRepo, LocRepo: locRepo,
 		ProseSvc: proseSvc, ExtractSvc: extractSvc, SummarySvc: summarySvc, ValidateSvc: validateSvc,
 	})
 	tlSvc := service.NewTimelineService(tlRepo)
 	sumSvc := service.NewSummaryService(sumRepo)
 	memSvc := service.NewMemoryService(memRepo)
 
+	// ─── Progress Hub ──────────────────────────────────────
+	progressHub := api.NewProgressHub()
+	genSvc.SetProgressPublisher(progressHub)
+
 	// ─── Handlers ──────────────────────────────────────────
-	h := api.NewHandlers(storySvc, sceneSvc, edgeSvc, charSvc, genSvc, tlSvc, sumSvc, memSvc, locSvc, outlineSvc)
+	h := api.NewHandlers(storySvc, sceneSvc, edgeSvc, charSvc, genSvc, tlSvc, sumSvc, memSvc, locSvc, outlineSvc, progressHub)
 
 	// ─── Server ────────────────────────────────────────────
 	srv := api.NewServer(h, rateLimiter)

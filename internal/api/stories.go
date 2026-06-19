@@ -116,6 +116,35 @@ func (h *Handlers) GenerateStory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Build and store the story blueprint from the outline.
+	acts := make([]domain.Act, 0)
+	actMap := make(map[int]int)
+	for _, b := range outline.Beats {
+		if idx, ok := actMap[b.Act]; ok {
+			_ = idx
+		} else {
+			actMap[b.Act] = len(acts)
+			acts = append(acts, domain.Act{Number: b.Act})
+		}
+	}
+	charArcs := make([]domain.CharacterArc, 0, len(outline.Characters))
+	for _, c := range outline.Characters {
+		charArcs = append(charArcs, domain.CharacterArc{
+			CharacterName: c.Name,
+			Want:          pickString(c.Goals, 0),
+			ArcType:       "growth",
+		})
+	}
+	bp := &domain.StoryBlueprint{
+		Premise:       outline.Synopsis,
+		Genre:         story.Genre,
+		Acts:          acts,
+		CharacterArcs: charArcs,
+	}
+	if err := h.storySvc.UpdateBlueprint(r.Context(), story.ID, bp); err != nil {
+		slog.Error("generate story: store blueprint failed", "error", err)
+	}
+
 	charIDByName := make(map[string]string, len(outline.Beats))
 	for _, c := range outline.Characters {
 		personality := make(map[string]any)
@@ -146,9 +175,7 @@ func (h *Handlers) GenerateStory(w http.ResponseWriter, r *http.Request) {
 	beatIDByTitle := make(map[string]string, len(outline.Beats))
 	for i, b := range outline.Beats {
 		if b.LocationName != "" {
-			if id, ok := locIDByName[b.LocationName]; ok {
-				_ = id
-			} else {
+			if _, ok := locIDByName[b.LocationName]; !ok {
 				loc := &domain.Location{
 					StoryID: story.ID,
 					Name:    b.LocationName,
@@ -160,7 +187,7 @@ func (h *Handlers) GenerateStory(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-			locRef := b.LocationName
+		locRef := b.LocationName
 		if id, ok := locIDByName[b.LocationName]; ok {
 			locRef = id
 		}
@@ -209,4 +236,39 @@ func (h *Handlers) GenerateStory(w http.ResponseWriter, r *http.Request) {
 		"story_id": story.ID,
 		"status":   "outlined",
 	})
+}
+
+func pickString(s []string, idx int) string {
+	if idx < len(s) {
+		return s[idx]
+	}
+	return ""
+}
+
+func (h *Handlers) GetBlueprint(w http.ResponseWriter, r *http.Request) {
+	storyID := chi.URLParam(r, "storyID")
+	bp, err := h.storySvc.GetBlueprint(r.Context(), storyID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if bp == nil {
+		writeJSON(w, http.StatusOK, map[string]string{"blueprint": "none"})
+		return
+	}
+	writeJSON(w, http.StatusOK, bp)
+}
+
+func (h *Handlers) UpdateBlueprint(w http.ResponseWriter, r *http.Request) {
+	storyID := chi.URLParam(r, "storyID")
+	var bp domain.StoryBlueprint
+	if err := json.NewDecoder(r.Body).Decode(&bp); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if err := h.storySvc.UpdateBlueprint(r.Context(), storyID, &bp); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }

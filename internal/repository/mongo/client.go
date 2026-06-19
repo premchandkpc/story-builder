@@ -49,9 +49,8 @@ func EnsureIndexes(ctx context.Context, db *mongo.Database) error {
 		"characters": {
 			{Keys: bson.D{{Key: "storyId", Value: 1}}},
 			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "name", Value: 1}}},
-			{Keys: bson.D{{Key: "charId", Value: 1}, {Key: "version", Value: -1}}},
 			{
-				Keys:    bson.D{{Key: "charId", Value: 1}, {Key: "storyId", Value: 1}},
+				Keys:    bson.D{{Key: "charId", Value: 1}, {Key: "version", Value: -1}},
 				Options: options.Index().SetUnique(true),
 			},
 		},

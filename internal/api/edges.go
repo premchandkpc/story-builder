@@ -53,13 +53,19 @@ func (h *Handlers) ListEdges(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) DeleteEdge(w http.ResponseWriter, r *http.Request) {
 	storyID := chi.URLParam(r, "storyID")
-	fromNode := r.URL.Query().Get("from_node")
-	toNode := r.URL.Query().Get("to_node")
-	if fromNode == "" || toNode == "" {
-		writeError(w, http.StatusBadRequest, "from_node and to_node query params required")
+	var body struct {
+		FromScene string `json:"from_scene"`
+		ToScene   string `json:"to_scene"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if err := h.edgeSvc.Delete(r.Context(), storyID, fromNode, toNode); err != nil {
+	if body.FromScene == "" || body.ToScene == "" {
+		writeError(w, http.StatusBadRequest, "from_scene and to_scene are required")
+		return
+	}
+	if err := h.edgeSvc.Delete(r.Context(), storyID, body.FromScene, body.ToScene); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

@@ -370,6 +370,7 @@ const inputStyle: Record<string, string | number> = {
   fontSize: 14,
   boxSizing: "border-box",
   outline: "none",
+  transition: "border-color 0.15s var(--ease-in-out)",
 }
 
 export function btnStyle(bg: string, disabled = false): Record<string, string | number> {
@@ -382,7 +383,40 @@ export function btnStyle(bg: string, disabled = false): Record<string, string | 
     cursor: disabled ? "not-allowed" : "pointer",
     fontWeight: 600,
     fontSize: 14,
+    transition: "background 0.15s var(--ease-in-out), transform 0.1s var(--ease-out)",
   }
+}
+
+export function skeletonStyle(width: string | number = "100%", height = 14): Record<string, string | number> {
+  return {
+    width,
+    height,
+    borderRadius: 4,
+    background: "linear-gradient(90deg, var(--surface) 25%, var(--surface-hover) 50%, var(--surface) 75%)",
+    backgroundSize: "200% 100%",
+    animation: "shimmer 1.5s infinite",
+  }
+}
+
+export const spinnerStyle: Record<string, string | number> = {
+  width: 20,
+  height: 20,
+  border: "2px solid var(--border)",
+  borderTopColor: "var(--accent)",
+  borderRadius: "50%",
+  animation: "spin 0.7s linear infinite",
+}
+
+export const fadeInStyle: Record<string, string | number> = {
+  animation: "fadeIn 0.25s var(--ease-out)",
+}
+
+export const slideUpStyle: Record<string, string | number> = {
+  animation: "slideUp 0.3s var(--ease-out)",
+}
+
+export const scaleInStyle: Record<string, string | number> = {
+  animation: "scaleIn 0.2s var(--ease-out)",
 }
 
 export { inputStyle }

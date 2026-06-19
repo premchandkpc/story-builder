@@ -8,14 +8,26 @@ import (
 	"strings"
 )
 
+type NumericRelationships struct {
+	Trust     float64 `json:"trust"`
+	Respect   float64 `json:"respect"`
+	Fear      float64 `json:"fear"`
+	Affection float64 `json:"affection"`
+}
+
 type CharacterCard struct {
-	Name          string            `json:"name"`
-	Description   string            `json:"description"`
-	Type          string            `json:"type"`
-	Traits        []string          `json:"traits,omitempty"`
-	VoiceSamples  []string          `json:"voice_samples,omitempty"`
-	Props         []string          `json:"props,omitempty"`
-	Relationships map[string]string `json:"relationships,omitempty"`
+	Name          string                         `json:"name"`
+	Description   string                         `json:"description"`
+	Type          string                         `json:"type"`
+	Traits        []string                       `json:"traits,omitempty"`
+	VoiceSamples  []string                       `json:"voice_samples,omitempty"`
+	Props         []string                       `json:"props,omitempty"`
+	Relationships map[string]string              `json:"relationships,omitempty"`
+	RelData       map[string]NumericRelationships `json:"rel_data,omitempty"`
+	Want          string                         `json:"want,omitempty"`
+	Need          string                         `json:"need,omitempty"`
+	FalseBelief   string                         `json:"false_belief,omitempty"`
+	ArcType       string                         `json:"arc_type,omitempty"`
 }
 
 type CharacterState struct {
@@ -55,6 +67,7 @@ type CompiledContext struct {
 	LocationCard   *CharacterCard               `json:"location_card,omitempty"`
 	BranchSummary  string                       `json:"branch_summary"`
 	CharState      map[string]CharacterState    `json:"char_state"`
+	Memories       map[string][]string          `json:"memories,omitempty"`
 	Lore           []string                     `json:"lore"`
 	BeatIntent     string                       `json:"beat_intent"`
 	POV            string                       `json:"pov"`
@@ -81,6 +94,18 @@ func (c *CompiledContext) BuildCanonXML() string {
 		canon += fmt.Sprintf("<character name=\"%s\">\n", esc(card.Name))
 		canon += fmt.Sprintf("Traits: %v\n", card.Traits)
 		canon += fmt.Sprintf("Relationships: %v\n", card.Relationships)
+		if len(card.RelData) > 0 {
+			canon += "Relationship scores (0-100):\n"
+			for target, rel := range card.RelData {
+				canon += fmt.Sprintf("  %s → trust:%v respect:%v fear:%v affection:%v\n", esc(target), rel.Trust, rel.Respect, rel.Fear, rel.Affection)
+			}
+		}
+		if card.Want != "" {
+			canon += fmt.Sprintf("Wants: %s\n", esc(card.Want))
+		}
+		if card.Need != "" {
+			canon += fmt.Sprintf("Needs: %s\n", esc(card.Need))
+		}
 		canon += "Voice samples:\n"
 		for _, v := range card.VoiceSamples {
 			canon += fmt.Sprintf("- \"%s\"\n", esc(v))
@@ -108,6 +133,12 @@ func (c *CompiledContext) BuildCharStateXML() string {
 			stateBlock += fmt.Sprintf("does NOT know: %v\n", st.DoesNotKnow)
 		} else {
 			stateBlock += "does NOT know: []\n"
+		}
+		if mems, ok := c.Memories[char]; ok && len(mems) > 0 {
+			stateBlock += "recent memories:\n"
+			for _, m := range mems {
+				stateBlock += fmt.Sprintf("- %s\n", esc(m))
+			}
 		}
 	}
 	return stateBlock

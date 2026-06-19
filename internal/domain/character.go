@@ -17,6 +17,12 @@ type Character struct {
 	Traits          []string         `bson:"traits,omitempty" json:"traits,omitempty"`
 	VoiceSamples    []string         `bson:"voiceSamples,omitempty" json:"voiceSamples,omitempty"`
 	Relationships   map[string]string `bson:"relationships,omitempty" json:"relationships,omitempty"`
+	RelData         []Relationship   `bson:"relData,omitempty" json:"relData,omitempty"`
+	Want            string           `bson:"want,omitempty" json:"want,omitempty"`
+	Need            string           `bson:"need,omitempty" json:"need,omitempty"`
+	FalseBelief     string           `bson:"falseBelief,omitempty" json:"falseBelief,omitempty"`
+	Fear            string           `bson:"fear,omitempty" json:"fear,omitempty"`
+	ArcType         string           `bson:"arcType,omitempty" json:"arcType,omitempty"`
 	CreatedAt       time.Time        `bson:"createdAt" json:"createdAt"`
 }
 

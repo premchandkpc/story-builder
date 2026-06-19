@@ -79,6 +79,30 @@ func (s *StoryService) List(ctx context.Context) ([]*domain.Story, error) {
 	return s.repo.List(ctx)
 }
 
+func (s *StoryService) GetBlueprint(ctx context.Context, id string) (*domain.StoryBlueprint, error) {
+	st, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if st == nil {
+		return nil, fmt.Errorf("story not found")
+	}
+	return st.Blueprint, nil
+}
+
+func (s *StoryService) UpdateBlueprint(ctx context.Context, id string, bp *domain.StoryBlueprint) error {
+	st, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	if st == nil {
+		return fmt.Errorf("story not found")
+	}
+	st.Blueprint = bp
+	st.UpdatedAt = time.Now()
+	return s.repo.Update(ctx, st)
+}
+
 func (s *StoryService) Delete(ctx context.Context, id string) error {
 	if s.deleter != nil {
 		if err := s.deleter.cascade(ctx, id); err != nil {

@@ -1,11 +1,25 @@
 import { useState } from "react"
-import { inputStyle, btnStyle } from "../api/types"
+import { inputStyle, btnStyle, spinnerStyle, slideUpStyle } from "../api/types"
 import { useCreateStory, useGenerateTitle, useGenerateStory } from "../api/hooks"
+
+const wandSvg = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+    <path d="M15 4V2M15 16v-2M8 9h-2M20 9h-2M17 6l-9 9" />
+    <path d="M20 17l-9 9" transform="rotate(45 15.5 15.5)" />
+  </svg>
+)
+
+const sparkleSvg = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+    <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z" />
+  </svg>
+)
 
 export default function HomeView() {
   const [newTitle, setNewTitle] = useState("")
   const [synopsis, setSynopsis] = useState("")
   const [error, setError] = useState<string | null>(null)
+  const [successMsg, setSuccessMsg] = useState("")
 
   const createStoryMut = useCreateStory()
   const generateTitleMut = useGenerateTitle()
@@ -13,6 +27,7 @@ export default function HomeView() {
 
   const handleGenerateTitle = async () => {
     if (!synopsis.trim()) return
+    setError(null)
     try {
       const res = await generateTitleMut.mutateAsync(synopsis)
       setNewTitle(res.title)
@@ -24,15 +39,19 @@ export default function HomeView() {
   const handleCreate = (title?: string) => {
     const t = (title || newTitle || synopsis.trim().slice(0, 50)).trim()
     if (!t) return
+    setError(null)
+    setSuccessMsg("")
     createStoryMut.mutate(t)
   }
 
   const handleGenerateStory = async () => {
     if (!synopsis.trim()) return
+    setError(null)
+    setSuccessMsg("")
     try {
       await generateStoryMut.mutateAsync(synopsis)
       setSynopsis("")
-      setError("Story generation started (async). Refresh in a moment.")
+      setSuccessMsg("Story generation started! Redirecting...")
     } catch {
       setError("Failed to start generation")
     }
@@ -47,12 +66,14 @@ export default function HomeView() {
       minHeight: "100%",
       gap: 24,
       padding: 40,
+      animation: "fadeIn 0.3s var(--ease-out)",
     }}>
-      {error && (
+      {(error || successMsg) && (
         <div style={{
-          background: "rgba(212, 103, 103, 0.15)",
-          color: "var(--error)",
-          border: "1px solid var(--error)",
+          ...slideUpStyle,
+          background: error ? "rgba(212, 103, 103, 0.15)" : "rgba(123, 184, 123, 0.15)",
+          color: error ? "var(--error)" : "var(--success)",
+          border: `1px solid ${error ? "var(--error)" : "var(--success)"}`,
           padding: "10px 18px",
           borderRadius: 8,
           fontSize: 13,
@@ -60,25 +81,38 @@ export default function HomeView() {
           alignItems: "center",
           gap: 12,
         }}>
-          {error}
-          <button onClick={() => setError(null)} style={{
-            background: "none", border: "none", color: "var(--error)",
-            cursor: "pointer", fontSize: 18, lineHeight: 1,
+          {error || successMsg}
+          <button onClick={() => { setError(null); setSuccessMsg("") }} style={{
+            background: "none", border: "none",
+            color: error ? "var(--error)" : "var(--success)",
+            cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 0,
           }}>×</button>
         </div>
       )}
 
-      <div style={{
-        fontFamily: "var(--font-heading)",
-        fontSize: 28,
-        fontWeight: 700,
-        color: "var(--accent)",
-        letterSpacing: "-0.02em",
-      }}>
-        Story Builder
+      <div style={{ textAlign: "center", animation: "slideUp 0.4s var(--ease-out)" }}>
+        <div style={{
+          fontFamily: "var(--font-heading)",
+          fontSize: 32,
+          fontWeight: 700,
+          color: "var(--accent)",
+          letterSpacing: "-0.02em",
+          marginBottom: 8,
+        }}>
+          Story Builder
+        </div>
+        <div style={{
+          width: 40,
+          height: 3,
+          background: "var(--accent)",
+          borderRadius: 2,
+          margin: "0 auto",
+          opacity: 0.5,
+        }} />
       </div>
 
       <div style={{
+        ...slideUpStyle,
         background: "var(--surface)",
         border: "1px solid var(--border)",
         borderRadius: 12,
@@ -87,7 +121,11 @@ export default function HomeView() {
         display: "flex",
         flexDirection: "column",
         gap: 14,
-      }}>
+        transition: "border-color 0.2s",
+      }}
+        onMouseEnter={(e) => e.currentTarget.style.borderColor = "var(--accent)"}
+        onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--border)"}
+      >
         <div style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>
           Create Story
         </div>
@@ -103,10 +141,14 @@ export default function HomeView() {
           <button
             onClick={handleGenerateTitle}
             disabled={!synopsis.trim() || generateTitleMut.isPending}
-            style={btnStyle("var(--secondary)", !synopsis.trim() || generateTitleMut.isPending)}
+            style={{
+              ...btnStyle("var(--secondary)", !synopsis.trim() || generateTitleMut.isPending),
+              width: 40, display: "flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0,
+            }}
             title="Generate title from synopsis"
           >
-            {generateTitleMut.isPending ? "..." : "✨"}
+            {generateTitleMut.isPending ? <div style={spinnerStyle} /> : wandSvg}
           </button>
         </div>
 
@@ -115,22 +157,24 @@ export default function HomeView() {
           onChange={(e) => setSynopsis(e.target.value)}
           placeholder="Describe the story you want to generate..."
           rows={4}
-          style={{ ...inputStyle, resize: "vertical" }}
+          style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
         />
 
         <div style={{ display: "flex", gap: 8 }}>
           <button
             onClick={() => handleCreate()}
-            style={{ ...btnStyle("var(--accent)", !newTitle.trim() && !synopsis.trim()), flex: 1 }}
+            style={{ ...btnStyle("var(--accent)", !newTitle.trim() && !synopsis.trim()), flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
             disabled={!newTitle.trim() && !synopsis.trim()}
           >
+            {createStoryMut.isPending ? <div style={spinnerStyle} /> : sparkleSvg}
             Create{!newTitle.trim() && synopsis.trim() ? " (auto-title)" : ""}
           </button>
           <button
             onClick={handleGenerateStory}
             disabled={generateStoryMut.isPending || !synopsis.trim()}
-            style={{ ...btnStyle("var(--secondary)", generateStoryMut.isPending || !synopsis.trim()), flex: 1 }}
+            style={{ ...btnStyle("var(--secondary)", generateStoryMut.isPending || !synopsis.trim()), flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
           >
+            {generateStoryMut.isPending ? <div style={spinnerStyle} /> : null}
             {generateStoryMut.isPending ? "Generating..." : "Full Generate"}
           </button>
         </div>

@@ -9,10 +9,11 @@ interface StoryListItemProps {
   generated: number
   stale: number
   isActive: boolean
+  index?: number
 }
 
 export default function StoryListItem({
-  story, chapterCount, sceneCount, accepted, generated, stale, isActive
+  story, chapterCount, sceneCount, accepted, generated, stale, isActive, index = 0
 }: StoryListItemProps) {
   const navigate = useNavigate()
 
@@ -38,6 +39,7 @@ export default function StoryListItem({
         background: isActive ? "var(--surface)" : "transparent",
         border: "none",
         borderBottom: "1px solid var(--border)",
+        borderLeft: isActive ? "2px solid var(--accent)" : "2px solid transparent",
         color: "var(--text)",
         cursor: "pointer",
         textAlign: "left",
@@ -45,7 +47,8 @@ export default function StoryListItem({
         display: "flex",
         flexDirection: "column",
         gap: 3,
-        transition: "background 0.1s",
+        transition: "background 0.15s, border-left-color 0.15s",
+        animation: `slideInLeft 0.25s var(--ease-out) ${index * 0.03}s both`,
       }}
       onMouseEnter={(e) => {
         if (!isActive) e.currentTarget.style.background = "var(--surface-hover)"
@@ -61,7 +64,7 @@ export default function StoryListItem({
           borderRadius: "50%",
           background: statusColor,
           flexShrink: 0,
-          boxShadow: `0 0 4px ${statusColor}`,
+          boxShadow: `0 0 6px ${statusColor}`,
         }} />
         <span style={{
           fontWeight: isActive ? 700 : 500,
