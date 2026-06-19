@@ -149,7 +149,7 @@ func main() {
 	genSvc.SetProgressPublisher(progressHub)
 
 	// ─── Handlers ──────────────────────────────────────────
-	h := api.NewHandlers(storySvc, sceneSvc, edgeSvc, charSvc, genSvc, genSvc, tlSvc, sumSvc, memSvc, locSvc, bibleSvc, chapterSvc, outlineSvc, titleSvc, progressHub)
+	h := api.NewHandlers(storySvc, sceneSvc, edgeSvc, charSvc, genSvc, genSvc, tlSvc, sumSvc, memSvc, locSvc, bibleSvc, chapterSvc, outlineSvc, titleSvc, progressHub, eventBus)
 
 	// ─── Server ────────────────────────────────────────────
 	srv := api.NewServer(h, rateLimiter)

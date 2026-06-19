@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/premchand/story-builder/internal/domain"
+	"github.com/premchand/story-builder/internal/events"
 	"github.com/premchand/story-builder/internal/llm"
 	"github.com/premchand/story-builder/internal/service"
 )
@@ -107,6 +108,7 @@ type Handlers struct {
 	outlineSvc   llm.OutlineService
 	titleSvc     llm.TitleService
 	progress     *ProgressHub
+	eventBus     events.Bus
 }
 
 func NewHandlers(
@@ -125,6 +127,7 @@ func NewHandlers(
 	outlineSvc llm.OutlineService,
 	titleSvc llm.TitleService,
 	progress *ProgressHub,
+	eventBus events.Bus,
 ) *Handlers {
 	return &Handlers{
 		storySvc: storySvc, sceneSvc: sceneSvc, edgeSvc: edgeSvc,
@@ -132,7 +135,19 @@ func NewHandlers(
 		sumSvc: sumSvc, memSvc: memSvc, locSvc: locSvc,
 		bibleSvc: bibleSvc, chapterSvc: chapterSvc,
 		outlineSvc: outlineSvc, titleSvc: titleSvc, progress: progress,
+		eventBus: eventBus,
 	}
+}
+
+func (h *Handlers) publishEntityEvent(ctx context.Context, eventType, storyID string, data map[string]any) {
+	if h.eventBus == nil {
+		return
+	}
+	_ = h.eventBus.Publish(ctx, events.Event{
+		Type:    eventType,
+		StoryID: storyID,
+		Data:    data,
+	})
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {

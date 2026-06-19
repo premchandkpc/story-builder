@@ -29,6 +29,7 @@ func (h *Handlers) CreateStory(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.publishEntityEvent(r.Context(), events.EventStoryCreated, story.ID, map[string]any{"title": story.Title})
 	writeJSON(w, http.StatusCreated, story)
 }
 

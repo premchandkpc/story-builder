@@ -87,6 +87,7 @@ func buildServer(t *testing.T) (*api.Server, *mgorepo.StoryRepo) {
 		outlineSvc,
 		titleSvc,
 		progressHub,
+		nil,
 	)
 
 	return api.NewServer(h, nil), storyRepo
