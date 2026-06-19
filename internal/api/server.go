@@ -82,21 +82,7 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 					})
 				})
 
-				// V1 scenes (keep for backward compat)
-				r.Route("/scenes", func(r chi.Router) {
-					r.Post("/", h.CreateScene)
-					r.Get("/", h.ListScenes)
-					r.Route("/{sceneID}", func(r chi.Router) {
-						r.Get("/", h.GetScene)
-						r.Put("/", h.UpdateScene)
-						r.Delete("/", h.DeleteScene)
-						r.Post("/generate", h.GenerateScene)
-						r.Get("/generations", h.ListGenerations)
-						r.Post("/accept", h.AcceptGeneration)
-					})
-				})
-
-				// V2-compat edges
+				// Edges
 				r.Route("/edges", func(r chi.Router) {
 					r.Post("/", h.V2CreateEdge)
 					r.Get("/", h.V2ListEdges)
@@ -114,10 +100,6 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 						r.Get("/scenes", h.NotImplemented)
 					})
 				})
-
-				// V2-compat scene-edges
-				r.Get("/scene-edges", h.V2ListEdges)
-				r.Post("/scene-edges", h.V2CreateEdge)
 
 				r.Route("/characters", func(r chi.Router) {
 					r.Post("/", h.CreateCharacter)

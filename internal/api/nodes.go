@@ -16,6 +16,7 @@ import (
 type graphNode struct {
 	ID             string         `json:"id"`
 	StoryID        string         `json:"story_id"`
+	ChapterID      string         `json:"chapter_id"`
 	BeatIntent     string         `json:"beat_intent"`
 	CharacterRefs  []string       `json:"character_refs"`
 	LocationRef    string         `json:"location_ref"`
@@ -45,6 +46,7 @@ func sceneToNode(s *domain.Scene) graphNode {
 	return graphNode{
 		ID:             s.ID,
 		StoryID:        s.StoryID,
+		ChapterID:      s.ChapterID,
 		BeatIntent:     s.BeatIntent,
 		CharacterRefs:  s.Participants,
 		LocationRef:    s.LocationRef,
@@ -111,6 +113,7 @@ func (h *Handlers) CreateNode(w http.ResponseWriter, r *http.Request) {
 		BeatIntent     string         `json:"beat_intent"`
 		CharacterRefs  []string       `json:"character_refs"`
 		LocationRef    string         `json:"location_ref"`
+		ChapterID      string         `json:"chapter_id"`
 		POV            string         `json:"pov"`
 		Tone           string         `json:"tone"`
 		TargetWords    int            `json:"target_words"`
@@ -129,6 +132,7 @@ func (h *Handlers) CreateNode(w http.ResponseWriter, r *http.Request) {
 		BeatIntent:     body.BeatIntent,
 		Participants:   body.CharacterRefs,
 		LocationRef:    body.LocationRef,
+		ChapterID:      body.ChapterID,
 		POV:            body.POV,
 		Tone:           body.Tone,
 		TargetWords:    body.TargetWords,
@@ -148,6 +152,7 @@ func (h *Handlers) UpdateNode(w http.ResponseWriter, r *http.Request) {
 		BeatIntent     string         `json:"beat_intent"`
 		CharacterRefs  []string       `json:"character_refs"`
 		LocationRef    string         `json:"location_ref"`
+		ChapterID      string         `json:"chapter_id"`
 		POV            string         `json:"pov"`
 		Tone           string         `json:"tone"`
 		TargetWords    int            `json:"target_words"`
@@ -162,6 +167,7 @@ func (h *Handlers) UpdateNode(w http.ResponseWriter, r *http.Request) {
 		BeatIntent:     body.BeatIntent,
 		Participants:   body.CharacterRefs,
 		LocationRef:    body.LocationRef,
+		ChapterID:      body.ChapterID,
 		POV:            body.POV,
 		Tone:           body.Tone,
 		TargetWords:    body.TargetWords,

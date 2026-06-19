@@ -16,18 +16,6 @@ type Chapter struct {
 	UpdatedAt    time.Time `bson:"updatedAt,omitempty" json:"updatedAt,omitempty"`
 }
 
-type ScenePlan struct {
-	ChapterID    string   `json:"chapterId"`
-	SceneTitle   string   `json:"sceneTitle"`
-	BeatIntent   string   `json:"beatIntent"`
-	Participants []string `json:"participants"`
-	LocationRef  string   `json:"locationRef"`
-	POV          string   `json:"pov"`
-	Tone         string   `json:"tone"`
-	TargetWords  int      `json:"targetWords"`
-	Position     int      `json:"position"`
-}
-
 const (
 	ChapterStatusPlanned  = "planned"
 	ChapterStatusActive   = "active"

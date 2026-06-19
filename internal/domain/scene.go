@@ -5,6 +5,7 @@ import "time"
 type Scene struct {
 	ID               string                 `bson:"_id" json:"id"`
 	StoryID          string                 `bson:"storyId" json:"storyId"`
+	ChapterID        string                 `bson:"chapterId,omitempty" json:"chapterId,omitempty"`
 	Title            string                 `bson:"title,omitempty" json:"title,omitempty"`
 	BeatIntent       string                 `bson:"beatIntent,omitempty" json:"beatIntent,omitempty"`
 	Summary          string                 `bson:"summary,omitempty" json:"summary,omitempty"`
