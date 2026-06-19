@@ -343,19 +343,23 @@ characters 1──* character_memories (characterId)
 
 ## Index Management
 
-Indexes are defined in `internal/repository/mongo/indexes.go` and created on application startup via `ensureIndexes()`. This avoids the need for a migration system.
+Indexes are defined in `internal/repository/mongo/client.go` and created on application startup via `EnsureIndexes()`. This avoids the need for a migration system.
+
+Each index is created individually via `CreateOne`. If an index already exists with the same auto-generated name but different options (e.g. existing non-unique vs requested unique), the conflict is logged as a WARN and skipped — the application continues without crashing. This handles schema evolution across deployments.
 
 ```go
-func ensureIndexes(ctx context.Context, db *mongo.Database) error {
-    // Stories
-    // Scenes
-    // SceneEdges
-    // Locations
-    // Characters
-    // CharacterState
-    // CharacterMemories
-    // Generations
-    // Summaries
-    // TimelineEvents
+func EnsureIndexes(ctx context.Context, db *mongo.Database) error {
+    coll := db.Collection(collName)
+    for _, m := range models {
+        _, err := coll.Indexes().CreateOne(ctx, m)
+        if err != nil && strings.Contains(err.Error(), "IndexKeySpecsConflict") {
+            slog.Warn("index conflict, skipping", "collection", collName)
+            continue
+        }
+        if err != nil {
+            return fmt.Errorf("create index for %s: %w", collName, err)
+        }
+    }
+    return nil
 }
 ```

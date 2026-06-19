@@ -12,7 +12,7 @@
 ## Schema
 
 1. **No schema migrations.** MongoDB is schemaless. Add fields to documents freely.
-2. **Indexes are code.** Define indexes in `internal/repository/mongo/indexes.go`. Created on startup.
+2. **Indexes are code.** Define indexes in `internal/repository/mongo/client.go`. Created on startup. Conflicts are logged as WARN and skipped — not fatal.
 3. **Append-only for state.** Never overwrite character state. Always append a new document.
 4. **Character definitions are versioned immutably.** Each update creates a new document with a new `_id`, same `charId`, and incremented `version`. Use `GetLatest` for the current version.
 5. **Embed when co-accessed.** Store `participants` in scenes. Don't store DAG children in scenes (use `scene_edges` collection).
@@ -30,7 +30,7 @@ internal/
   llm/               LLM clients + router
   prompt/            Prompt compiler (10 layers)
   cache/             Redis cache + rate limiter
-  telemetry/         Prometheus metrics + structured logging
+  log/               Structured logging (slog wrapper)
   config/            Environment config
 ```
 
@@ -41,6 +41,7 @@ internal/
 3. **No `common`, `utils`, `shared`, `helpers` packages.** Each concern gets its own package.
 4. **No global variables** except `main()` wiring and package-level constants.
 5. **Errors are values.** Define domain-specific error types. Wrap errors with context.
+6. **Log 5xx errors server-side.** `writeError` in handlers logs 5xx responses via `slog.Error`. Do not log 4xx client errors.
 
 ## DAG Rules
 

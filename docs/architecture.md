@@ -21,6 +21,8 @@
 │  │  - RequestID       │  │
 │  │  - CORS            │  │
 │  │  - RateLimit (Redis)│  │
+│  │  - contextTimeout  │  │
+│  │    (5min generate) │  │
 │  └────────────────────┘  │
 │                          │
 │  ┌────────────────────┐  │
@@ -63,17 +65,16 @@
 cmd/server/main.go
     │
     ├── internal/api           ─── HTTP handlers + middleware
-    │   ├── router.go          ─── chi route definitions
-    │   ├── middleware.go      ─── RateLimit middleware
-    │   ├── handlers_stories.go
-    │   ├── handlers_scenes.go
-    │   ├── handlers_edges.go
-    │   ├── handlers_characters.go
-    │   ├── handlers_locations.go
-    │   ├── handlers_generation.go
-    │   ├── handlers_timeline.go
-    │   ├── handlers_memory.go
-    │   └── handlers_summaries.go
+    │   ├── server.go          ─── chi route definitions + middleware
+    │   ├── handlers.go        ─── Handler struct, service interfaces, writeError
+    │   ├── stories.go         ─── Story CRUD, generate, generate-title, blueprint
+    │   ├── nodes.go           ─── Node CRUD (V2 graph nodes)
+    │   ├── edges.go           ─── Edge CRUD (V2 graph edges + legacy scene edges)
+    │   ├── characters.go     ─── Character CRUD (V2 top-level + story-based)
+    │   ├── scenes.go          ─── Legacy scene CRUD
+    │   ├── locations.go       ─── Location CRUD
+    │   ├── timeline.go        ─── Timeline events
+    │   └── generations.go     ─── Generate prose, list/accept generations
     │
     ├── internal/domain        ─── Domain models (no infra deps)
     │   ├── story/
@@ -118,9 +119,7 @@ cmd/server/main.go
     │
     ├── internal/prompt        ─── Prompt compiler (10-layer hierarchy)
     │
-    ├── internal/telemetry     ─── Prometheus metrics + structured logging
-    │
-    ├── internal/config        ─── Environment-based config
+    ├── internal/config        ─── Environment-based config (Port, MongoURI, RedisAddr, AnthropicKey, OllamaURL, LogLevel, etc.)
     │
     └── internal/log           ─── Structured logging
 ```

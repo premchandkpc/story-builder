@@ -1,0 +1,374 @@
+{
+  "info": {
+    "name": "Story Builder API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["pm.test('status is ok', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/healthz"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Stories",
+      "item": [
+        {
+          "name": "Create Story",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('storyId', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"title\": \"Test Story {{$randomAlphaNumeric}}\"} "},
+            "url": "{{baseUrl}}/api/v1/stories"
+          }
+        },
+        {
+          "name": "List Stories",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/stories"
+          }
+        },
+        {
+          "name": "Get Story",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/stories/{{storyId}}"
+          }
+        },
+        {
+          "name": "Update Story",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"title\": \"Updated Title\"} "},
+            "url": "{{baseUrl}}/api/v1/stories/{{storyId}}"
+          }
+        },
+        {
+          "name": "Delete Story",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/v1/stories/{{storyId}}"
+          }
+        },
+        {
+          "name": "Generate Title",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"synopsis\": \"A hero must save the world from an ancient evil.\"} "},
+            "url": "{{baseUrl}}/api/v1/stories/generate-title"
+          }
+        },
+        {
+          "name": "Generate Story (Full Pipeline)",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"synopsis\": \"A detective investigating a series of impossible crimes discovers they are committed by a rival from a parallel dimension.\"} "
+            },
+            "url": "{{baseUrl}}/api/v1/stories/generate"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Characters",
+      "item": [
+        {
+          "name": "Create Character",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Alice\", \"persona\": \"Brave warrior\", \"storyId\": \"{{storyId}}\"}"
+            },
+            "url": "{{baseUrl}}/api/v1/stories/{{storyId}}/characters"
+          }
+        },
+        {
+          "name": "List Characters",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/stories/{{storyId}}/characters"
+          }
+        },
+        {
+          "name": "Get Character (V2)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/characters/{{charId}}"
+          }
+        },
+        {
+          "name": "Update Character (V2)",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"name\": \"Alice Updated\", \"persona\": \"Wise warrior\"}"},
+            "url": "{{baseUrl}}/api/v1/characters/{{charId}}"
+          }
+        },
+        {
+          "name": "Get Memories",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/characters/{{charId}}/memories"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Scenes",
+      "item": [
+        {
+          "name": "Create Scene",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Opening Scene\", \"pov\": \"hero\", \"tone\": \"dramatic\", \"targetWords\": 500}"
+            },
+            "url": "{{baseUrl}}/api/v1/stories/{{storyId}}/scenes"
+          }
+        },
+        {
+          "name": "List Scenes",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/stories/{{storyId}}/nodes"
+          }
+        },
+        {
+          "name": "Get Topology",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/stories/{{storyId}}/topology"
+          }
+        },
+        {
+          "name": "Get Scene",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/stories/{{storyId}}/scenes/{{sceneId}}"
+          }
+        },
+        {
+          "name": "Update Scene",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"title\": \"Updated Scene\", \"tone\": \"mysterious\"}"},
+            "url": "{{baseUrl}}/api/v1/stories/{{storyId}}/scenes/{{sceneId}}"
+          }
+        },
+        {
+          "name": "Generate Scene (LLM)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/v1/stories/{{storyId}}/scenes/{{sceneId}}/generate"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Edges",
+      "item": [
+        {
+          "name": "Create Edge",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"from_node\": \"{{sceneId}}\", \"to_node\": \"{{sceneId2}}\", \"edge_type\": \"seq\"}"
+            },
+            "url": "{{baseUrl}}/api/v1/stories/{{storyId}}/edges"
+          }
+        },
+        {
+          "name": "List Edges",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/stories/{{storyId}}/scene-edges"
+          }
+        },
+        {
+          "name": "Delete Edge",
+          "request": {
+            "method": "DELETE",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"from_scene\": \"{{sceneId}}\", \"to_scene\": \"{{sceneId2}}\"}"
+            },
+            "url": "{{baseUrl}}/api/v1/stories/{{storyId}}/edges"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Locations",
+      "item": [
+        {
+          "name": "Create Location",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"name\": \"Dark Forest\", \"storyId\": \"{{storyId}}\"}"},
+            "url": "{{baseUrl}}/api/v1/stories/{{storyId}}/locations"
+          }
+        },
+        {
+          "name": "List Locations",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/stories/{{storyId}}/locations"
+          }
+        },
+        {
+          "name": "Get Location",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/locations/{{locationId}}"
+          }
+        },
+        {
+          "name": "Update Location",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"name\": \"Enchanted Forest\", \"description\": \"A magical woodland\"}"},
+            "url": "{{baseUrl}}/api/v1/locations/{{locationId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Timeline",
+      "item": [
+        {
+          "name": "Create Timeline Event",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Hero Arrives\", \"description\": \"The hero reaches the village\", \"eventType\": \"arrival\"}"
+            },
+            "url": "{{baseUrl}}/api/v1/stories/{{storyId}}/timeline"
+          }
+        },
+        {
+          "name": "List Timeline Events",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/stories/{{storyId}}/timeline"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Summaries",
+      "item": [
+        {
+          "name": "Get Summary by Level",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/stories/{{storyId}}/summaries/level?level=story"
+          }
+        },
+        {
+          "name": "Get Scene Summary",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/stories/{{storyId}}/summaries/scenes/{{sceneId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Blueprint",
+      "item": [
+        {
+          "name": "Get Blueprint",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/stories/{{storyId}}/blueprint"
+          }
+        },
+        {
+          "name": "Update Blueprint",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"premise\": \"A revised tale\", \"acts\": [{\"number\": 1}], \"characterArcs\": []}"
+            },
+            "url": "{{baseUrl}}/api/v1/stories/{{storyId}}/blueprint"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Generations",
+      "item": [
+        {
+          "name": "Get Generation Status",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/generations/{{genId}}/status"
+          }
+        },
+        {
+          "name": "SSE Generation Progress",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/generations/{{genId}}/progress"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {"key": "baseUrl", "value": "http://localhost:8080"},
+    {"key": "storyId", "value": ""},
+    {"key": "sceneId", "value": ""},
+    {"key": "sceneId2", "value": ""},
+    {"key": "charId", "value": ""},
+    {"key": "locationId", "value": ""},
+    {"key": "genId", "value": ""}
+  ]
+}

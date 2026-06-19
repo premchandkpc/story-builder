@@ -304,7 +304,33 @@ func fixOutlineJSON(s string) string {
 	s = strings.ReplaceAll(s, "], [\"name\"", "}, {\"name\"")
 	s = strings.ReplaceAll(s, "], [\"name\":", "}, {\"name\":")
 	s = strings.ReplaceAll(s, "\\_", "_")
+	s = fixBareKeys(s)
 	s = fixEdgeTos(s)
+	return s
+}
+
+var knownKeys = []string{
+	"title", "synopsis", "name", "persona", "backstory", "moral_alignment",
+	"character_names", "beat_intent", "pov", "tone", "target_words", "act",
+	"from", "to", "type",
+}
+
+func fixBareKeys(s string) string {
+	for _, key := range knownKeys {
+		missing := "," + key + "\":\""
+		fixed := ",\"" + key + "\":\""
+		s = strings.ReplaceAll(s, missing, fixed)
+	}
+	for _, key := range knownKeys {
+		missing := "," + key + "\":"
+		fixed := ",\"" + key + "\":"
+		s = strings.ReplaceAll(s, missing, fixed)
+	}
+	for _, key := range knownKeys {
+		missing := "{" + key + "\":"
+		fixed := "{\"" + key + "\":"
+		s = strings.ReplaceAll(s, missing, fixed)
+	}
 	return s
 }
 

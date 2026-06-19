@@ -83,6 +83,6 @@ React Flow → Go API (chi) → Service Layer → Repository Interfaces
 1. **MongoDB is the only database.** Redis is cache/locks/rate limits only.
 2. **No new infrastructure without a measured bottleneck.** Not before 100k users or 10 concurrent writers.
 3. **No message queue.** Goroutine workers with context cancellation are sufficient at this scale.
-4. **Indexes are code.** Defined in `internal/repository/mongo/indexes.go`, created on startup.
+4. **Indexes are code.** Defined in `internal/repository/mongo/client.go`, created on startup. Conflicts are logged and skipped — not fatal.
 5. **Append-only for state.** Never overwrite character state. Event-sourcing lite.
 6. **The moat is story intelligence.** Better DAGs, better memory, better validation. Not database count.

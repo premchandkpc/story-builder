@@ -4,6 +4,8 @@ Base URL: `/api/v1`
 
 All requests and responses are JSON. Standard error format: `{"error": "message"}`
 
+Error responses ≥500 are logged server-side via `slog.Error`.
+
 ## Frontend API Client
 
 The frontend consumes all endpoints through `web/src/api/client.ts` — a namespaced `api` object with type-safe methods.
@@ -17,15 +19,11 @@ const created = await api.stories.create({ title: "My Story" })
 
 Every response is typed via generics (e.g. `api.stories.list()` returns `Promise<Story[]>`). The client handles:
 - JSON serialization/deserialization
-- Request timeout (default 30s) via `AbortController`
+- Request timeout via `AbortController` (default 30s; `stories.generate` uses 300s to accommodate LLM latency)
 - HTTP error detection (non-2xx → thrown `Error`)
 - 204 No Content → `undefined`
 
 All fetch calls go through a single `request<T>(path, init)` helper — no raw `fetch()` in components.
-
-### API Groups
-
-The client organizes endpoints into namespaced groups matching the backend route structure:
 
 ---
 
@@ -60,7 +58,7 @@ Get story by ID.
 
 ### `PUT /api/v1/stories/{id}`
 
-Update story title.
+Update story title/metadata.
 
 **Request:**
 ```json
@@ -73,7 +71,7 @@ Delete story and all associated data (scenes, edges, characters, memories, etc.)
 
 ### `GET /api/v1/stories/{storyID}/topology`
 
-Get full graph topology (scenes + edges) for a story.
+Get full graph topology (nodes + edges) for a story.
 
 **Response 200:**
 ```json
@@ -83,9 +81,151 @@ Get full graph topology (scenes + edges) for a story.
 }
 ```
 
+### `POST /api/v1/stories/generate`
+
+Generate a full story outline from a synopsis via LLM. Takes 30-120s.
+
+**Request:**
+```json
+{"synopsis": "A young hero discovers their destiny..."}
+```
+
+**Response 202:**
+```json
+{"story_id": "6a31a6bab21a1af6e0004db1", "status": "outlined"}
+```
+
+### `POST /api/v1/stories/generate-title`
+
+Generate a story title from a synopsis via LLM.
+
+**Request:**
+```json
+{"synopsis": "A young hero discovers their destiny..."}
+```
+
+**Response 200:**
+```json
+{"title": "The Hero's Awakening"}
+```
+
 ---
 
-## Scenes
+## Graph (V2 Nodes)
+
+### `POST /api/v1/stories/{storyID}/nodes`
+
+Create a scene node in the DAG.
+
+**Request:**
+```json
+{
+  "beat_intent": "Hero discovers the artifact",
+  "character_refs": [],
+  "location_ref": "ancient ruins",
+  "pov": "third-limited",
+  "tone": "mysterious",
+  "target_words": 500
+}
+```
+
+**Response 201:** Full node object with generated ID.
+
+### `GET /api/v1/stories/{storyID}/nodes`
+
+List all nodes for a story.
+
+### `GET /api/v1/stories/{storyID}/nodes/{nodeID}`
+
+Get a single node.
+
+### `PUT /api/v1/stories/{storyID}/nodes/{nodeID}`
+
+Update a node. Same body as create.
+
+### `DELETE /api/v1/stories/{storyID}/nodes/{nodeID}`
+
+Delete a node.
+
+### `POST /api/v1/stories/{storyID}/nodes/{nodeID}/generate`
+
+Trigger LLM prose generation for a node. No request body.
+
+**Response 200:** Full generation object.
+
+### `GET /api/v1/stories/{storyID}/nodes/{nodeID}/generations`
+
+List all generations for a node (newest first).
+
+### `POST /api/v1/stories/{storyID}/nodes/{nodeID}/accept`
+
+Accept a generation and update the node's content.
+
+**Request:**
+```json
+{"generation_id": "gen_uuid"}
+```
+
+**Response 204:** No Content.
+
+---
+
+## Graph (V2 Edges)
+
+### `POST /api/v1/stories/{storyID}/edges`
+
+Create a directed edge between two nodes.
+
+**Request:**
+```json
+{
+  "from_node": "node_a",
+  "to_node": "node_b",
+  "edge_type": "seq",
+  "condition": ""
+}
+```
+
+Valid `edge_type` values: `seq`, `fork`, `join`, `choice`
+
+### `GET /api/v1/stories/{storyID}/edges`
+
+List all edges for a story.
+
+### `DELETE /api/v1/stories/{storyID}/edges`
+
+Delete an edge. Uses query parameters, not body.
+
+**Query params:** `?from=node_a&to=node_b`
+
+**Response 204:** No Content.
+
+---
+
+## Scene Edges (Legacy)
+
+### `POST /api/v1/stories/{storyID}/scene-edges`
+
+Create a legacy scene-scoped edge.
+
+**Request:**
+```json
+{
+  "fromSceneId": "scene_a",
+  "toSceneId": "scene_b",
+  "type": "seq"
+}
+```
+
+Valid `type` values: `seq`, `fork`, `join`, `choice`
+
+### `GET /api/v1/stories/{storyID}/scene-edges`
+
+List all scene edges.
+
+---
+
+## Scenes (Legacy)
 
 ### `POST /api/v1/stories/{storyID}/scenes`
 
@@ -93,13 +233,12 @@ Get full graph topology (scenes + edges) for a story.
 ```json
 {
   "title": "Arrival",
-  "beat_intent": "Hero arrives at the castle",
+  "beatIntent": "Hero arrives at the castle",
   "participants": ["char_1", "char_2"],
-  "location_ref": "loc_1",
+  "locationRef": "loc_1",
   "pov": "hero",
   "tone": "mysterious",
-  "target_words": 500,
-  "flow_type": "dialogue"
+  "targetWords": 500
 }
 ```
 
@@ -121,118 +260,11 @@ Update scene. Same body as create.
 
 Delete scene and its edges.
 
----
-
-## Edges
-
-### `POST /api/v1/stories/{storyID}/edges`
-
-Create a directed edge between two scenes.
-
-**Request:**
-```json
-{
-  "from_scene": "scene_a",
-  "to_scene": "scene_b",
-  "type": "seq",
-  "condition": ""
-}
-```
-
-Valid `type` values: `seq`, `fork`, `join`, `choice`, `parallel`
-
-### `GET /api/v1/stories/{storyID}/edges`
-
-List all edges for a story.
-
-### `DELETE /api/v1/stories/{storyID}/edges`
-
-Delete an edge.
-
-**Request:**
-```json
-{
-  "from_scene": "scene_a",
-  "to_scene": "scene_b"
-}
-```
-
----
-
-## Characters
-
-### `POST /api/v1/stories/{storyID}/characters`
-
-**Request:**
-```json
-{
-  "name": "Arya",
-  "persona": "rogue",
-  "backstory": "Orphaned young, raised by the guild",
-  "personality": {"courage": 8, "kindness": 4},
-  "moral_alignment": "chaotic neutral",
-  "goals": ["find family"],
-  "flaws": ["reckless"],
-  "traits": ["sneaky"],
-  "voice_samples": ["I don't need your help."],
-  "relationships": {}
-}
-```
-
-**Response 201:** Full character object.
-
-### `GET /api/v1/stories/{storyID}/characters`
-
-List all characters in a story.
-
-### `GET /api/v1/characters/{id}`
-
-Get character by ID (across stories).
-
-### `PUT /api/v1/characters/{id}`
-
-Updates a character by creating a new versioned document (immutable log).
-
-**Request:**
-```json
-{
-  "name": "Arya Stark",
-  "persona": "warrior",
-  "backstory": "Orphaned young, raised by the guild",
-  "personality": {"courage": 9, "kindness": 5},
-  "goals": ["find family", "avenge father", "protect the north"],
-  "flaws": ["reckless", "vengeful", "stubborn"],
-  "traits": ["sneaky", "fast", "strategic"]
-}
-```
-
-**Response 200:** Full character object with incremented version, new `_id`, and same `char_id`.
-
-**Response fields:**
-- `id` — new document ID for this version
-- `char_id` — logical character ID (same across versions)
-- `version` — incremented integer
-
----
-
-## Generation
-
 ### `POST /api/v1/stories/{storyID}/scenes/{id}/generate`
 
-Enqueue generation for a scene.
+Trigger LLM prose generation for a scene. No request body.
 
-**Response 202:**
-```json
-{
-  "id": "gen_uuid",
-  "scene_id": "scene_uuid",
-  "context_hash": "sha256hex...",
-  "prompt_snapshot": "POV: Arya | Tone: mysterious",
-  "output": "",
-  "model": "claude-sonnet",
-  "status": "pending"
-}
-```
+**Response 200:** Full generation object.
 
 ### `GET /api/v1/stories/{storyID}/scenes/{id}/generations`
 
@@ -240,68 +272,80 @@ List all generations for a scene (newest first).
 
 ### `POST /api/v1/stories/{storyID}/scenes/{id}/accept`
 
-Accept a generation and trigger pipeline (state extraction, memories, timeline, summary, validation).
+Accept a generation and trigger pipeline.
 
 **Request:**
 ```json
 {"generation_id": "gen_uuid"}
 ```
 
-**Response 200:**
-```json
-{
-  "generation_id": "gen_uuid",
-  "status": "processing",
-  "pipeline": ["extract", "memory", "timeline", "summary", "validate"]
-}
-```
-
-### `GET /api/v1/stories/{storyID}/scenes/{id}/generations/{genID}/status`
-
-Get pipeline status for a generation.
-
-**Response 200:**
-```json
-{
-  "generation_id": "gen_uuid",
-  "extract": "done",
-  "memory": "done",
-  "timeline": "done",
-  "summary": "done",
-  "validate": "done",
-  "validation": {"violations": []}
-}
-```
+**Response 204:** No Content.
 
 ---
 
-## Story Generator
+## Characters (V2 Top-Level)
 
-### `POST /api/v1/stories/generate`
+### `POST /api/v1/characters`
 
-Enqueue an LLM story generation from a synopsis.
-
-**Request:**
-```json
-{"synopsis": "A young hero discovers their destiny..."}
-```
-
-**Response 202:**
-```json
-{"story_id": "", "status": "pending"}
-```
-
-### `POST /api/v1/stories/generate-title`
+Create a character. `storyId` is required in body.
 
 **Request:**
 ```json
-{"synopsis": "A young hero discovers their destiny..."}
+{
+  "name": "Arya",
+  "storyId": "story_1",
+  "persona": "rogue",
+  "backstory": "Orphaned young, raised by the guild",
+  "goals": ["find family"],
+  "flaws": ["reckless"],
+  "want": "Find her family",
+  "need": "Learn to trust again",
+  "arcType": "redemption"
+}
 ```
 
-**Response 200:**
+**Response 201:** Full character object with `char_id` and `version: 1`.
+
+### `GET /api/v1/characters`
+
+List all characters across stories.
+
+### `GET /api/v1/characters/{charID}`
+
+Get character by logical ID (latest version).
+
+### `PUT /api/v1/characters/{charID}`
+
+Updates a character by creating a new versioned document (immutable log).
+
+**Request:**
 ```json
-{"title": "The Hero's Awakening"}
+{
+  "name": "Arya Stark",
+  "storyId": "story_1",
+  "persona": "warrior",
+  "goals": ["find family", "avenge father"],
+  "flaws": ["reckless", "vengeful"]
+}
 ```
+
+**Response 200:** Full character object with incremented version, new `_id`, and same `char_id`.
+
+---
+
+## Characters (Story-Based)
+
+### `POST /api/v1/stories/{storyID}/characters`
+
+Create a character within a story. `storyID` is injected from the URL path.
+
+**Request:** Same body as top-level create, but no `storyId` needed.
+
+**Response 201:** Full character object.
+
+### `GET /api/v1/stories/{storyID}/characters`
+
+List all characters in a story.
 
 ---
 
@@ -309,7 +353,7 @@ Enqueue an LLM story generation from a synopsis.
 
 ### `GET /api/v1/characters/{charID}/memories`
 
-List memories for a character.
+List semantic memories for a character.
 
 ### `POST /api/v1/characters/{charID}/memories/search`
 
@@ -338,8 +382,7 @@ Create a timeline event.
 {
   "title": "Arrival at Castle",
   "description": "Hero arrives at the castle",
-  "order": 12,
-  "scene_id": "scene_uuid"
+  "order": 12
 }
 ```
 
@@ -364,7 +407,7 @@ List all locations for a story.
 {
   "name": "Castle Gates",
   "description": "The imposing main entrance",
-  "props": {"architecture": "gothic"}
+  "props": ["portcullis", "moat"]
 }
 ```
 
@@ -383,7 +426,7 @@ Update a location.
 {
   "name": "Castle Gates",
   "description": "The heavily fortified main entrance",
-  "props": {"architecture": "gothic", "defenses": ["portcullis"]}
+  "props": ["portcullis", "moat", "drawbridge"]
 }
 ```
 
@@ -403,10 +446,97 @@ Query: `?level=act` or `?level=story` (default: `act`)
 
 Get scene-level summary.
 
-### `GET /api/v1/stories/{storyID}/summaries/count`
+### `GET /api/v1/stories/{storyID}/summaries/nodes/{nodeID}`
 
-Count summaries by level.
+Get node-level summary.
 
-Query: `?level=scene` (default)
+---
 
-Response: `{"count": 42}`
+## Generations
+
+### `GET /api/v1/generations/{genID}/status`
+
+Get generation status.
+
+**Response 200:**
+```json
+{
+  "id": "gen_uuid",
+  "sceneId": "scene_uuid",
+  "content": "The castle gates groaned open...",
+  "model": "claude-sonnet",
+  "status": "completed"
+}
+```
+
+### `GET /api/v1/generations/{genID}/progress`
+
+Server-Sent Events stream for generation progress.
+
+**Response 200:** `text/event-stream`
+
+```
+data: {"type":"progress","percent":50,"message":"Generating prose..."}
+data: {"type":"complete","generation_id":"gen_uuid"}
+```
+
+---
+
+## Blueprint
+
+### `GET /api/v1/stories/{storyID}/blueprint`
+
+Get the story blueprint (premise, theme, acts, character arcs, plot threads).
+
+**Response 200:**
+```json
+{
+  "premise": "A young blacksmith discovers ancient power",
+  "theme": "Power and responsibility",
+  "acts": [
+    {"number": 1, "title": "Discovery", "summary": "The artifact is found"}
+  ],
+  "characterArcs": [],
+  "plotThreads": [],
+  "endingState": "ambiguous"
+}
+```
+
+### `PUT /api/v1/stories/{storyID}/blueprint`
+
+Update the story blueprint.
+
+**Response 200:**
+```json
+{"status": "updated"}
+```
+
+---
+
+## Stubs (Not Implemented)
+
+These endpoints return `501 Not Implemented` or `200 []`:
+
+| Endpoint | Behavior |
+|---|---|
+| `GET /api/v1/actors` | `[]` |
+| `POST /api/v1/actors` | 501 |
+| `GET /api/v1/actors/{id}` | 501 |
+| `PUT /api/v1/actors/{id}` | 501 |
+| `GET /api/v1/character-traits` | `[]` |
+| `GET /api/v1/character-traits/{id}` | 501 |
+| `POST /api/v1/character-traits` | 501 |
+| `GET /api/v1/lore` | `[]` |
+| `POST /api/v1/lore` | 501 |
+| `POST /api/v1/lore/search` | 501 |
+| `GET /api/v1/stories/{id}/casting` | `[]` |
+| `POST /api/v1/stories/{id}/casting` | 501 |
+| `GET /api/v1/casting/actor/{id}` | 501 |
+| `GET /api/v1/casting/character/{id}` | 501 |
+| `GET /api/v1/stories/{id}/chapters` | 501 |
+| `POST /api/v1/stories/{id}/chapters` | 501 |
+| `GET /api/v1/stories/{id}/chapters/{id}` | 501 |
+| `PUT /api/v1/stories/{id}/chapters/{id}` | 501 |
+| `DELETE /api/v1/stories/{id}/chapters/{id}` | 501 |
+| `GET /api/v1/stories/{id}/chapters/{id}/scenes` | 501 |
+| `POST /api/v1/stories/{id}/chapters/{id}/scenes` | 501 |

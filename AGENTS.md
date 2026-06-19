@@ -7,7 +7,7 @@ MongoDB + Redis backend. Go (chi) API server. React Flow frontend. No Postgres, 
 ## Quick start
 
 ```bash
-docker compose up -d mongo redis ollama  # minimal infra
+docker compose up -d mongo redis       # minimal infra (Ollama runs locally on host)
 docker compose up -d --build             # everything
 ```
 
