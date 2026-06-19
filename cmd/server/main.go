@@ -142,7 +142,7 @@ func main() {
 	})
 	tlSvc := service.NewTimelineService(tlRepo)
 	sumSvc := service.NewSummaryService(sumRepo)
-	memSvc := service.NewMemoryService(memRepo)
+	memSvc := service.NewMemoryService(memRepo, embedSvc)
 
 	// ─── Progress Hub ──────────────────────────────────────
 	progressHub := api.NewProgressHub()

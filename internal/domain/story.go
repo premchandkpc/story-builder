@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 type Story struct {
 	ID            string                 `bson:"_id" json:"id"`
@@ -23,3 +26,26 @@ const (
 	StoryStatusCompleted = "completed"
 	StoryStatusArchived  = "archived"
 )
+
+var validStoryTransitions = map[string][]string{
+	StoryStatusDraft:     {StoryStatusActive},
+	StoryStatusActive:    {StoryStatusDraft, StoryStatusCompleted},
+	StoryStatusCompleted: {StoryStatusArchived},
+	StoryStatusArchived:  {},
+}
+
+func (s *Story) CanTransitionTo(target string) error {
+	allowed, ok := validStoryTransitions[s.Status]
+	if !ok {
+		return fmt.Errorf("unknown story status: %s", s.Status)
+	}
+	if s.Status == target {
+		return nil
+	}
+	for _, a := range allowed {
+		if a == target {
+			return nil
+		}
+	}
+	return fmt.Errorf("cannot transition story from %s to %s", s.Status, target)
+}

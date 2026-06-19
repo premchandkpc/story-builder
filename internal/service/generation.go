@@ -110,6 +110,7 @@ func (s *GenerationService) Generate(ctx context.Context, sceneID string) (*doma
 
 	go func() {
 		defer s.genInFlight.Delete(sceneID)
+		start := time.Now()
 		defer func() {
 			if r := recover(); r != nil {
 				slog.Error("pipeline panic", "genId", gen.ID, "recover", r)
@@ -124,6 +125,12 @@ func (s *GenerationService) Generate(ctx context.Context, sceneID string) (*doma
 		defer pCancel()
 
 		s.runPipeline(pCtx, gen.ID, scene)
+
+		elapsed := time.Since(start)
+		if g, err := s.genRepo.Get(bgCtx, gen.ID); err == nil && g != nil {
+			g.DurationMs = elapsed.Milliseconds()
+			_ = s.genRepo.Update(bgCtx, g)
+		}
 	}()
 
 	return gen, nil
@@ -163,6 +170,9 @@ func (s *GenerationService) AcceptGeneration(ctx context.Context, sceneID, genID
 		return fmt.Errorf("accept gen: get scene: %w", err)
 	}
 	if scene != nil {
+		if err := scene.CanTransitionTo(domain.SceneStatusAccepted); err != nil {
+			return fmt.Errorf("accept gen: %w", err)
+		}
 		scene.Status = domain.SceneStatusAccepted
 		if err := s.sceneRepo.Update(ctx, scene); err != nil {
 			return fmt.Errorf("accept gen: update scene status: %w", err)

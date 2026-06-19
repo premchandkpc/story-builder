@@ -78,6 +78,10 @@ func (c *AnthropicClient) Complete(ctx context.Context, req CompletionRequest) (
 			Type string `json:"type"`
 			Text string `json:"text"`
 		} `json:"content"`
+		Usage struct {
+			InputTokens  int `json:"input_tokens"`
+			OutputTokens int `json:"output_tokens"`
+		} `json:"usage"`
 	}
 	if err := json.Unmarshal(raw, &reply); err != nil {
 		return nil, fmt.Errorf("anthropic decode: %w", err)
@@ -89,7 +93,15 @@ func (c *AnthropicClient) Complete(ctx context.Context, req CompletionRequest) (
 			text += c.Text
 		}
 	}
-	return &CompletionResponse{Content: text, Model: model}, nil
+	return &CompletionResponse{
+		Content: text,
+		Model:   model,
+		Usage: Usage{
+			PromptTokens:     reply.Usage.InputTokens,
+			CompletionTokens: reply.Usage.OutputTokens,
+			TotalTokens:      reply.Usage.InputTokens + reply.Usage.OutputTokens,
+		},
+	}, nil
 }
 
 func NewOllamaClient(baseURL, defaultModel string) *OllamaClient {
@@ -166,6 +178,11 @@ func (c *OllamaClient) Complete(ctx context.Context, req CompletionRequest) (*Co
 				Content string `json:"content"`
 			} `json:"message"`
 		} `json:"choices"`
+		Usage *struct {
+			PromptTokens     int `json:"prompt_tokens"`
+			CompletionTokens int `json:"completion_tokens"`
+			TotalTokens      int `json:"total_tokens"`
+		} `json:"usage"`
 	}
 	if err := json.Unmarshal(raw, &reply); err != nil {
 		return nil, fmt.Errorf("ollama decode: %w", err)
@@ -173,5 +190,17 @@ func (c *OllamaClient) Complete(ctx context.Context, req CompletionRequest) (*Co
 	if len(reply.Choices) == 0 {
 		return nil, fmt.Errorf("ollama: empty response")
 	}
-	return &CompletionResponse{Content: reply.Choices[0].Message.Content, Model: model}, nil
+	usage := Usage{}
+	if reply.Usage != nil {
+		usage = Usage{
+			PromptTokens:     reply.Usage.PromptTokens,
+			CompletionTokens: reply.Usage.CompletionTokens,
+			TotalTokens:      reply.Usage.TotalTokens,
+		}
+	}
+	return &CompletionResponse{
+		Content: reply.Choices[0].Message.Content,
+		Model:   model,
+		Usage:   usage,
+	}, nil
 }

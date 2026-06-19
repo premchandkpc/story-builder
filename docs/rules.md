@@ -43,6 +43,12 @@ internal/
 5. **Errors are values.** Define domain-specific error types. Wrap errors with context.
 6. **Log 5xx errors server-side.** `writeError` in handlers logs 5xx responses via `slog.Error`. Do not log 4xx client errors.
 
+## State Machine
+
+1. **Stories have strict status transitions:** `draft → active → completed → archived`. The `CanTransitionTo()` method enforces valid transitions in the service layer. An archived story cannot be re-activated.
+2. **Scenes have strict status transitions:** `draft → generated → accepted → stale`. Stale scenes may be regenerated (`stale → generated`). Direct status assignment via the API is validated against the current status.
+3. **API handlers never set status directly.** Status changes go through service-layer validation. The generation pipeline and acceptance flow are the only paths that move scene status forward.
+
 ## DAG Rules
 
 1. **Validate before generation.** Every generation request must pass `ValidateDAG()` first.

@@ -65,6 +65,7 @@ type SummaryService interface {
 
 type MemoryService interface {
 	ListByCharacter(ctx context.Context, charID string) ([]*domain.CharacterMemory, error)
+	Search(ctx context.Context, storyID, characterID, query string, limit int) ([]*domain.CharacterMemory, error)
 }
 
 type BibleService interface {

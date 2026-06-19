@@ -259,7 +259,7 @@ func (m *mockMemoryRepo) Create(ctx context.Context, mem *domain.CharacterMemory
 
 func TestMemoryService_ListByCharacter(t *testing.T) {
 	mock := newMockMemoryRepo()
-	svc := NewMemoryService(mock)
+	svc := NewMemoryService(mock, nil)
 
 	mock.Create(context.Background(), &domain.CharacterMemory{
 		CharacterID: "char1", Content: "Remember this", Importance: 0.8,
@@ -279,7 +279,7 @@ func TestMemoryService_ListByCharacter(t *testing.T) {
 
 func TestMemoryService_ListByCharacter_Empty(t *testing.T) {
 	mock := newMockMemoryRepo()
-	svc := NewMemoryService(mock)
+	svc := NewMemoryService(mock, nil)
 
 	mems, err := svc.ListByCharacter(context.Background(), "nonexistent")
 	if err != nil {

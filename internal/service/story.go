@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/premchand/story-builder/internal/domain"
+	"github.com/premchand/story-builder/internal/llm"
 	"github.com/premchand/story-builder/internal/repository"
 )
 
@@ -68,6 +69,9 @@ func (s *StoryService) Update(ctx context.Context, id string, params UpdateStory
 		st.Title = params.Title
 	}
 	if params.Status != "" {
+		if err := st.CanTransitionTo(params.Status); err != nil {
+			return nil, err
+		}
 		st.Status = params.Status
 	}
 	st.UpdatedAt = time.Now()
@@ -169,6 +173,20 @@ func (s *SceneService) Get(ctx context.Context, id string) (*domain.Scene, error
 }
 
 func (s *SceneService) Update(ctx context.Context, scene *domain.Scene) (*domain.Scene, error) {
+	existing, err := s.sceneRepo.Get(ctx, scene.ID)
+	if err != nil {
+		return nil, fmt.Errorf("get scene for update: %w", err)
+	}
+	if existing == nil {
+		return nil, fmt.Errorf("scene not found")
+	}
+	if scene.Status != "" && scene.Status != existing.Status {
+		if err := existing.CanTransitionTo(scene.Status); err != nil {
+			return nil, err
+		}
+	} else {
+		scene.Status = existing.Status
+	}
 	if err := s.sceneRepo.Update(ctx, scene); err != nil {
 		return nil, err
 	}
@@ -310,13 +328,25 @@ func (s *SummaryService) GetSceneSummary(ctx context.Context, storyID, sceneID s
 }
 
 type MemoryService struct {
-	repo repository.MemoryRepository
+	repo   repository.MemoryRepository
+	embedSvc llm.EmbeddingService
 }
 
-func NewMemoryService(repo repository.MemoryRepository) *MemoryService {
-	return &MemoryService{repo: repo}
+func NewMemoryService(repo repository.MemoryRepository, embedSvc llm.EmbeddingService) *MemoryService {
+	return &MemoryService{repo: repo, embedSvc: embedSvc}
 }
 
 func (s *MemoryService) ListByCharacter(ctx context.Context, charID string) ([]*domain.CharacterMemory, error) {
 	return s.repo.ListByCharacter(ctx, charID)
+}
+
+func (s *MemoryService) Search(ctx context.Context, storyID, characterID, query string, limit int) ([]*domain.CharacterMemory, error) {
+	if s.embedSvc == nil {
+		return nil, fmt.Errorf("embedding service not configured")
+	}
+	embedding, err := s.embedSvc.GenerateEmbedding(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate query embedding: %w", err)
+	}
+	return s.repo.Search(ctx, storyID, characterID, embedding, limit)
 }

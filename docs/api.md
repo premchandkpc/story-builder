@@ -357,17 +357,20 @@ List semantic memories for a character.
 
 ### `POST /api/v1/characters/{charID}/memories/search`
 
-Search memories by semantic similarity.
+Search memories by semantic similarity. Generates a query embedding and performs vector search.
 
 **Request:**
 ```json
 {
+  "story_id": "story_1",
   "query": "betrayal at the castle",
   "limit": 10
 }
 ```
 
-**Response 200:** Array of memory objects ranked by relevance.
+**Required:** `story_id`, `query`. `limit` defaults to 10, max 50.
+
+**Response 200:** Array of memory objects ranked by relevance. Returns 501 if embedding service is not configured.
 
 ---
 
@@ -456,7 +459,7 @@ Get node-level summary.
 
 ### `GET /api/v1/generations/{genID}/status`
 
-Get generation status.
+Get generation status with token usage and timing.
 
 **Response 200:**
 ```json
@@ -464,9 +467,13 @@ Get generation status.
   "id": "gen_uuid",
   "sceneId": "scene_uuid",
   "content": "The castle gates groaned open...",
-  "model": "claude-sonnet",
+  "model": "claude-sonnet-4-20250514",
   "status": "success",
   "error": "",
+  "promptTokens": 4500,
+  "completionTokens": 820,
+  "totalTokens": 5320,
+  "durationMs": 18400,
   "updatedAt": "2026-06-16T00:00:00Z"
 }
 ```

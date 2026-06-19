@@ -32,6 +32,8 @@
 }
 ```
 
+**Status transitions:** `draft → active`, `active → completed`, `completed → archived`. Re-opening a draft from active also allowed.
+
 **Indexes:**
 - `{ title: 1 }`
 - `{ status: 1 }`
@@ -63,6 +65,8 @@
   "updatedAt": ""
 }
 ```
+
+**Status transitions:** `draft → generated → accepted → stale`. Stale scenes can be regenerated (`stale → generated`).
 
 **Indexes:**
 - `{ storyId: 1 }`
@@ -220,12 +224,29 @@ The AI heart. Each memory is a document with an embedding for vector search.
   "contextHash": "sha256hex...",
   "promptSnapshot": "POV: Arya | Tone: mysterious",
   "output": "The castle gates groaned open...",
-  "model": "claude-sonnet",
+  "model": "claude-sonnet-4-20250514",
+  "status": "success",
   "accepted": false,
+  "stepStatus": {
+    "generate": "done",
+    "extract": "done",
+    "memory": "done",
+    "timeline": "done",
+    "summary": "done",
+    "validate": "done"
+  },
   "validationResult": null,
-  "createdAt": ""
+  "error": "",
+  "promptTokens": 4500,
+  "completionTokens": 820,
+  "totalTokens": 5320,
+  "durationMs": 18400,
+  "createdAt": "2026-06-16T00:00:00Z",
+  "updatedAt": "2026-06-16T00:00:05Z"
 }
 ```
+
+**Status values:** `pending`, `running`, `partial_success`, `success`, `failed`
 
 **Indexes:**
 - `{ sceneId: 1, createdAt: -1 }`

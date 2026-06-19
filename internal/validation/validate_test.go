@@ -155,6 +155,82 @@ func TestValidatePreGeneration_LocationFound(t *testing.T) {
 	}
 }
 
+func TestValidatePostGeneration_NilScene(t *testing.T) {
+	v := NewSceneValidator(nil, nil)
+	errs := v.ValidatePostGeneration(context.Background(), nil, nil)
+	if len(errs) != 0 {
+		t.Fatalf("expected no violations for nil scene, got %d", len(errs))
+	}
+}
+
+func TestValidatePostGeneration_LocationContinuity(t *testing.T) {
+	v := NewSceneValidator(nil, nil)
+	errs := v.ValidatePostGeneration(context.Background(), &domain.Scene{
+		LocationRef: "Castle",
+	}, []PostGenerationCheck{
+		{CharacterID: "Hero", PreviousLocation: "Forest", NewLocation: "Castle"},
+	})
+	if len(errs) != 0 {
+		t.Fatalf("expected no violations when character moved to scene location, got: %v", errs)
+	}
+}
+
+func TestValidatePostGeneration_LocationMismatch(t *testing.T) {
+	v := NewSceneValidator(nil, nil)
+	errs := v.ValidatePostGeneration(context.Background(), &domain.Scene{
+		LocationRef: "Castle",
+	}, []PostGenerationCheck{
+		{CharacterID: "Hero", PreviousLocation: "Forest", NewLocation: "Dungeon"},
+	})
+	found := false
+	for _, e := range errs {
+		if e.Field == "location_continuity" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected location continuity violation when character went to different location than scene")
+	}
+}
+
+func TestValidatePostGeneration_KnowledgeRedundancy(t *testing.T) {
+	v := NewSceneValidator(nil, nil)
+	errs := v.ValidatePostGeneration(context.Background(), &domain.Scene{ID: "s1"}, []PostGenerationCheck{
+		{CharacterID: "Hero", PreviousKnowledge: []string{"The king is dead"}, Learned: []string{"The king is dead"}},
+	})
+	found := false
+	for _, e := range errs {
+		if e.Field == "knowledge_redundancy" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected knowledge redundancy violation")
+	}
+}
+
+func TestValidatePostGeneration_NewKnowledge(t *testing.T) {
+	v := NewSceneValidator(nil, nil)
+	errs := v.ValidatePostGeneration(context.Background(), &domain.Scene{ID: "s1"}, []PostGenerationCheck{
+		{CharacterID: "Hero", PreviousKnowledge: []string{"The king is dead"}, Learned: []string{"The queen is the killer"}},
+	})
+	for _, e := range errs {
+		t.Fatalf("unexpected violation: %s", e.Message)
+	}
+}
+
+func TestValidatePostGeneration_NoSceneLocation(t *testing.T) {
+	v := NewSceneValidator(nil, nil)
+	errs := v.ValidatePostGeneration(context.Background(), &domain.Scene{ID: "s1"}, []PostGenerationCheck{
+		{CharacterID: "Hero", PreviousLocation: "Forest", NewLocation: "Castle"},
+	})
+	for _, e := range errs {
+		t.Fatalf("unexpected violation when scene has no location: %s", e.Message)
+	}
+}
+
 func TestValidatePreGeneration_AllGood(t *testing.T) {
 	charRepo := &stubCharRepo{
 		chars: []*domain.Character{{Name: "Hero"}},

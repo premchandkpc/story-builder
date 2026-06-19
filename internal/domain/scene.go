@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 type Scene struct {
 	ID               string                 `bson:"_id" json:"id"`
@@ -48,6 +51,10 @@ type Generation struct {
 	StepStatus       map[string]string `bson:"stepStatus,omitempty" json:"stepStatus,omitempty"`
 	ValidationResult map[string]any    `bson:"validationResult,omitempty" json:"validationResult,omitempty"`
 	Error            string            `bson:"error,omitempty" json:"error,omitempty"`
+	PromptTokens     int               `bson:"promptTokens,omitempty" json:"promptTokens,omitempty"`
+	CompletionTokens int               `bson:"completionTokens,omitempty" json:"completionTokens,omitempty"`
+	TotalTokens      int               `bson:"totalTokens,omitempty" json:"totalTokens,omitempty"`
+	DurationMs       int64             `bson:"durationMs,omitempty" json:"durationMs,omitempty"`
 	CreatedAt        time.Time         `bson:"createdAt" json:"createdAt"`
 	UpdatedAt        time.Time         `bson:"updatedAt,omitempty" json:"updatedAt,omitempty"`
 }
@@ -87,3 +94,26 @@ const (
 	SceneStatusAccepted  = "accepted"
 	SceneStatusStale     = "stale"
 )
+
+var validSceneTransitions = map[string][]string{
+	SceneStatusDraft:     {SceneStatusGenerated},
+	SceneStatusGenerated: {SceneStatusAccepted, SceneStatusStale},
+	SceneStatusAccepted:  {SceneStatusStale},
+	SceneStatusStale:     {SceneStatusGenerated},
+}
+
+func (s *Scene) CanTransitionTo(target string) error {
+	allowed, ok := validSceneTransitions[s.Status]
+	if !ok {
+		return fmt.Errorf("unknown scene status: %s", s.Status)
+	}
+	if s.Status == target {
+		return nil
+	}
+	for _, a := range allowed {
+		if a == target {
+			return nil
+		}
+	}
+	return fmt.Errorf("cannot transition scene from %s to %s", s.Status, target)
+}

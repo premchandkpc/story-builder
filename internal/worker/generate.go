@@ -49,6 +49,9 @@ func (w *GenerateSceneWorker) Work(ctx context.Context, args GenerateSceneArgs) 
 	if resp.Model != "" {
 		gen.Model = resp.Model
 	}
+	gen.PromptTokens = resp.Usage.PromptTokens
+	gen.CompletionTokens = resp.Usage.CompletionTokens
+	gen.TotalTokens = resp.Usage.TotalTokens
 
 	return resp.Content, w.genRepo.Update(ctx, gen)
 }

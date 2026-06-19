@@ -18,6 +18,14 @@ func (v Violation) Error() string {
 	return fmt.Sprintf("[%s] %s: %s", v.Severity, v.Field, v.Message)
 }
 
+type PostGenerationCheck struct {
+	CharacterID      string
+	PreviousLocation string
+	NewLocation      string
+	Learned          []string
+	PreviousKnowledge []string
+}
+
 type SceneValidator struct {
 	charRepo interface {
 		ListByStory(ctx context.Context, storyID string) ([]*domain.Character, error)
@@ -75,6 +83,46 @@ func (v *SceneValidator) ValidatePreGeneration(ctx context.Context, scene *domai
 		loc, err := v.locRepo.GetByName(ctx, scene.StoryID, scene.LocationRef)
 		if err != nil || loc == nil {
 			violations = append(violations, Violation{Severity: "warning", Field: "locationRef", Message: fmt.Sprintf("location %q not found", scene.LocationRef)})
+		}
+	}
+
+	return violations
+}
+
+func (v *SceneValidator) ValidatePostGeneration(ctx context.Context, scene *domain.Scene, checks []PostGenerationCheck) []Violation {
+	var violations []Violation
+
+	if scene == nil {
+		return violations
+	}
+
+	for _, c := range checks {
+		// Location continuity: character was in a different location than the scene
+		if c.PreviousLocation != "" && c.NewLocation != "" && scene.LocationRef != "" {
+			if c.PreviousLocation != scene.LocationRef && c.PreviousLocation != c.NewLocation {
+				violations = append(violations, Violation{
+					Severity: "warning",
+					Field:    "location_continuity",
+					Message:  fmt.Sprintf("character %q moved from %q to %q (scene is at %q)", c.CharacterID, c.PreviousLocation, c.NewLocation, scene.LocationRef),
+				})
+			}
+		}
+
+		// Knowledge redundancy: character learned something they already knew
+		if len(c.PreviousKnowledge) > 0 && len(c.Learned) > 0 {
+			known := make(map[string]bool, len(c.PreviousKnowledge))
+			for _, k := range c.PreviousKnowledge {
+				known[strings.ToLower(k)] = true
+			}
+			for _, learned := range c.Learned {
+				if known[strings.ToLower(learned)] {
+					violations = append(violations, Violation{
+						Severity: "warning",
+						Field:    "knowledge_redundancy",
+						Message:  fmt.Sprintf("character %q already knew: %q", c.CharacterID, learned),
+					})
+				}
+			}
 		}
 	}
 

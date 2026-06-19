@@ -587,7 +587,7 @@ func TestIntegration_Memories(t *testing.T) {
 
 	storyRepo := mgorepo.NewStoryRepo(testDB)
 	memRepo := mgorepo.NewMemoryRepo(testDB)
-	svc := service.NewMemoryService(memRepo)
+	svc := service.NewMemoryService(memRepo, nil)
 	ctx := context.Background()
 
 	story := &domain.Story{Title: "Memory Test", Status: domain.StoryStatusDraft}
