@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/premchand/story-builder/internal/domain"
+	"github.com/premchand/story-builder/internal/events"
 	"github.com/premchand/story-builder/internal/llm"
 	"github.com/premchand/story-builder/internal/repository"
 	"github.com/premchand/story-builder/internal/worker"
@@ -30,6 +31,7 @@ type GenerationServiceConfig struct {
 	SummarySvc    llm.SummaryService
 	ValidateSvc   llm.ValidationService
 	ContextBldr   *ContextBuilder
+	EventBus      events.Bus
 }
 
 type GenerationService struct {
@@ -53,6 +55,7 @@ type GenerationService struct {
 	genInFlight    sync.Map
 	acceptInFlight sync.Map
 	progress       ProgressPublisher
+	eventBus       events.Bus
 }
 
 func NewGenerationService(cfg GenerationServiceConfig) *GenerationService {
@@ -61,7 +64,7 @@ func NewGenerationService(cfg GenerationServiceConfig) *GenerationService {
 		charRepo: cfg.CharRepo, stateRepo: cfg.StateRepo, edgeRepo: cfg.EdgeRepo,
 		memRepo: cfg.MemRepo, tlRepo: cfg.TlRepo, sumRepo: cfg.SumRepo, locRepo: cfg.LocRepo,
 		proseSvc: cfg.ProseSvc, extractSvc: cfg.ExtractSvc, summarySvc: cfg.SummarySvc, validateSvc: cfg.ValidateSvc,
-		contextBldr: cfg.ContextBldr,
+		contextBldr: cfg.ContextBldr, eventBus: cfg.EventBus,
 	}
 }
 
@@ -160,6 +163,10 @@ func (s *GenerationService) AcceptGeneration(ctx context.Context, sceneID, genID
 		}
 	}
 
+	s.publishEvent(ctx, events.Event{
+		Type: events.EventGenerationAccepted, StoryID: scene.StoryID, SceneID: sceneID, GenID: genID,
+	})
+
 	return nil
 }
 
@@ -177,6 +184,12 @@ func (s *GenerationService) setStepStatus(ctx context.Context, genID, step, stat
 	}
 	if s.progress != nil {
 		s.progress.Publish(genID, ProgressEvent{GenID: genID, Step: step, Status: status})
+	}
+}
+
+func (s *GenerationService) publishEvent(ctx context.Context, evt events.Event) {
+	if s.eventBus != nil {
+		s.eventBus.Publish(ctx, evt)
 	}
 }
 
@@ -283,6 +296,11 @@ func (s *GenerationService) runPipeline(ctx context.Context, genID string, scene
 		anyFailed = true
 	}
 
+	s.publishEvent(ctx, events.Event{
+		Type: events.EventSceneGenerated, StoryID: scene.StoryID, SceneID: scene.ID, GenID: genID,
+		Data: map[string]any{"criticalFailed": criticalFailed},
+	})
+
 	sceneText, _ := func() (string, error) {
 		gen, err := s.genRepo.Get(ctx, genID)
 		if err != nil || gen == nil {
@@ -303,6 +321,9 @@ func (s *GenerationService) runPipeline(ctx context.Context, genID string, scene
 		}) {
 			anyFailed = true
 		}
+		s.publishEvent(ctx, events.Event{
+			Type: events.EventCharacterStatesExtracted, StoryID: scene.StoryID, SceneID: scene.ID, GenID: genID,
+		})
 	}
 
 	if sceneText != "" {
@@ -317,6 +338,9 @@ func (s *GenerationService) runPipeline(ctx context.Context, genID string, scene
 			}
 			return nil
 		})
+		s.publishEvent(ctx, events.Event{
+			Type: events.EventMemoriesCreated, StoryID: scene.StoryID, SceneID: scene.ID, GenID: genID,
+		})
 	}
 
 	s.runNonCriticalStep(ctx, genID, "timeline", func(sCtx context.Context) error {
@@ -324,6 +348,9 @@ func (s *GenerationService) runPipeline(ctx context.Context, genID string, scene
 			StoryID: scene.StoryID, SceneID: scene.ID,
 			Title: scene.Title, Order: scene.TimelinePosition,
 		})
+	})
+	s.publishEvent(ctx, events.Event{
+		Type: events.EventTimelineRecorded, StoryID: scene.StoryID, SceneID: scene.ID, GenID: genID,
 	})
 
 	if sceneText != "" {
@@ -337,6 +364,9 @@ func (s *GenerationService) runPipeline(ctx context.Context, genID string, scene
 				PreviousSummary: prevSummary,
 				AcceptedScene:   sceneText,
 			})
+		})
+		s.publishEvent(ctx, events.Event{
+			Type: events.EventSummaryUpdated, StoryID: scene.StoryID, SceneID: scene.ID, GenID: genID,
 		})
 	}
 
@@ -358,6 +388,9 @@ func (s *GenerationService) runPipeline(ctx context.Context, genID string, scene
 				GenerationID: genID, CanonXML: canonXML, CharState: charState, SceneText: sceneText,
 			})
 		})
+		s.publishEvent(ctx, events.Event{
+			Type: events.EventSceneValidated, StoryID: scene.StoryID, SceneID: scene.ID, GenID: genID,
+		})
 	}
 
 	switch {
@@ -365,11 +398,22 @@ func (s *GenerationService) runPipeline(ctx context.Context, genID string, scene
 		s.setGenStatus(ctx, genID, domain.GenStatusFailed)
 		s.setGenError(ctx, genID, "generate step failed after retries")
 		slog.Error("generation pipeline failed", "genId", genID)
+		s.publishEvent(ctx, events.Event{
+			Type: events.EventPipelineFailed, StoryID: scene.StoryID, SceneID: scene.ID, GenID: genID,
+		})
 	case anyFailed:
 		s.setGenStatus(ctx, genID, domain.GenStatusPartialSuccess)
 		slog.Warn("generation pipeline completed with partial failures", "genId", genID)
+		s.publishEvent(ctx, events.Event{
+			Type: events.EventPipelineComplete, StoryID: scene.StoryID, SceneID: scene.ID, GenID: genID,
+			Data: map[string]any{"status": domain.GenStatusPartialSuccess},
+		})
 	default:
 		s.setGenStatus(ctx, genID, domain.GenStatusSuccess)
 		slog.Info("generation pipeline complete", "genId", genID)
+		s.publishEvent(ctx, events.Event{
+			Type: events.EventPipelineComplete, StoryID: scene.StoryID, SceneID: scene.ID, GenID: genID,
+			Data: map[string]any{"status": domain.GenStatusSuccess},
+		})
 	}
 }
