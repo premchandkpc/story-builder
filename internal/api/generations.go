@@ -10,7 +10,7 @@ import (
 func (h *Handlers) GenerateScene(w http.ResponseWriter, r *http.Request) {
 	sceneID := chi.URLParam(r, "sceneID")
 
-	gen, err := h.genSvc.Generate(r.Context(), sceneID)
+	gen, err := h.genWriteSvc.Generate(r.Context(), sceneID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -20,7 +20,7 @@ func (h *Handlers) GenerateScene(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) ListGenerations(w http.ResponseWriter, r *http.Request) {
 	sceneID := chi.URLParam(r, "sceneID")
-	gens, err := h.genSvc.ListGenerations(r.Context(), sceneID)
+	gens, err := h.genReadSvc.ListGenerations(r.Context(), sceneID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -38,7 +38,7 @@ func (h *Handlers) AcceptGeneration(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.genSvc.AcceptGeneration(r.Context(), sceneID, body.GenerationID); err != nil {
+	if err := h.genWriteSvc.AcceptGeneration(r.Context(), sceneID, body.GenerationID); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -47,7 +47,7 @@ func (h *Handlers) AcceptGeneration(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) V2GenerateNode(w http.ResponseWriter, r *http.Request) {
 	nodeID := chi.URLParam(r, "nodeID")
-	gen, err := h.genSvc.Generate(r.Context(), nodeID)
+	gen, err := h.genWriteSvc.Generate(r.Context(), nodeID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -57,7 +57,7 @@ func (h *Handlers) V2GenerateNode(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) V2ListNodeGenerations(w http.ResponseWriter, r *http.Request) {
 	nodeID := chi.URLParam(r, "nodeID")
-	gens, err := h.genSvc.ListGenerations(r.Context(), nodeID)
+	gens, err := h.genReadSvc.ListGenerations(r.Context(), nodeID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -74,7 +74,7 @@ func (h *Handlers) V2AcceptGeneration(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if err := h.genSvc.AcceptGeneration(r.Context(), nodeID, body.GenerationID); err != nil {
+	if err := h.genWriteSvc.AcceptGeneration(r.Context(), nodeID, body.GenerationID); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

@@ -78,7 +78,7 @@ func (h *Handlers) DeleteScene(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) GetGenerationStatus(w http.ResponseWriter, r *http.Request) {
 	genID := chi.URLParam(r, "genID")
-	gen, err := h.genSvc.GetGeneration(r.Context(), genID)
+	gen, err := h.genReadSvc.GetGeneration(r.Context(), genID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

@@ -43,10 +43,13 @@ type CharacterService interface {
 	List(ctx context.Context, storyID string) ([]*domain.Character, error)
 }
 
-type GenerationService interface {
+type GenerationWriteService interface {
 	Generate(ctx context.Context, sceneID string) (*domain.Generation, error)
-	GetGeneration(ctx context.Context, genID string) (*domain.Generation, error)
 	AcceptGeneration(ctx context.Context, sceneID, genID string) error
+}
+
+type GenerationReadService interface {
+	GetGeneration(ctx context.Context, genID string) (*domain.Generation, error)
 	ListGenerations(ctx context.Context, sceneID string) ([]*domain.Generation, error)
 }
 
@@ -88,20 +91,21 @@ type LocationService interface {
 }
 
 type Handlers struct {
-	storySvc    StoryService
-	sceneSvc    SceneService
-	edgeSvc     EdgeService
-	charSvc     CharacterService
-	genSvc      GenerationService
-	tlSvc       TimelineService
-	sumSvc      SummaryService
-	memSvc      MemoryService
-	locSvc      LocationService
-	bibleSvc    BibleService
-	chapterSvc  ChapterService
-	outlineSvc  llm.OutlineService
-	titleSvc    llm.TitleService
-	progress    *ProgressHub
+	storySvc     StoryService
+	sceneSvc     SceneService
+	edgeSvc      EdgeService
+	charSvc      CharacterService
+	genWriteSvc  GenerationWriteService
+	genReadSvc   GenerationReadService
+	tlSvc        TimelineService
+	sumSvc       SummaryService
+	memSvc       MemoryService
+	locSvc       LocationService
+	bibleSvc     BibleService
+	chapterSvc   ChapterService
+	outlineSvc   llm.OutlineService
+	titleSvc     llm.TitleService
+	progress     *ProgressHub
 }
 
 func NewHandlers(
@@ -109,7 +113,8 @@ func NewHandlers(
 	sceneSvc SceneService,
 	edgeSvc EdgeService,
 	charSvc CharacterService,
-	genSvc GenerationService,
+	genSvc GenerationWriteService,
+	genReadSvc GenerationReadService,
 	tlSvc TimelineService,
 	sumSvc SummaryService,
 	memSvc MemoryService,
@@ -122,7 +127,7 @@ func NewHandlers(
 ) *Handlers {
 	return &Handlers{
 		storySvc: storySvc, sceneSvc: sceneSvc, edgeSvc: edgeSvc,
-		charSvc: charSvc, genSvc: genSvc, tlSvc: tlSvc,
+		charSvc: charSvc, genWriteSvc: genSvc, genReadSvc: genReadSvc, tlSvc: tlSvc,
 		sumSvc: sumSvc, memSvc: memSvc, locSvc: locSvc,
 		bibleSvc: bibleSvc, chapterSvc: chapterSvc,
 		outlineSvc: outlineSvc, titleSvc: titleSvc, progress: progress,

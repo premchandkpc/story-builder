@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/go-chi/cors"
 
 	"github.com/premchand/story-builder/internal/cache"
+	"github.com/premchand/story-builder/internal/log"
 )
 
 type Server struct {
@@ -25,7 +27,7 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 
 	r := chi.NewRouter()
 
-	r.Use(middleware.Logger)
+	r.Use(log.StructuredHTTPLogger(slog.Default()))
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 	r.Use(cors.Handler(cors.Options{

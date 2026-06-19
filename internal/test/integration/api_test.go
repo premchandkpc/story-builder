@@ -13,6 +13,7 @@ import (
 
 	"github.com/premchand/story-builder/internal/api"
 	"github.com/premchand/story-builder/internal/domain"
+	"github.com/premchand/story-builder/internal/events"
 	"github.com/premchand/story-builder/internal/llm"
 	mgorepo "github.com/premchand/story-builder/internal/repository/mongo"
 	"github.com/premchand/story-builder/internal/service"
@@ -65,7 +66,9 @@ func buildServer(t *testing.T) (*api.Server, *mgorepo.StoryRepo) {
 		GenRepo: genRepo, SceneRepo: sceneRepo, StoryRepo: storyRepo,
 		CharRepo: charRepo, StateRepo: stateRepo, MemRepo: memRepo,
 		TlRepo: tlRepo, SumRepo: sumRepo, LocRepo: locRepo,
+		EdgeRepo: edgeRepo,
 		ProseSvc: prose, ExtractSvc: extract, SummarySvc: summary, ValidateSvc: validate,
+		EventBus: events.NewInMemoryBus(),
 	})
 	genSvc.SetProgressPublisher(progressHub)
 
@@ -74,7 +77,7 @@ func buildServer(t *testing.T) (*api.Server, *mgorepo.StoryRepo) {
 		service.NewSceneService(sceneRepo, edgeRepo, genRepo),
 		service.NewEdgeService(edgeRepo),
 		service.NewCharacterService(charRepo),
-		genSvc,
+		genSvc, genSvc,
 		service.NewTimelineService(tlRepo),
 		service.NewSummaryService(sumRepo),
 		service.NewMemoryService(memRepo),

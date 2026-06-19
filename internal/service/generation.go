@@ -12,6 +12,7 @@ import (
 	"github.com/premchand/story-builder/internal/events"
 	"github.com/premchand/story-builder/internal/llm"
 	"github.com/premchand/story-builder/internal/repository"
+	"github.com/premchand/story-builder/internal/validation"
 	"github.com/premchand/story-builder/internal/worker"
 )
 
@@ -32,6 +33,8 @@ type GenerationServiceConfig struct {
 	ValidateSvc   llm.ValidationService
 	ContextBldr   *ContextBuilder
 	EventBus      events.Bus
+	EmbeddingSvc  llm.EmbeddingService
+	SceneValidator *validation.SceneValidator
 }
 
 type GenerationService struct {
@@ -51,6 +54,8 @@ type GenerationService struct {
 	summarySvc    llm.SummaryService
 	validateSvc   llm.ValidationService
 	contextBldr   *ContextBuilder
+	embeddingSvc  llm.EmbeddingService
+	sceneValidator *validation.SceneValidator
 
 	genInFlight    sync.Map
 	acceptInFlight sync.Map
@@ -64,7 +69,8 @@ func NewGenerationService(cfg GenerationServiceConfig) *GenerationService {
 		charRepo: cfg.CharRepo, stateRepo: cfg.StateRepo, edgeRepo: cfg.EdgeRepo,
 		memRepo: cfg.MemRepo, tlRepo: cfg.TlRepo, sumRepo: cfg.SumRepo, locRepo: cfg.LocRepo,
 		proseSvc: cfg.ProseSvc, extractSvc: cfg.ExtractSvc, summarySvc: cfg.SummarySvc, validateSvc: cfg.ValidateSvc,
-		contextBldr: cfg.ContextBldr, eventBus: cfg.EventBus,
+		contextBldr: cfg.ContextBldr, eventBus: cfg.EventBus, embeddingSvc: cfg.EmbeddingSvc,
+		sceneValidator: cfg.SceneValidator,
 	}
 }
 
@@ -250,12 +256,19 @@ func (s *GenerationService) runNonCriticalStep(ctx context.Context, genID, stepN
 func (s *GenerationService) runPipeline(ctx context.Context, genID string, scene *domain.Scene) {
 	genWorker := worker.NewGenerateSceneWorker(s.proseSvc, s.genRepo, s.sceneRepo)
 	extractWorker := worker.NewExtractStateWorker(s.extractSvc, s.stateRepo)
-	memWorker := worker.NewMemoryUpdateWorker(s.memRepo)
+	memWorker := worker.NewMemoryUpdateWorker(s.memRepo, s.embeddingSvc)
 	tlWorker := worker.NewTimelineWorker(s.tlRepo, s.edgeRepo)
 	sumWorker := worker.NewSummaryWorker(s.summarySvc, s.sumRepo)
 	valWorker := worker.NewValidationWorker(s.validateSvc, s.genRepo)
 
 	slog.Info("generation pipeline starting", "genId", genID)
+
+	if s.sceneValidator != nil {
+		violations := s.sceneValidator.ValidatePreGeneration(ctx, scene)
+		for _, v := range violations {
+			slog.Warn("pre-generation validation", "genId", genID, "severity", v.Severity, "field", v.Field, "message", v.Message)
+		}
+	}
 
 	criticalFailed := false
 	anyFailed := false

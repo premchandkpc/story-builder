@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/premchand/story-builder/internal/domain"
+	"github.com/premchand/story-builder/internal/events"
 	"github.com/premchand/story-builder/internal/llm"
 	mgorepo "github.com/premchand/story-builder/internal/repository/mongo"
 	"github.com/premchand/story-builder/internal/service"
@@ -61,6 +62,7 @@ func TestIntegration_GenerationPipeline(t *testing.T) {
 		TlRepo: tlRepo, SumRepo: sumRepo, LocRepo: locRepo,
 		EdgeRepo: edgeRepo,
 		ProseSvc: llmSvc, ExtractSvc: extractSvc, SummarySvc: summarySvc, ValidateSvc: validateSvc,
+		EventBus: events.NewInMemoryBus(),
 	})
 
 	t.Run("generation creates record and runs pipeline", func(t *testing.T) {
@@ -268,6 +270,7 @@ func TestIntegration_GenerationCustomProse(t *testing.T) {
 		EdgeRepo: edgeRepo,
 		ProseSvc: customProse, ExtractSvc: &mockExtractionService{},
 		SummarySvc: &mockSummaryService{}, ValidateSvc: &mockValidationService{},
+		EventBus: events.NewInMemoryBus(),
 	})
 
 	gen, err := genSvc.Generate(ctx, scene.ID)

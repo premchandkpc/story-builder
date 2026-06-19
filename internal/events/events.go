@@ -3,6 +3,7 @@ package events
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -22,14 +23,20 @@ type Bus interface {
 	Subscribe(eventType string, handler Handler) func()
 }
 
+type handlerEntry struct {
+	id   int64
+	fn   Handler
+}
+
 type InMemoryBus struct {
-	mu       sync.RWMutex
-	handlers map[string][]Handler
+	mu        sync.RWMutex
+	handlers  map[string][]handlerEntry
+	nextID    atomic.Int64
 }
 
 func NewInMemoryBus() *InMemoryBus {
 	return &InMemoryBus{
-		handlers: make(map[string][]Handler),
+		handlers: make(map[string][]handlerEntry),
 	}
 }
 
@@ -38,13 +45,13 @@ func (b *InMemoryBus) Publish(ctx context.Context, event Event) error {
 	b.mu.RLock()
 	hh := b.handlers[event.Type]
 	wildcard := b.handlers["*"]
-	combined := make([]Handler, 0, len(hh)+len(wildcard))
+	combined := make([]handlerEntry, 0, len(hh)+len(wildcard))
 	combined = append(combined, hh...)
 	combined = append(combined, wildcard...)
 	b.mu.RUnlock()
 
-	for _, h := range combined {
-		if err := h(ctx, event); err != nil {
+	for _, entry := range combined {
+		if err := entry.fn(ctx, event); err != nil {
 			return err
 		}
 	}
@@ -52,15 +59,17 @@ func (b *InMemoryBus) Publish(ctx context.Context, event Event) error {
 }
 
 func (b *InMemoryBus) Subscribe(eventType string, handler Handler) func() {
+	id := b.nextID.Add(1)
 	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.handlers[eventType] = append(b.handlers[eventType], handler)
+	b.handlers[eventType] = append(b.handlers[eventType], handlerEntry{id: id, fn: handler})
+	b.mu.Unlock()
+
 	return func() {
 		b.mu.Lock()
 		defer b.mu.Unlock()
 		hh := b.handlers[eventType]
-		for i, h := range hh {
-			if &h == &handler {
+		for i, entry := range hh {
+			if entry.id == id {
 				b.handlers[eventType] = append(hh[:i], hh[i+1:]...)
 				break
 			}

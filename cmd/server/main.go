@@ -12,11 +12,13 @@ import (
 	"github.com/premchand/story-builder/internal/api"
 	"github.com/premchand/story-builder/internal/cache"
 	"github.com/premchand/story-builder/internal/config"
+	"github.com/premchand/story-builder/internal/events"
 	"github.com/premchand/story-builder/internal/llm"
 	"github.com/premchand/story-builder/internal/log"
 	"github.com/premchand/story-builder/internal/prompt"
 	mgorepo "github.com/premchand/story-builder/internal/repository/mongo"
 	"github.com/premchand/story-builder/internal/service"
+	"github.com/premchand/story-builder/internal/validation"
 )
 
 func main() {
@@ -127,12 +129,16 @@ func main() {
 	bibleSvc := service.NewBibleService(bibleRepo, storyRepo, charRepo, bibleGenSvc)
 	chapterSvc := service.NewChapterSvc(chapterRepo)
 
+	eventBus := events.NewInMemoryBus()
+	embedSvc := llm.NewOllamaEmbeddingService(cfg.OllamaURL, "nomic-embed-text")
+	sceneValidator := validation.NewSceneValidator(charRepo, locRepo)
 	genSvc := service.NewGenerationService(service.GenerationServiceConfig{
 		GenRepo: genRepo, SceneRepo: sceneRepo, StoryRepo: storyRepo,
 		CharRepo: charRepo, StateRepo: stateRepo, EdgeRepo: edgeRepo,
 		MemRepo: memRepo, TlRepo: tlRepo, SumRepo: sumRepo, LocRepo: locRepo,
 		ProseSvc: proseSvc, ExtractSvc: extractSvc, SummarySvc: summarySvc, ValidateSvc: validateSvc,
-		ContextBldr: contextBldr,
+		ContextBldr: contextBldr, EventBus: eventBus, EmbeddingSvc: embedSvc,
+		SceneValidator: sceneValidator,
 	})
 	tlSvc := service.NewTimelineService(tlRepo)
 	sumSvc := service.NewSummaryService(sumRepo)
@@ -143,7 +149,7 @@ func main() {
 	genSvc.SetProgressPublisher(progressHub)
 
 	// ─── Handlers ──────────────────────────────────────────
-	h := api.NewHandlers(storySvc, sceneSvc, edgeSvc, charSvc, genSvc, tlSvc, sumSvc, memSvc, locSvc, bibleSvc, chapterSvc, outlineSvc, titleSvc, progressHub)
+	h := api.NewHandlers(storySvc, sceneSvc, edgeSvc, charSvc, genSvc, genSvc, tlSvc, sumSvc, memSvc, locSvc, bibleSvc, chapterSvc, outlineSvc, titleSvc, progressHub)
 
 	// ─── Server ────────────────────────────────────────────
 	srv := api.NewServer(h, rateLimiter)
