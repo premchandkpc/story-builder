@@ -15,13 +15,14 @@ import (
 )
 
 func TestIntegration_GenerationPipeline(t *testing.T) {
-	cleanCollections(t, "stories", "scenes", "generations", "character_state",
+	cleanCollections(t, "stories", "scenes", "scene_edges", "generations", "character_state",
 		"character_memories", "timeline_events", "summaries", "characters")
 
 	ctx := context.Background()
 
 	storyRepo := mgorepo.NewStoryRepo(testDB)
 	sceneRepo := mgorepo.NewSceneRepo(testDB)
+	edgeRepo := mgorepo.NewSceneEdgeRepo(testDB)
 	charRepo := mgorepo.NewCharacterRepo(testDB)
 	stateRepo := mgorepo.NewCharacterStateRepo(testDB)
 	genRepo := mgorepo.NewGenerationRepo(testDB)
@@ -58,6 +59,7 @@ func TestIntegration_GenerationPipeline(t *testing.T) {
 		GenRepo: genRepo, SceneRepo: sceneRepo, StoryRepo: storyRepo,
 		CharRepo: charRepo, StateRepo: stateRepo, MemRepo: memRepo,
 		TlRepo: tlRepo, SumRepo: sumRepo, LocRepo: locRepo,
+		EdgeRepo: edgeRepo,
 		ProseSvc: llmSvc, ExtractSvc: extractSvc, SummarySvc: summarySvc, ValidateSvc: validateSvc,
 	})
 
@@ -217,12 +219,13 @@ func TestIntegration_GenerationPipeline(t *testing.T) {
 }
 
 func TestIntegration_GenerationCustomProse(t *testing.T) {
-	cleanCollections(t, "stories", "scenes", "generations", "timeline_events", "summaries")
+	cleanCollections(t, "stories", "scenes", "scene_edges", "generations", "timeline_events", "summaries")
 
 	ctx := context.Background()
 
 	storyRepo := mgorepo.NewStoryRepo(testDB)
 	sceneRepo := mgorepo.NewSceneRepo(testDB)
+	edgeRepo := mgorepo.NewSceneEdgeRepo(testDB)
 	charRepo := mgorepo.NewCharacterRepo(testDB)
 	stateRepo := mgorepo.NewCharacterStateRepo(testDB)
 	genRepo := mgorepo.NewGenerationRepo(testDB)
@@ -262,6 +265,7 @@ func TestIntegration_GenerationCustomProse(t *testing.T) {
 		GenRepo: genRepo, SceneRepo: sceneRepo, StoryRepo: storyRepo,
 		CharRepo: charRepo, StateRepo: stateRepo, MemRepo: memRepo,
 		TlRepo: tlRepo, SumRepo: sumRepo, LocRepo: locRepo,
+		EdgeRepo: edgeRepo,
 		ProseSvc: customProse, ExtractSvc: &mockExtractionService{},
 		SummarySvc: &mockSummaryService{}, ValidateSvc: &mockValidationService{},
 	})
