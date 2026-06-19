@@ -3,6 +3,8 @@ package mongo
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -86,8 +88,15 @@ func EnsureIndexes(ctx context.Context, db *mongo.Database) error {
 
 	for collName, models := range indexes {
 		coll := db.Collection(collName)
-		if _, err := coll.Indexes().CreateMany(ctx, models); err != nil {
-			return fmt.Errorf("create indexes for %s: %w", collName, err)
+		for _, m := range models {
+			_, err := coll.Indexes().CreateOne(ctx, m)
+			if err != nil && strings.Contains(err.Error(), "IndexKeySpecsConflict") {
+				slog.Warn("index conflict, skipping", "collection", collName, "error", err)
+				continue
+			}
+			if err != nil {
+				return fmt.Errorf("create index for %s: %w", collName, err)
+			}
 		}
 	}
 

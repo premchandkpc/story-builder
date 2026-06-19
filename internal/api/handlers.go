@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 
 	"github.com/premchand/story-builder/internal/domain"
@@ -110,5 +111,8 @@ func NewHandlers(
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
+	if status >= 500 {
+		slog.Error("server error", "status", status, "msg", msg)
+	}
 	writeJSON(w, status, map[string]string{"error": msg})
 }

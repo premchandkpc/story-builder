@@ -11,7 +11,15 @@ import (
 )
 
 func NewAnthropicClient(apiKey string) *AnthropicClient {
-	return &AnthropicClient{apiKey: apiKey, http: &http.Client{Timeout: 120 * time.Second}}
+	transport := &http.Transport{
+		ResponseHeaderTimeout: 30 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		IdleConnTimeout:       90 * time.Second,
+	}
+	return &AnthropicClient{apiKey: apiKey, http: &http.Client{
+		Timeout:   60 * time.Second,
+		Transport: transport,
+	}}
 }
 
 type AnthropicClient struct {
@@ -91,7 +99,14 @@ func NewOllamaClient(baseURL, defaultModel string) *OllamaClient {
 	if defaultModel == "" {
 		defaultModel = "llama3.2:3b"
 	}
-	return &OllamaClient{baseURL: baseURL, defaultModel: defaultModel, http: &http.Client{Timeout: 120 * time.Second}}
+	transport := &http.Transport{
+		ResponseHeaderTimeout: 60 * time.Second,
+		IdleConnTimeout:       90 * time.Second,
+	}
+	return &OllamaClient{baseURL: baseURL, defaultModel: defaultModel, http: &http.Client{
+		Timeout:   120 * time.Second,
+		Transport: transport,
+	}}
 }
 
 type OllamaClient struct {

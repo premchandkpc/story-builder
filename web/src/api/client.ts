@@ -120,7 +120,7 @@ export const api = {
     delete: (id: string)                => request<void>(`/stories/${id}`, { method: "DELETE" }),
     // generate: LLM-based full story generation from a synopsis
     generate: (data: { synopsis: string }) =>
-      request<StoryGenerateResult>("/stories/generate", { method: "POST", body: JSON.stringify(data) }),
+      request<StoryGenerateResult>("/stories/generate", { method: "POST", body: JSON.stringify(data), timeout: 300000 }),
     // generateTitle: LLM-based title suggestion from synopsis
     generateTitle: (data: { synopsis: string }) =>
       request<{ title: string }>("/stories/generate-title", { method: "POST", body: JSON.stringify(data) }),

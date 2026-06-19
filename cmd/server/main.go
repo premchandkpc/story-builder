@@ -21,7 +21,7 @@ import (
 
 func main() {
 	cfg := config.FromEnv()
-	log.Init(log.Config{Level: "info"})
+	log.Init(log.Config{Level: cfg.LogLevel})
 	slog.Info("starting story-builder", "port", cfg.Port)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
