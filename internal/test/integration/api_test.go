@@ -32,11 +32,14 @@ func buildServer(t *testing.T) (*api.Server, *mgorepo.StoryRepo) {
 	tlRepo := mgorepo.NewTimelineRepo(testDB)
 	sumRepo := mgorepo.NewSummaryRepo(testDB)
 	locRepo := mgorepo.NewLocationRepo(testDB)
+	bibleRepo := mgorepo.NewBibleRepo(testDB)
+	chapterRepo := mgorepo.NewChapterRepo(testDB)
 
 	deleter := &service.StoryCascadeDeleter{
 		SceneRepo: sceneRepo, EdgeRepo: edgeRepo, CharRepo: charRepo,
 		StateRepo: stateRepo, GenRepo: genRepo, MemRepo: memRepo,
 		TlRepo: tlRepo, SumRepo: sumRepo, LocRepo: locRepo,
+		BibleRepo: bibleRepo, ChapterRepo: chapterRepo,
 	}
 
 	mockLLM := &stubLLMClient{}
@@ -52,22 +55,35 @@ func buildServer(t *testing.T) (*api.Server, *mgorepo.StoryRepo) {
 	summary := &mockSummaryService{}
 	validate := &mockValidationService{}
 
+	outlineSvc := llm.NewOutlineService(mockLLM, compiler)
+	titleSvc := llm.NewTitleService(mockLLM)
+	bibleGenSvc := llm.NewBibleService(mockLLM, compiler)
+	bibleSvc := service.NewBibleService(bibleRepo, storyRepo, charRepo, bibleGenSvc)
+	chapterSvc := service.NewChapterSvc(chapterRepo)
+	progressHub := api.NewProgressHub()
+	genSvc := service.NewGenerationService(service.GenerationServiceConfig{
+		GenRepo: genRepo, SceneRepo: sceneRepo, StoryRepo: storyRepo,
+		CharRepo: charRepo, StateRepo: stateRepo, MemRepo: memRepo,
+		TlRepo: tlRepo, SumRepo: sumRepo, LocRepo: locRepo,
+		ProseSvc: prose, ExtractSvc: extract, SummarySvc: summary, ValidateSvc: validate,
+	})
+	genSvc.SetProgressPublisher(progressHub)
+
 	h := api.NewHandlers(
 		service.NewStoryService(storyRepo, deleter),
 		service.NewSceneService(sceneRepo, edgeRepo, genRepo),
 		service.NewEdgeService(edgeRepo),
 		service.NewCharacterService(charRepo),
-		service.NewGenerationService(service.GenerationServiceConfig{
-			GenRepo: genRepo, SceneRepo: sceneRepo, StoryRepo: storyRepo,
-			CharRepo: charRepo, StateRepo: stateRepo, MemRepo: memRepo,
-			TlRepo: tlRepo, SumRepo: sumRepo, LocRepo: locRepo,
-			ProseSvc: prose, ExtractSvc: extract, SummarySvc: summary, ValidateSvc: validate,
-		}),
+		genSvc,
 		service.NewTimelineService(tlRepo),
 		service.NewSummaryService(sumRepo),
 		service.NewMemoryService(memRepo),
 		service.NewLocationService(locRepo),
-		llm.NewOutlineService(mockLLM, compiler),
+		bibleSvc,
+		chapterSvc,
+		outlineSvc,
+		titleSvc,
+		progressHub,
 	)
 
 	return api.NewServer(h, nil), storyRepo
@@ -77,7 +93,7 @@ type stubLLMClient struct{}
 
 func (s *stubLLMClient) Complete(ctx context.Context, req llm.CompletionRequest) (*llm.CompletionResponse, error) {
 	return &llm.CompletionResponse{
-		Content: `{"title":"Generated Story","synopsis":"A test story","characters":[{"name":"Hero","persona":"protagonist","backstory":"Born in fire.","moral_alignment":"good","personality":["brave"],"flaws":["reckless"],"goals":["save the world"],"voice_samples":["I will prevail.","Not today."]}],"beats":[{"title":"Chapter 1","beat_intent":"Hero begins journey","character_names":["Hero"],"pov":"Hero","tone":"hopeful","target_words":500,"act":1}],"edges":[{"from":"Chapter 1","to":"Chapter 1","type":"seq"}]}`,
+		Content: `{"title":"Generated Story","synopsis":"A test story","characters":[{"name":"Hero","persona":"protagonist","backstory":"Born in fire.","moral_alignment":"good"}],"beats":[{"title":"Chapter 1","beat_intent":"Hero begins journey","character_names":["Hero"],"pov":"Hero","tone":"hopeful","target_words":500,"act":1}],"edges":[{"from":"Chapter 1","to":"Chapter 2","type":"seq"}]}`,
 		Model:   "mock-sonnet",
 	}, nil
 }
