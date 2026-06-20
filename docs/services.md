@@ -325,6 +325,49 @@ Optional Redis (via `REDIS_ADDR` env var). Degrades gracefully.
 
 ---
 
+## Agent Orchestrator
+
+The agent orchestrator in `internal/agents/orchestrator.go` manages multi-agent scene generation:
+
+### AgentRegistry
+
+```go
+type AgentRegistry struct {
+    agents map[string]AgentSpec
+}
+
+func (r *AgentRegistry) Register(spec AgentSpec)
+func (r *AgentRegistry) Get(name string) (AgentSpec, bool)
+func (r *AgentRegistry) List() []AgentSpec
+```
+
+### Orchestrator
+
+| Method | Description |
+|--------|-------------|
+| `Plan(scene)` | Returns turn order based on `scene.FlowType` |
+| `Execute(plan, agentContext)` | Runs each agent in sequence, recording turns |
+| `RunFinish(scene, agentContext)` | Runs StateExtract + Critic + Director after all turns |
+
+### Integration with GenerationService
+
+```go
+// In runPipeline:
+if scene.SceneStructure != nil {
+    plan := orchestrator.Plan(scene)
+    result := orchestrator.Execute(plan, agentContext)
+    orchestrator.RunFinish(scene, agentContext)
+} else {
+    // existing 6-worker pipeline
+}
+```
+
+### Agent Context
+
+Each agent receives an `AgentContext` with story, scene, characters, states, bible, memories, timeline, canon deltas, and summaries. The context is assembled by the orchestrator before the first turn and refreshed between phases.
+
+---
+
 ## Workers
 
 Workers in `internal/worker/` are goroutine-based. Each implements a `Work` method:

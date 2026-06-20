@@ -389,6 +389,108 @@ Bridges Act→Scene hierarchy. Enables sequential scene planning within act/chap
 
 ---
 
+### `scene_turns`
+
+Records each agent turn during scene generation.
+
+```json
+{
+  "_id": "turn_1",
+  "sceneId": "scene_100",
+  "storyId": "story_1",
+  "number": 1,
+  "agentId": "director",
+  "role": "scene_director",
+  "input": "Plan the opening turn for scene_100",
+  "output": "Arya enters the throne room, guards flanking...",
+  "model": "claude-sonnet",
+  "status": "done",
+  "error": "",
+  "promptTokens": 4500,
+  "completionTokens": 820,
+  "durationMs": 12400,
+  "createdAt": "2026-06-20T00:00:00Z",
+  "updatedAt": "2026-06-20T00:00:05Z"
+}
+```
+
+**Status values:** `pending`, `running`, `done`, `failed`, `skipped`
+
+**Role values:** `director`, `character`, `narrator`, `editor`, `canon_guard`, `critic`, `state_extractor`, `world`, `arc`, `memory`
+
+**Indexes:**
+- `{ sceneId: 1, number: 1 }` (unique)
+- `{ sceneId: 1, role: 1 }`
+- `{ storyId: 1, createdAt: -1 }`
+
+---
+
+### `agent_runs`
+
+Execution log for each agent invocation (one agent may produce multiple turns).
+
+```json
+{
+  "_id": "run_1",
+  "storyId": "story_1",
+  "sceneId": "scene_100",
+  "turnId": "turn_1",
+  "agentType": "director",
+  "input": {
+    "beatIntent": "Hero arrives at the castle",
+    "participants": ["char_1", "char_2"]
+  },
+  "output": {
+    "whoActs": ["char_1"],
+    "pressure": 0.5,
+    "escalation": "Castle guards confront the hero"
+  },
+  "model": "claude-sonnet",
+  "status": "success",
+  "error": "",
+  "durationMs": 8400,
+  "createdAt": "2026-06-20T00:00:00Z"
+}
+```
+
+**Agent types:** `director`, `character`, `narrator`, `editor`, `canon_guard`, `critic`, `state_extract`, `world`, `arc`, `memory`, `orchestrator`
+
+**Indexes:**
+- `{ storyId: 1, sceneId: 1, createdAt: -1 }`
+- `{ storyId: 1, agentType: 1 }`
+- `{ sceneId: 1 }`
+
+---
+
+### `canon_deltas`
+
+Append-only log of canon changes, projected into `stories.canonPins` on scene accept.
+
+```json
+{
+  "_id": "delta_1",
+  "storyId": "story_1",
+  "sceneId": "scene_100",
+  "genId": "gen_1",
+  "category": "character_state",
+  "fact": "Arya.location",
+  "oldValue": "castle_gates",
+  "newValue": "throne_room",
+  "source": "state_extractor",
+  "confidence": 0.95,
+  "createdAt": "2026-06-20T00:00:00Z"
+}
+```
+
+**Categories:** `character_state`, `relationship`, `location`, `timeline`, `world`, `plot`, `lore`, `fact`
+
+**Indexes:**
+- `{ storyId: 1, createdAt: -1 }`
+- `{ sceneId: 1 }`
+- `{ storyId: 1, category: 1 }`
+
+---
+
 ### `timeline_events`
 
 ```json
@@ -429,6 +531,9 @@ The frontend mirrors backend models as TypeScript interfaces in `web/src/api/typ
 | `StorySummary` | `summaries` | Hierarchical summaries |
 | `Casting` | (separate) | Actor→Character links |
 | `SceneStructure` | embedded in scene | Turn-based flow config |
+| `SceneTurn` | `scene_turns` | Agent turn during generation |
+| `AgentRun` | `agent_runs` | Agent execution log |
+| `CanonDelta` | `canon_deltas` | Append-only canon change log |
 
 ### UI-Only Types (no backend equivalent)
 
@@ -450,9 +555,15 @@ stories 1──* character_state       (storyId)
 stories 1──* character_memories    (storyId)
 stories 1──* summaries             (storyId)
 stories 1──* timeline_events       (storyId)
+stories 1──* scene_turns           (storyId)
+stories 1──* agent_runs            (storyId)
+stories 1──* canon_deltas          (storyId)
 
 scenes 1──* scene_edges            (fromSceneId / toSceneId)
 scenes 1──* generations            (sceneId)
+scenes 1──* scene_turns            (sceneId)
+scenes 1──* agent_runs             (sceneId)
+scenes 1──* canon_deltas           (sceneId)
 scenes 1──* character_state        (sceneId)
 scenes 1──* character_memories     (sceneId)
 scenes 1──* summaries              (sceneId)
@@ -461,6 +572,8 @@ characters 1──* character_state    (characterId)
 characters 1──* character_memories (characterId)
 
 chapters 1──* scenes               (scenes array references)
+
+agent_runs 1──* scene_turns        (turnId)
 ```
 
 ---

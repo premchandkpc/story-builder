@@ -1,5 +1,12 @@
 # Architecture
 
+## Key Documents
+
+- `docs/agents.md` — Runtime agent architecture (10 agents, orchestration flow, model routing)
+- `docs/visual/architecture-overview.md` — Mermaid system diagrams (context, deps, sequences)
+- `docs/visual/scene-orchestration.md` — Turn ordering, flow type maps, state machines
+- `docs/roadmap.md` — Phased implementation plan (P0→P5)
+
 ## System Overview
 
 ```
@@ -89,7 +96,10 @@ cmd/server/main.go
     │   ├── memory.go          ─── CharacterMemory
     │   ├── timeline.go        ─── TimelineEvent
     │   ├── summary.go         ─── Summary
-    │   └── relationship.go    ─── Relationship + RelationshipDelta
+    │   ├── relationship.go    ─── Relationship + RelationshipDelta
+    │   ├── scene_turn.go      ─── SceneTurn (turn in agent generation)
+    │   ├── agent_run.go       ─── AgentRun (agent execution log)
+    │   └── canon_delta.go     ─── CanonDelta (append-only canon changes)
     │
     ├── internal/service       ─── Business logic
     │   ├── story.go           ─── Story CRUD, cascade delete, Scene/Edge/Character/Timeline/Summary/Memory services
@@ -101,6 +111,24 @@ cmd/server/main.go
     │
     ├── internal/repository    ─── Data access interfaces
     │   └── mongo/             ─── MongoDB implementations
+    │
+    ├── internal/agents        ─── Runtime narrative agents
+    │   ├── types.go           ─── Agent, AgentSpec, AgentContext, OrchestrationPlan
+    │   ├── orchestrator.go    ─── AgentRegistry, Orchestrator (Plan, Execute, RunFinish)
+    │   ├── director.go        ─── Director agent (scene planning, turn orchestration)
+    │   ├── character_agent.go ─── Character agent (in-character dialogue/action)
+    │   ├── narrator.go        ─── Narrator agent (prose stitching)
+    │   ├── editor.go          ─── Editor agent (polish, trim, pace)
+    │   ├── canon_guard.go     ─── CanonGuard agent (continuity validation)
+    │   ├── critic.go          ─── Critic agent (scene scoring)
+    │   ├── state_extractor.go ─── StateExtract agent (state delta extraction)
+    │   ├── world.go           ─── World agent (faction/lore consistency)
+    │   ├── arc.go             ─── Arc agent (plot thread/character arc tracking)
+    │   ├── memory_agent.go    ─── Memory agent (layered memory management)
+    │   └── agent_repository.go─── SceneTurnRepository interface (shared with scene/)
+    │
+    ├── internal/scene         ─── Scene turn orchestration
+    │   └── turn.go            ─── TurnRepository interfaces + TurnOrchestrator
     │
     ├── internal/worker        ─── In-process async workers
     │   ├── generate.go        ─── GenerateSceneWorker
@@ -204,6 +232,17 @@ The frontend types in `web/src/api/types.ts` mirror the backend domain models. K
 - `NodeStatus` → `draft | generated | accepted | stale`
 - `EdgeType` → `seq | fork | join | choice`
 - `SceneStructure` / `SceneTurn` → interactive turn-based generation
+
+## Agent Orchestration
+
+See `docs/agents.md` for full agent architecture. Summary:
+
+- 10 runtime agents: Director, Character, Narrator, Editor, CanonGuard, Critic, StateExtract, World, Arc, Memory
+- `internal/agents/orchestrator.go` — Plan, Execute, RunFinish
+- Turn order determined by `scene.FlowType` (monologue/dialogue/round_robin/action/silent)
+- Agents called in sequence, each producing a `domain.SceneTurn`
+- P0 agents (Director, Character, Narrator, CanonGuard, StateExtract) built first
+- Integration: scenes with `sceneStructure` → agent orchestrator; simple scenes → existing pipeline
 
 ## Data Flow: Scene Generation
 
@@ -331,10 +370,18 @@ MongoDB + Redis → Go API (chi) → React Flow
     6. Durable Pipeline — context.Background(), partial success, retries, status tracking
 ```
 
-**Phase 3 — Planned:**
+**Phase 3 — Agent Orchestration:**
+- 10 runtime narrative agents (see `docs/agents.md`)
+- Director-led turn orchestration replacing hardcoded pipeline steps
+- Agent context assembly (bible + state + memory + canon)
+- Turn-level LLM calls with role-specific system prompts
+- Critic-scored scene quality feedback loop
+
+**Phase 4 — Narrative Intelligence:**
 - Sequential generation: whole acts, not individual scenes
 - Semantic memory recall (embedding-based top-K per character)
 - Branch-aware summary merging
+- Cross-story canon + character migration
 
 **Infrastructure philosophy:**
 - MongoDB + Redis only (no Kafka, no Qdrant, no Postgres)

@@ -34,4 +34,10 @@ const (
 	EventBibleUpdated    = "bible.updated"
 	EventBibleDeleted    = "bible.deleted"
 	EventGenerationStatusChanged = "generation.status_changed"
+
+	// Agent events
+	EventAgentTurnCompleted  = "agent.turn_completed"
+	EventAgentTurnFailed     = "agent.turn_failed"
+	EventSceneTurnsComplete  = "scene.turns_complete"
+	EventAgentError          = "agent.error"
 )

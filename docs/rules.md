@@ -24,12 +24,15 @@ internal/
   api/               HTTP handlers (thin)
   domain/            Domain models (no infra imports)
   service/           Business logic
+  agents/            Runtime narrative agents (orchestrator + 10 agents)
+  scene/             Scene turn orchestration
   repository/        Interfaces + mongo/ implementation
   worker/            Async pipeline workers (goroutines)
   graph/             DAG traversal + validation
   llm/               LLM clients + router
   prompt/            Prompt compiler (10 layers)
   cache/             Redis cache + rate limiter
+  events/            In-memory event bus
   log/               Structured logging (slog wrapper)
   config/            Environment config
 ```
@@ -55,6 +58,16 @@ internal/
 2. **Detect cycles.** `TopologicalSort()` returns error on cycle — block the operation.
 3. **No orphan scenes.** Every scene (except root) must have at least one incoming edge.
 4. **No dead ends** for main path (optional for choice branches).
+
+## Agents
+
+1. **Agents are in-process actors**, not microservices. All agents run in the same Go process via the orchestrator.
+2. **Agent registry is the single source of truth** for agent specs. Register all agents at startup in `main.go`.
+3. **One agent = one role.** A Character agent role-plays one character. Director plans. Narrator narrates. Don't combine roles.
+4. **Turn serialization.** The orchestrator runs turns sequentially. One blocking turn at a time. No parallel agent execution in P0.
+5. **Agent context is immutable within a turn.** The context is assembled before the first turn. Agents receive a snapshot, not a live connection to the DB.
+6. **Required agents must succeed or the scene fails.** Optional agents can fail silently.
+7. **Canon is updated on scene accept, not on generation.** `CanonDelta` documents are accumulated during generation; `stories.canonPins` is only updated when the user accepts the generation.
 
 ## LLM Pipeline
 
