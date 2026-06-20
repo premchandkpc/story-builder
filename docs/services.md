@@ -104,33 +104,29 @@ type StoryHandler struct {
 ### Memory Service
 
 | Method | Description |
-|---|---|
-| `StoreMemory(storyID, charID, sceneID, content, importance)` | Stores a memory with embedding |
-| `RetrieveMemories(charID, query, limit)` | Vector search of relevant memories |
-| `ListMemories(charID)` | Lists all memories for a character |
+|---|---|---|
+| `ListByCharacter(charID)` | Lists all memories for a character |
+| `Search(storyID, charID, query, limit)` | Vector search of relevant memories via embedding |
 
 ### Timeline Service
 
 | Method | Description |
-|---|---|
-| `CreateEvent(storyID, sceneID, title, description, order)` | Creates a timeline event |
-| `ListEvents(storyID)` | Lists all events sorted by order |
-| `GetEventsByRange(storyID, from, to)` | Gets events in a range |
+|---|---|---|
+| `Create(ctx, event)` | Creates a timeline event |
+| `List(ctx, storyID)` | Lists all events sorted by order |
 
 ### Summary Service
 
 | Method | Description |
-|---|---|
-| `UpsertSceneSummary(storyID, sceneID, content)` | Creates/updates scene summary |
-| `UpsertStorySummary(storyID, content)` | Creates/updates story-level summary |
+|---|---|---|
+| `GetByLevel(storyID, level)` | Gets latest summary at a level |
 | `GetSceneSummary(storyID, sceneID)` | Gets scene summary |
-| `GetSummaryByLevel(storyID, level)` | Gets latest summary at a level |
 
 ### Bible Service
 
 | Method | Description |
 |---|---|
-| `Generate(ctx, storyID)` | Generates Bible via LLM (claude-sonnet, 0.3 temp, 8192 tokens) and persists. Single-flight guard — concurrent calls return `ErrBibleExists`. |
+| `Generate(ctx, storyID)` | Generates Bible via LLM (claude-sonnet, 0.3 temp, 8192 tokens) and persists. Single-flight guard — concurrent calls return error. |
 | `Get(ctx, storyID)` | Gets Bible for a story |
 | `Update(ctx, storyID, bible)` | Updates Bible fields |
 | `DeleteByStory(ctx, storyID)` | Removes Bible when story is deleted |
@@ -139,10 +135,10 @@ type StoryHandler struct {
 
 | Method | Description |
 |---|---|
-| `Create(ctx, storyID, actNumber, chapterNum, title, summary, goal)` | Creates a chapter in the Act→Chapter→Scene hierarchy |
+| `Create(ctx, chapter)` | Creates a chapter via domain.Chapter object |
 | `Get(ctx, storyID, chapterID)` | Gets chapter by ID within a story |
 | `List(ctx, storyID)` | Lists all chapters for a story, sorted by act+chapter |
-| `Update(ctx, storyID, chapterID, title, summary, goal, status)` | Updates chapter metadata |
+| `Update(ctx, chapter)` | Updates chapter metadata via domain.Chapter object |
 | `Delete(ctx, storyID, chapterID)` | Deletes a chapter |
 
 ### Context Builder

@@ -46,6 +46,7 @@
 {
   "_id": "scene_100",
   "storyId": "story_1",
+  "chapterId": "chapter_1",
   "title": "Arrival",
   "beatIntent": "Hero arrives at the castle",
   "summary": "",
@@ -128,12 +129,14 @@ Immutable versioned log. Each update inserts a new document with an incremented 
     "char_2": "trusts",
     "char_3": "hunts"
   },
-  "currentState": {
-    "health": 90,
-    "location": "castle",
-    "mood": "determined",
-    "inventory": ["dagger", "cloak"]
-  },
+  "relData": [
+    {"targetName": "Villain", "trust": 20, "respect": 0, "fear": 70, "affection": 0}
+  ],
+  "want": "Find family",
+  "need": "Learn to trust again",
+  "falseBelief": "Revenge brings peace",
+  "fear": "Being alone",
+  "arcType": "redemption",
   "createdAt": ""
 }
 ```
@@ -323,29 +326,34 @@ Generated once per story via LLM (claude-sonnet, temp 0.3, 8192 max tokens). Nev
     }
   ],
   "worldRules": [
-    "Magic requires a catalyst object",
-    "The old gods cannot directly intervene in mortal affairs",
-    "Certain metals disrupt magical energy"
+    {"category": "physics", "description": "Magic requires a catalyst object", "strictness": "firm"},
+    {"category": "magic", "description": "The old gods cannot directly intervene", "strictness": "absolute"}
   ],
   "magicSystems": [
     {
       "name": "Catalysis",
-      "description": "Tap into ambient mana through focus objects (catalysts)",
-      "rules": ["Requires years of training", "Limited by user's stamina and focus"]
+      "source": "Ambient mana through focus objects (catalysts)",
+      "cost": "Stamina and concentration",
+      "limitations": ["Requires years of training", "Limited by user's stamina"],
+      "users": ["Mages", "Artificers"]
     }
   ],
   "factions": [
     {
       "name": "The Iron Guild",
-      "beliefs": ["Might makes right", "Magic should be controlled"],
-      "goals": ["Control all mana sources", "Eliminate unlicensed mages"]
+      "goal": "Control all mana sources",
+      "resources": "Wealthy, well-organized",
+      "members": ["Grandmaster", "Three Wardens"],
+      "relations": "Hostile to unlicensed mages"
     }
   ],
   "cultures": [
     {
       "name": "Valdori",
+      "values": ["Honor", "Family", "Tradition"],
       "customs": ["Ancestor worship", "Iron-fasting rites of passage"],
-      "taboos": ["Breaking a blood oath", "Consorting with spirits of the dead"]
+      "technology": "Medieval with steam innovations",
+      "government": "Feudal monarchy"
     }
   ],
   "tone": "dark fantasy with moments of hope and levity",
@@ -370,7 +378,7 @@ Bridges Act→Scene hierarchy. Enables sequential scene planning within act/chap
   "_id": "chapter_1",
   "storyId": "story_1",
   "actNumber": 1,
-  "chapterNum": 1,
+  "chapterNumber": 1,
   "title": "Chapter One: The Awakening",
   "summary": "The hero discovers their hidden power during a festival",
   "goal": "Establish the hero's ordinary world and present the call to adventure",
@@ -384,7 +392,7 @@ Bridges Act→Scene hierarchy. Enables sequential scene planning within act/chap
 **Status values:** `planned`, `outlined`, `in_progress`, `completed`
 
 **Indexes:**
-- `{ storyId: 1, actNumber: 1, chapterNum: 1 }` (unique)
+- `{ storyId: 1, actNumber: 1, chapterNumber: 1 }` (unique)
 - `{ storyId: 1 }`
 
 ---
@@ -499,7 +507,10 @@ Append-only log of canon changes, projected into `stories.canonPins` on scene ac
   "storyId": "story_1",
   "sceneId": "scene_100",
   "title": "Arrival at Castle",
+  "eventType": "scene",
   "description": "Arya arrives at the castle seeking the truth about her father's death",
+  "dependencies": ["tl_0"],
+  "consequences": ["tl_2"],
   "order": 12,
   "createdAt": ""
 }

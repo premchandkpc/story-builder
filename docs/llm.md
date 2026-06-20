@@ -175,13 +175,16 @@ MongoDB Atlas Search handles vector similarity. No Qdrant, no pgvector.
 
 ## CompiledContext
 
+`internal/llm/context.go` — Internal struct used by ProseService to build prompts. Assembled from `PromptParams` at generation time.
+
 ```go
 type CompiledContext struct {
-    Characters     []Character
-    Location       *Location
+    CharacterCards []CharacterCard
+    LocationCard   *CharacterCard
     BranchSummary  string
     CharState      map[string]CharacterState
-    Memories       []Memory
+    Memories       map[string][]string
+    Lore           []string
     BeatIntent     string
     POV            string
     Tone           string
@@ -189,7 +192,28 @@ type CompiledContext struct {
 }
 ```
 
-`CompiledContext.Hash()` — serializes to JSON → SHA256 → hex string. Used for generation staleness detection.
+Methods:
+
+| Method | Output | Purpose |
+|--------|--------|---------|
+| `Hash()` | hex string | JSON→SHA256→hex; generation staleness detection |
+| `BuildCanonXML()` | XML string | Serializes character cards to canon format for validation |
+| `BuildCharStateXML()` | XML string | Serializes character states for extraction |
+| `BuildSceneProseSystemPrompt()` | string | Builds the system prompt template |
+| `BuildSceneProseUserMessage()` | string | Builds the user message with scene context |
+| `BuildScenePromptSnapshot()` | string | Snapshot for generation metadata |
+
+The higher-level `ContextBuilder.Build()` in `internal/service/context.go` returns `BuiltContext`:
+
+```go
+type BuiltContext struct {
+    Params         llm.PromptParams
+    CanonXML       string
+    CharStateXML   string
+    BranchSummary  string
+    CharacterNames []string
+}
+```
 
 ## LLM Clients
 

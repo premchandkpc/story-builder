@@ -467,7 +467,7 @@ Get the story bible.
 
 Generate a new bible via LLM (claude-sonnet). No request body.
 
-**Response 202:** Full bible object (accepted for async generation).
+**Response 201:** Full bible object.
 
 ### `PUT /api/v1/stories/{storyID}/bible`
 
@@ -495,7 +495,7 @@ Create a chapter.
 ```json
 {
   "actNumber": 1,
-  "chapterNum": 1,
+  "chapterNumber": 1,
   "title": "Chapter One: The Awakening",
   "summary": "The hero discovers their power",
   "goal": "Establish the ordinary world"
@@ -508,7 +508,7 @@ Create a chapter.
 
 ### `GET /api/v1/stories/{storyID}/chapters`
 
-List all chapters for a story, sorted by actNumber then chapterNum.
+List all chapters for a story, sorted by actNumber then chapterNumber.
 
 ### `GET /api/v1/stories/{storyID}/chapters/{id}`
 
@@ -530,7 +530,9 @@ Update a chapter.
 
 ### `DELETE /api/v1/stories/{storyID}/chapters/{id}`
 
-Delete a chapter. **Currently returns 501 Not Implemented.**
+Delete a chapter.
+
+**Response 204:** No Content.
 
 ---
 
@@ -554,5 +556,4 @@ These endpoints return `501 Not Implemented` or `200 []`:
 | `POST /api/v1/stories/{id}/casting` | 501 |
 | `GET /api/v1/casting/actor/{id}` | 501 |
 | `GET /api/v1/casting/character/{id}` | 501 |
-| `DELETE /api/v1/stories/{id}/chapters/{id}` | 501 |
 | `PUT /api/v1/locations/{id}` | Name field not mutable; accepts `description` + `props` only |

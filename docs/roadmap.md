@@ -15,12 +15,12 @@
 - [x] Bible generation
 - [x] Story cascade delete
 
-**Known gaps (from repo audit):**
-- [ ] `UpdateBible` — reads body but never persists (`internal/api/bible.go`)
-- [ ] `GetLocation` / `DeleteLocation` — stub implementations
-- [ ] `CreateChapter` — `chapterNumber` not parsed from request
-- [ ] `V2ListCharacters` — returns `[]` stub
-- [ ] `UpdateBody` in locations — returns `NotImplemented`
+**Known gaps (resolved):**
+- [x] `UpdateBible` — persists via `bibleSvc.Update()` → `bibleRepo.Update()` (resolved)
+- [x] `GetLocation` — real implementation via `locSvc.Get()` (resolved)
+- [x] `CreateChapter` — `chapterNumber` parsed from request body (resolved)
+- [x] `V2ListCharacters` — returns `[]` only when `story_id` omitted (intentional)
+- [x] `UpdateLocation` — persists desc/props; name not mutable by design
 
 ## Phase 1: Agent Framework (Month 1)
 

@@ -83,7 +83,11 @@ cmd/server/main.go
     │   ├── timeline.go        ─── Timeline events
     │   ├── generations.go     ─── Generate prose, list/accept generations
     │   ├── bible.go           ─── Story Bible get/generate
-    │   └── chapters.go        ─── Chapter CRUD
+    │   ├── chapters.go        ─── Chapter CRUD
+    │   ├── progress.go        ─── SSE progress hub
+    │   ├── summaries.go       ─── Summary retrieval
+    │   ├── memories.go        ─── Memory search + list
+    │   └── helpers.go         ─── writeJSON, param helpers
     │
     ├── internal/domain        ─── Domain models (no infra deps)
     │   ├── story.go           ─── Story entity
@@ -143,7 +147,9 @@ cmd/server/main.go
     │   ├── router.go          ─── Dispatches by model tier, JSON validation, retry with backoff
     │   ├── client.go          ─── AnthropicClient + OllamaClient
     │   ├── circuitbreaker.go  ─── CircuitBreakerClient wrapper
-    │   └── services.go        ─── Prose, Extract, Summary, Merge, Validation, Outline, Title
+    │   ├── services.go        ─── Prose, Extract, Summary, Merge, Validation, Outline, Title
+    │   ├── bible.go            ─── BibleGenerationService
+    │   └── context.go          ─── CompiledContext helpers (BuildCanonXML, BuildCharStateXML, Hash)
     │
     ├── internal/graph         ─── DAG data model + traversal
     │   ├── models.go          ─── DAG types
@@ -155,6 +161,16 @@ cmd/server/main.go
     │   └── dist_lock.go
     │
     ├── internal/prompt        ─── Prompt compiler (10-layer hierarchy)
+    │
+    ├── internal/events        ─── Event bus (domain events, AgentTurnCompleted, SceneTurnsComplete)
+    │   ├── events.go           ─── Bus interface + in-memory implementation
+    │   └── types.go            ─── Event struct + type constants
+    │
+    ├── internal/validation     ─── Canon validators
+    │   └── validate.go         ─── ValidateAgainstCanon
+    │
+    ├── internal/test           ─── Test helpers
+    │   └── integration/
     │
     ├── internal/config        ─── Environment-based config (Port, MongoURI, RedisAddr, AnthropicKey, OllamaURL, LogLevel, etc.)
     │
@@ -262,7 +278,7 @@ service.GenerationService.runPipeline()
     │  │   → Bible + character states + locations (hierarchical)
     │  │   → Memories (top-K per character) + timeline
     │  │   → Summaries + blueprint/arcs
-    │  │   → Produces ~20k token CompiledContext
+    │  │   → Produces ~20k token BuiltContext
     │  └────────────────────────────────────────────
     │
     │ 1. generate (critical — retries 3×)
