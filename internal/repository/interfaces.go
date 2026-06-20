@@ -56,6 +56,7 @@ type GenerationRepository interface {
 	Get(ctx context.Context, id string) (*domain.Generation, error)
 	Update(ctx context.Context, g *domain.Generation) error
 	SetStepStatus(ctx context.Context, genID, step, status string) error
+	SetAccepted(ctx context.Context, sceneID, genID string) error
 	ListByScene(ctx context.Context, sceneID string) ([]*domain.Generation, error)
 	ListByStory(ctx context.Context, storyID string) ([]*domain.Generation, error)
 	DeleteByScene(ctx context.Context, sceneID string) error

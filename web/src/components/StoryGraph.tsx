@@ -18,7 +18,7 @@ import "@xyflow/react/dist/style.css"
 
 import SceneNode from "./SceneNode"
 import { api } from "../api/client"
-import type { GraphNode, GraphEdge, EdgeType } from "../api/types"
+import type { GraphNode, GraphEdge, EdgeType, Generation } from "../api/types"
 import { spinnerStyle, slideUpStyle } from "../api/types"
 import { useToast } from "./Toast"
 
@@ -132,7 +132,10 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
   const [selectedNode, setSelectedNode] = useState<Node<SceneNodeData> | null>(null)
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<"edit" | "info">("edit")
+  const [activeTab, setActiveTab] = useState<"edit" | "info" | "generations">("edit")
+  const [generations, setGenerations] = useState<Generation[]>([])
+  const [gensLoading, setGensLoading] = useState(false)
+  const [expandedGen, setExpandedGen] = useState<string | null>(null)
   const [pendingEdgeType, setPendingEdgeType] = useState<EdgeType>(
     () => (localStorage.getItem("edgeType") as EdgeType) || "seq",
   )
@@ -198,6 +201,7 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
         setSelectedNode(null)
         setSelectedEdge(null)
         setConfirmingGenerate(false)
+        setExpandedGen(null)
       }
       if ((e.key === "Delete" || e.key === "Backspace") && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
         deleteFnRef.current()
@@ -237,6 +241,44 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
     [storyId, setEdges, pendingEdgeType, toast, showError],
   )
 
+  const loadGenerations = useCallback(async (nodeId: string) => {
+    setGensLoading(true)
+    try {
+      const gens = await api.generations.list(storyId, nodeId)
+      setGenerations(gens)
+    } catch {
+      setGenerations([])
+    } finally {
+      setGensLoading(false)
+    }
+  }, [storyId])
+
+  const acceptGeneration = useCallback(async (nodeId: string, genId: string) => {
+    try {
+      await api.generations.accept(storyId, nodeId, genId)
+      toast("Generation accepted", "success")
+      await loadGenerations(nodeId)
+      await fetchGraph()
+    } catch (err) {
+      showError("Failed to accept generation")
+      console.error("accept:", err)
+    }
+  }, [storyId, loadGenerations, fetchGraph, toast, showError])
+
+  const generate = useCallback(async () => {
+    if (!selectedNode) return
+    setConfirmingGenerate(false)
+    try {
+      await api.generations.generate(storyId, selectedNode.id)
+      toast("Generation started (async)", "success")
+      setTimeout(() => loadGenerations(selectedNode.id), 1500)
+      await fetchGraph()
+    } catch (err) {
+      showError("Failed to start generation")
+      console.error("generate:", err)
+    }
+  }, [storyId, selectedNode, loadGenerations, fetchGraph, toast, showError])
+
   const onNodeClick = useCallback((_: unknown, node: Node) => {
     setSelectedEdge(null)
     const d = node.data as unknown as SceneNodeData
@@ -249,7 +291,8 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
       tone: d.tone || "",
       target_words: d.targetWords || 300,
     })
-  }, [])
+    loadGenerations(node.id)
+  }, [loadGenerations])
 
   const onEdgeClick = useCallback((_: unknown, edge: Edge) => {
     setSelectedNode(null)
@@ -310,18 +353,6 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
       console.error("update node:", err)
     }
   }, [storyId, selectedNode, form, fetchGraph, toast, showError])
-
-  const generate = useCallback(async () => {
-    if (!selectedNode) return
-    try {
-      await api.generations.generate(storyId, selectedNode.id)
-      toast("Generation started (async)", "success")
-      setConfirmingGenerate(false)
-    } catch (err) {
-      showError("Failed to start generation")
-      console.error("generate:", err)
-    }
-  }, [storyId, selectedNode, toast, showError])
 
   const deleteEdge = useCallback(async () => {
     if (!selectedEdge) return
@@ -455,6 +486,83 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
             </button>
           </div>
         </>
+      )
+    }
+
+    if (selectedNode && activeTab === "generations") {
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12 }}>
+          <div style={{ color: "var(--text-muted)", marginBottom: 4 }}>Generations</div>
+          {gensLoading && <div style={{ color: "var(--text-muted)" }}>Loading...</div>}
+          {!gensLoading && generations.length === 0 && (
+            <div style={{ color: "var(--text-muted)", fontStyle: "italic" }}>No generations yet. Click Generate to start.</div>
+          )}
+          {!gensLoading && generations.map((g) => {
+            const isAccepted = g.accepted
+            const isExpanded = expandedGen === g.id
+            return (
+              <div key={g.id} style={{
+                border: `1px solid ${isAccepted ? "var(--accent)" : "var(--border)"}`,
+                borderRadius: 6, padding: 10,
+                background: isAccepted ? "rgba(212,168,83,0.06)" : "transparent",
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontWeight: 600, fontSize: 11, color: isAccepted ? "var(--accent)" : "var(--text)" }}>
+                    {g.model || "unknown"}
+                  </span>
+                  <span style={{ fontSize: 10, color: "var(--text-muted)" }}>
+                    {new Date(g.created_at).toLocaleString()}
+                  </span>
+                </div>
+                <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                  <span style={{
+                    fontSize: 10, padding: "1px 5px", borderRadius: 3,
+                    background: isAccepted ? "var(--accent)" : g.output ? "#5c4a2e" : "var(--text-muted)",
+                    color: isAccepted ? "#1a1a24" : "#f5f0e8",
+                  }}>
+                    {isAccepted ? "Accepted" : g.output ? "Generated" : "Pending"}
+                  </span>
+                  {g.output && (
+                    <button
+                      onClick={() => setExpandedGen(isExpanded ? null : g.id)}
+                      style={{
+                        background: "none", border: "none", color: "var(--accent)",
+                        cursor: "pointer", fontSize: 10, padding: 0,
+                      }}
+                    >
+                      {isExpanded ? "Collapse" : "Preview"}
+                    </button>
+                  )}
+                </div>
+                {isExpanded && g.output && (
+                  <div style={{
+                    marginTop: 6, padding: 8,
+                    background: "var(--bg)", borderRadius: 4,
+                    fontSize: 11, lineHeight: 1.5,
+                    maxHeight: 200, overflowY: "auto",
+                    whiteSpace: "pre-wrap", color: "var(--text)",
+                  }}>
+                    {g.output}
+                  </div>
+                )}
+                {g.output && !isAccepted && (
+                  <button
+                    onClick={() => acceptGeneration(selectedNode.id, g.id)}
+                    style={{
+                      marginTop: 6, padding: "4px 10px",
+                      background: "var(--accent)", color: "#1a1a24",
+                      border: "none", borderRadius: 4,
+                      cursor: "pointer", fontWeight: 600, fontSize: 11,
+                      width: "100%",
+                    }}
+                  >
+                    Accept
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
       )
     }
 
@@ -687,10 +795,13 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
 
         {(selectedNode || selectedEdge) && (
           <div style={{ display: "flex", borderBottom: "1px solid var(--border)", padding: "0 16px" }}>
-            {selectedNode && (["edit", "info"] as const).map((tab) => (
+            {selectedNode && (["edit", "info", "generations"] as const).map((tab) => (
               <button
                 key={tab}
-                onClick={() => setActiveTab(tab)}
+                onClick={() => {
+                  setActiveTab(tab)
+                  if (tab === "generations") loadGenerations(selectedNode!.id)
+                }}
                 style={{
                   flex: 1,
                   padding: "8px 0",
@@ -700,12 +811,12 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
                   color: activeTab === tab ? "var(--accent)" : "var(--text-muted)",
                   cursor: "pointer",
                   fontWeight: activeTab === tab ? 600 : 400,
-                  fontSize: 12,
+                  fontSize: 11,
                   textTransform: "capitalize",
                   transition: "color 0.15s, border-color 0.15s",
                 }}
               >
-                {tab === "edit" ? "Edit Scene" : "Scene Info"}
+                {tab === "edit" ? "Edit" : tab === "info" ? "Info" : "Generations"}
               </button>
             ))}
           </div>

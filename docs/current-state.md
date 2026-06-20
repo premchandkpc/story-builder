@@ -78,10 +78,4 @@ GenerationJobWorker (goroutine):
 
 | Feature | Priority |
 |---------|----------|
-| Accept-generation UI flow | High |
-| Generation observability (prompt/context hashes, model, durations) | Medium |
-| `go.mod` version pinning | Done |
-| Scene update merge safety | Done |
-| Acceptance atomicity (scene-level `acceptedGenerationId`) | Done |
-| CharacterService versioned merge in service layer | Done |
 | API types/client split by feature | Low |

@@ -79,6 +79,21 @@ func (r *GenerationRepo) DeleteByScene(ctx context.Context, sceneID string) erro
 	return err
 }
 
+func (r *GenerationRepo) SetAccepted(ctx context.Context, sceneID, genID string) error {
+	_, err := r.coll.UpdateMany(ctx,
+		bson.M{"sceneId": sceneID},
+		bson.M{"$set": bson.M{"accepted": false}},
+	)
+	if err != nil {
+		return err
+	}
+	_, err = r.coll.UpdateOne(ctx,
+		bson.M{"_id": genID, "sceneId": sceneID},
+		bson.M{"$set": bson.M{"accepted": true}},
+	)
+	return err
+}
+
 func (r *GenerationRepo) DeleteByStory(ctx context.Context, storyID string) error {
 	_, err := r.coll.DeleteMany(ctx, bson.M{"storyId": storyID})
 	return err

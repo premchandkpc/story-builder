@@ -78,6 +78,15 @@ const (
 )
 
 const (
+	StepGenerate  = "generate"
+	StepExtract   = "extract"
+	StepMemory    = "memory"
+	StepTimeline  = "timeline"
+	StepSummary   = "summary"
+	StepValidate  = "validate"
+)
+
+const (
 	EdgeTypeSeq      = "seq"
 	EdgeTypeFork     = "fork"
 	EdgeTypeJoin     = "join"

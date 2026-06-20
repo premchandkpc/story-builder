@@ -159,7 +159,7 @@ List all generations for a node (newest first).
 
 ### `POST /api/v1/stories/{storyID}/nodes/{nodeID}/accept`
 
-Accept a generation and update the node's content.
+Accept a generation and update the node's content. Atomically sets `scene.acceptedGenerationId` + `scene.status = "accepted"`. The generation's `accepted` flag is updated as a derived field (backward compat).
 
 **Request:**
 ```json

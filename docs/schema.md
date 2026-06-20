@@ -60,6 +60,7 @@
   "maxTurns": 5,
   "timelinePosition": 12,
   "status": "draft",
+  "acceptedGenerationId": "gen_1",
   "sceneStructure": {},
   "metadata": {},
   "createdAt": "",
@@ -67,7 +68,7 @@
 }
 ```
 
-**Status transitions:** `draft → generated → accepted → stale`. Stale scenes can be regenerated (`stale → generated`).
+**Status transitions:** `draft → generated → accepted → stale`. Stale scenes can be regenerated (`stale → generated`). Acceptance atomically sets `acceptedGenerationId` + `status = accepted` on the scene document.
 
 **Indexes:**
 - `{ storyId: 1 }`

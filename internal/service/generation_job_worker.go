@@ -340,7 +340,7 @@ func (w *GenerationJobWorker) runPipeline(ctx context.Context, gen *domain.Gener
 		}
 	}
 
-	if !w.runStep(ctx, gen.ID, "generate", func(sCtx context.Context) error {
+	if !w.runStep(ctx, gen.ID, domain.StepGenerate, func(sCtx context.Context) error {
 		_, err := genWorker.Work(sCtx, worker.GenerateSceneArgs{
 			SceneID: scene.ID,
 			GenID:   gen.ID,
@@ -369,7 +369,7 @@ func (w *GenerationJobWorker) runPipeline(ctx context.Context, gen *domain.Gener
 	}
 
 	if !criticalFailed && sceneText != "" {
-		if !w.runStep(ctx, gen.ID, "extract", func(sCtx context.Context) error {
+		if !w.runStep(ctx, gen.ID, domain.StepExtract, func(sCtx context.Context) error {
 			return extractWorker.Work(sCtx, worker.ExtractStateArgs{
 				StoryID: scene.StoryID, SceneID: scene.ID, SceneText: sceneText,
 				CharacterRefs: scene.Participants, CharNameToID: charNameToID,
@@ -408,7 +408,7 @@ func (w *GenerationJobWorker) runPipeline(ctx context.Context, gen *domain.Gener
 	}
 
 	if sceneText != "" {
-		w.runNonCriticalStep(ctx, gen.ID, "memory", func(sCtx context.Context) error {
+		w.runNonCriticalStep(ctx, gen.ID, domain.StepMemory, func(sCtx context.Context) error {
 			for _, charID := range scene.Participants {
 				if err := memWorker.Work(sCtx, worker.MemoryUpdateArgs{
 					StoryID: scene.StoryID, CharacterID: charID, SceneID: scene.ID,
@@ -424,7 +424,7 @@ func (w *GenerationJobWorker) runPipeline(ctx context.Context, gen *domain.Gener
 		})
 	}
 
-	w.runNonCriticalStep(ctx, gen.ID, "timeline", func(sCtx context.Context) error {
+	w.runNonCriticalStep(ctx, gen.ID, domain.StepTimeline, func(sCtx context.Context) error {
 		return tlWorker.Work(sCtx, worker.TimelineArgs{
 			StoryID: scene.StoryID, SceneID: scene.ID,
 			Title: scene.Title, Order: scene.TimelinePosition,
@@ -435,7 +435,7 @@ func (w *GenerationJobWorker) runPipeline(ctx context.Context, gen *domain.Gener
 	})
 
 	if sceneText != "" {
-		w.runNonCriticalStep(ctx, gen.ID, "summary", func(sCtx context.Context) error {
+		w.runNonCriticalStep(ctx, gen.ID, domain.StepSummary, func(sCtx context.Context) error {
 			prevSummary := ""
 			if existing, _ := w.cfg.SumRepo.GetByLevel(sCtx, scene.StoryID, domain.SummaryLevelStory); existing != nil {
 				prevSummary = existing.Content
@@ -452,18 +452,26 @@ func (w *GenerationJobWorker) runPipeline(ctx context.Context, gen *domain.Gener
 	}
 
 	if sceneText != "" {
-		w.runNonCriticalStep(ctx, gen.ID, "validate", func(sCtx context.Context) error {
+		w.runNonCriticalStep(ctx, gen.ID, domain.StepValidate, func(sCtx context.Context) error {
 			canonXML := ""
 			if story, _ := w.cfg.StoryRepo.Get(sCtx, scene.StoryID); story != nil {
 				if len(story.CanonPins) > 0 {
-					b, _ := json.Marshal(story.CanonPins)
-					canonXML = string(b)
+					b, err := json.Marshal(story.CanonPins)
+					if err != nil {
+						slog.Error("marshal canon pins", "genId", gen.ID, "error", err)
+					} else {
+						canonXML = string(b)
+					}
 				}
 			}
 			charState := ""
 			if states, _ := w.cfg.StateRepo.ListByScene(sCtx, scene.ID); len(states) > 0 {
-				b, _ := json.Marshal(states)
-				charState = string(b)
+				b, err := json.Marshal(states)
+				if err != nil {
+					slog.Error("marshal char states", "genId", gen.ID, "error", err)
+				} else {
+					charState = string(b)
+				}
 			}
 			return valWorker.Work(sCtx, worker.ValidateArgs{
 				GenerationID: gen.ID, CanonXML: canonXML, CharState: charState, SceneText: sceneText,

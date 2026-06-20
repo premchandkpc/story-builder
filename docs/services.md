@@ -59,7 +59,7 @@ type StoryHandler struct {
 |---|---|
 | `Create(storyID, ...)` | Creates a scene node in the DAG |
 | `Get(id)` | Gets scene by ID |
-| `Update(id, ...)` | Updates scene metadata |
+| `Update(id, ...)` | Loads existing scene, merges fields (Title, BeatIntent, Summary, GeneratedContent, Participants, LocationRef, ChapterID, POV, Tone, FlowType, SceneStructure, Metadata, TargetWords, Status, PositionX/Y), then saves |
 | `List(storyID)` | Lists all scenes in a story |
 | `Delete(id)` | Deletes scene and edges |
 | `SetStructure(id, structure)` | Sets multi-agent scene structure |
@@ -82,7 +82,7 @@ type StoryHandler struct {
 | `Create(storyID, name, ...)` | Creates a version-1 character definition (immutable log) |
 | `Get(id)` | Gets character by document ID (specific version) |
 | `GetLatest(charID)` | Gets latest version by logical character ID |
-| `Update(character)` | Creates new versioned document (immutable append) |
+| `Update(character)` | Loads latest by `charID`, merges non-zero fields from patch into existing document, then creates new versioned document (immutable append). Merge + versioning discipline lives in service layer, not handler. |
 | `List(storyID)` | Lists characters in a story |
 | `UpdateState(characterID, sceneID, state)` | Appends a state snapshot |
 | `GetState(characterID, sceneID)` | Gets state at a specific scene |
@@ -95,7 +95,7 @@ type StoryHandler struct {
 | `Create(storyID, name, description, props)` | Creates a new location (supports hierarchy via locType, parentId) |
 | `Get(id)` | Gets location by ID |
 | `ListByStory(storyID)` | Lists all locations in a story |
-| `Update(id, name, description, props)` | Updates a location |
+| `Update(id, name, description, props)` | Loads existing location, merges Name/Description/LocType/ParentID/Props/Features/Atmosphere/Children, then saves |
 | `DeleteByStory(storyID)` | Deletes all locations for a story |
 | `GetByName(storyID, name)` | Finds location by name within a story |
 | `GetChildren(storyID, parentID)` | Lists direct children of a location |
@@ -128,7 +128,7 @@ type StoryHandler struct {
 |---|---|
 | `Generate(ctx, storyID)` | Generates Bible via LLM (claude-sonnet, 0.3 temp, 8192 tokens) and persists. Single-flight guard — concurrent calls return error. |
 | `Get(ctx, storyID)` | Gets Bible for a story |
-| `Update(ctx, storyID, bible)` | Updates Bible fields |
+| `Update(ctx, storyID, bible)` | Loads existing Bible by story, merges Title/World/Dimensions/WorldRules/MagicSystems/Factions/Cultures/Tone/CentralTheme/NarrativeVoice, then saves |
 | `DeleteByStory(ctx, storyID)` | Removes Bible when story is deleted |
 
 ### Chapter Service
@@ -138,7 +138,7 @@ type StoryHandler struct {
 | `Create(ctx, chapter)` | Creates a chapter via domain.Chapter object |
 | `Get(ctx, storyID, chapterID)` | Gets chapter by ID within a story |
 | `List(ctx, storyID)` | Lists all chapters for a story, sorted by act+chapter |
-| `Update(ctx, chapter)` | Updates chapter metadata via domain.Chapter object |
+| `Update(ctx, chapter)` | Loads existing chapter, merges Title/Summary/Goal/Scenes/Status/ActNumber/ChapterNum, then saves |
 | `Delete(ctx, storyID, chapterID)` | Deletes a chapter |
 
 ### Context Builder
@@ -187,14 +187,26 @@ type GenerationService struct {
 
 Uses `context.Background()` so pipeline completion is independent of HTTP request lifetime.
 
+### Generation flow
+
 ```
-GenerateScene
-    → sets Generation.Status = "running" before goroutine starts
-    → spawns pipeline goroutine with background context (5-min timeout):
+POST /stories/{id}/nodes/{id}/generate
+  → api.GenerationHandler.Generate()
+  → GenerationService.Generate():
+      → creates Generation(status=pending)
+      → enqueues Job(type=generate_scene, status=pending)
+      → returns immediately (async)
+
+GenerationJobWorker (goroutine, polls for jobs):
+  → polls for pending jobs
+  → marks Job(status=running), Generation(status=running)
+  → runs pipeline with background context (5-min timeout):
 
         step 1: Generate (critical, 3× retry)
             → ContextBuilder.Build(storyID, scene)
             → ProseService.GenerateScene(builtContext)  (claude-sonnet, 0.8)
+            → captures ContextHash (SHA256 of compiled context)
+            → captures PromptSnapshot (system + user prompt)
             → stores generation in Mongo
 
         step 2: ExtractState (critical, 3× retry)
@@ -227,7 +239,20 @@ GenerateScene
         any critical step failed after 3 retries                 => "failed"
 ```
 
-Each pipeline step runs via `runStep` (critical, 3× retry with exponential backoff) or `runNonCriticalStep` (best-effort, logged on failure). Workers are simple structs in `internal/worker/` — no River, no Kafka.
+### Generation acceptance
+
+```
+POST /stories/{id}/nodes/{id}/accept  {"generation_id": "gen_1"}
+  → api.GenerationHandler.AcceptGeneration()
+  → GenerationService.AcceptGeneration():
+      → loads generation by ID
+      → atomically sets scene.acceptedGenerationId + scene.status = "accepted"
+      → updates generation record accepted flag (derived/backward compat)
+```
+
+### Pipeline mechanics
+
+Each pipeline step runs via `runStep` (critical, 3× retry with exponential backoff) or `runNonCriticalStep` (best-effort, logged on failure). Workers are simple structs in `internal/worker/` — no River, no Kafka. The `GenerationJobWorker` in `internal/service/generation_job_worker.go` also recovers stuck jobs on startup.
 
 On failure, `Generation.Error` is set and `Generation.Status` reflects the outcome. Status is queryable via `GET /api/v1/generations/{id}` (returns `Status`, `Error`, `UpdatedAt` fields) and via the existing SSE progress endpoint.
 

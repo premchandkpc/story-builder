@@ -207,6 +207,15 @@ func (m *mockGenRepo) SetStepStatus(_ context.Context, genID, step, status strin
 	return nil
 }
 
+func (m *mockGenRepo) SetAccepted(_ context.Context, sceneID, genID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, g := range m.gens {
+		g.Accepted = g.ID == genID
+	}
+	return nil
+}
+
 func TestSceneService_Topology(t *testing.T) {
 	sceneMock := newMockSceneRepo()
 	edgeMock := newMockEdgeRepo()

@@ -132,7 +132,9 @@ Each layer supports 5 merge strategies: `override`, `merge`, `append`, `replace`
 
 ```
 GenerateScene (Sonnet, 0.8 via Anthropic)
-    │
+    │  ContextHash = CompiledContext.Hash() (SHA256)
+    │  PromptSnapshot = system + user prompt (for observability)
+    │  Stores in generation document
     ▼
 ExtractState (local-7b, 0 via Ollama)
     │  Extracts state deltas

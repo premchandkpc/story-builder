@@ -1,5 +1,8 @@
 # Story Builder
 
+## Auto-loaded skills
+On every chat start, load ALL available skills: agents-sdk, caveman*, compare-models, customize-opencode, Debug Issue, Explore Codebase, find-skills, frontend-design, Refactor Safely, Review Changes, skill-creator.
+
 Full-stack story graph editor with DAG-based plot structure and LLM-generated prose.
 
 MongoDB + Redis backend. Go (chi) API server. React Flow frontend. No Postgres, Kafka, Qdrant, or River.

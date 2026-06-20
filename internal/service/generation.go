@@ -124,13 +124,8 @@ func (s *GenerationService) AcceptGeneration(ctx context.Context, sceneID, genID
 		return fmt.Errorf("accept gen: update scene: %w", err)
 	}
 
-	// Update generation accepted flags (derived, for backward compat).
-	gens, listErr := s.genRepo.ListByScene(ctx, sceneID)
-	if listErr == nil {
-		for _, g := range gens {
-			g.Accepted = g.ID == genID
-			_ = s.genRepo.Update(ctx, g)
-		}
+	if err := s.genRepo.SetAccepted(ctx, sceneID, genID); err != nil {
+		slog.Error("accept gen: set accepted flag", "sceneId", sceneID, "genId", genID, "error", err)
 	}
 
 	s.publishEvent(ctx, events.Event{

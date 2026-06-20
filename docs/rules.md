@@ -5,7 +5,7 @@
 1. **MongoDB is the single source of truth.** Redis is never a source of truth (cache, rate limits, locks only).
 2. **No PostgreSQL, Kafka, Qdrant, or additional infrastructure** unless a measured bottleneck proves necessary.
 3. **Business logic only in services.** Data access only in repositories. Handlers remain thin.
-4. **Use dependency injection.** Wire everything in `main.go`.
+4. **Use dependency injection.** Wire everything in `cmd/server/` (`main.go` + `init.go`).
 5. **Use `context.Context` everywhere.** No global state.
 6. **Depend on interfaces, not implementations.** All repositories defined as interfaces; MongoDB is an implementation detail.
 
@@ -49,7 +49,7 @@ internal/
 ## State Machine
 
 1. **Stories have strict status transitions:** `draft → active → completed → archived`. The `CanTransitionTo()` method enforces valid transitions in the service layer. An archived story cannot be re-activated.
-2. **Scenes have strict status transitions:** `draft → generated → accepted → stale`. Stale scenes may be regenerated (`stale → generated`). Direct status assignment via the API is validated against the current status.
+2. **Scenes have strict status transitions:** `draft → generated → accepted → stale`. Stale scenes may be regenerated (`stale → generated`). Direct status assignment via the API is validated against the current status. Acceptance atomically sets `scene.acceptedGenerationId` + `scene.status = accepted`.
 3. **API handlers never set status directly.** Status changes go through service-layer validation. The generation pipeline and acceptance flow are the only paths that move scene status forward.
 
 ## DAG Rules
@@ -62,7 +62,7 @@ internal/
 ## Agents
 
 1. **Agents are in-process actors**, not microservices. All agents run in the same Go process via the orchestrator.
-2. **Agent registry is the single source of truth** for agent specs. Register all agents at startup in `main.go`.
+2. **Agent registry is the single source of truth** for agent specs. Register all agents at startup in `init.go`.
 3. **One agent = one role.** A Character agent role-plays one character. Director plans. Narrator narrates. Don't combine roles.
 4. **Turn serialization.** The orchestrator runs turns sequentially. One blocking turn at a time. No parallel agent execution in P0.
 5. **Agent context is immutable within a turn.** The context is assembled before the first turn. Agents receive a snapshot, not a live connection to the DB.

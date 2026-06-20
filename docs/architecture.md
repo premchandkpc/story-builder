@@ -69,7 +69,9 @@
 ## Package Dependency Graph
 
 ```
-cmd/server/main.go
+cmd/server/
+    main.go                    Orchestrator (config, mongo, server lifecycle)
+    init.go                    Dependency wiring (repos, LLM, services)
     │
     ├── internal/api           ─── HTTP handlers + middleware
     │   ├── server.go          ─── chi route definitions + middleware
@@ -269,11 +271,15 @@ User clicks "Generate" on a node
 api.GenerationHandler.Generate()
     │
     │ 1. Load scene from Mongo
-    │ 2. Create Generation doc (status=running)
-    │ 3. Spawn goroutine with context.Background() — survives request
+    │ 2. Create Generation doc (status=pending) + Job (status=pending)
+    │ 3. Return immediately (async)
     │
     ▼
-service.GenerationService.runPipeline()
+service.GenerationJobWorker (goroutine, polls for jobs)
+    │  Polls for pending jobs, marks running, then runs pipeline
+    │
+    ▼
+service.generation_job_worker.runPipeline()
     │  ┌── service.ContextBuilder.Build()
     │  │   → Bible + character states + locations (hierarchical)
     │  │   → Memories (top-K per character) + timeline
@@ -365,10 +371,11 @@ When Redis is unavailable, all features degrade gracefully (no caching, no rate 
 
 ## Canon Versioning
 
-- Characters are **immutable definitions** (never change after creation).
+- Characters are **immutable definitions** (never change after creation; updates create new versioned documents).
 - Character state is **append-only** (event-sourced per scene).
 - Character memories are **append-only** (with vector embeddings for retrieval).
-- `CompiledContext.Hash()` = SHA256 of the full context → staleness detection.
+- `CompiledContext.Hash()` = SHA256 of the full context → staleness detection, stored as `gen.ContextHash`.
+- Generation acceptance uses `scene.acceptedGenerationId` as source of truth (not per-generation `accepted` flags).
 
 ## Evolution Path
 
