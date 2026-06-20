@@ -36,7 +36,7 @@ func (w *SummaryWorker) Work(ctx context.Context, args SummaryArgs) error {
 	sum := &domain.Summary{
 		StoryID: args.StoryID,
 		SceneID: args.SceneID,
-		Level:   domain.SummaryLevelStory,
+		Level:   domain.SummaryLevelScene,
 		Content: content,
 	}
 

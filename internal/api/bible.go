@@ -37,7 +37,7 @@ func (h *Handlers) GenerateBible(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusAccepted, bible)
+	writeJSON(w, http.StatusCreated, bible)
 }
 
 // DeleteBible handles DELETE /api/v1/stories/{storyID}/bible.

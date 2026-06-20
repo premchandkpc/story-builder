@@ -104,5 +104,6 @@ type ChapterRepository interface {
 	ListByStory(ctx context.Context, storyID string) ([]*domain.Chapter, error)
 	ListByAct(ctx context.Context, storyID string, actNumber int) ([]*domain.Chapter, error)
 	Update(ctx context.Context, c *domain.Chapter) error
+	Delete(ctx context.Context, id string) error
 	DeleteByStory(ctx context.Context, storyID string) error
 }

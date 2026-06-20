@@ -295,17 +295,26 @@ func (s *GenerationService) runPipeline(ctx context.Context, genID string, scene
 		}
 	}
 
+	var params llm.PromptParams
 	charNameToID := make(map[string]string)
-	for _, name := range builtContext.CharacterNames {
-		for _, c := range builtContext.Params.CharacterCards {
-			if c.Name == name {
-				charNameToID[name] = c.Name
-				break
+	if builtContext != nil {
+		for _, name := range builtContext.CharacterNames {
+			for _, c := range builtContext.Params.CharacterCards {
+				if c.Name == name {
+					charNameToID[name] = c.Name
+					break
+				}
 			}
 		}
+		params = builtContext.Params
+	} else {
+		params = llm.PromptParams{
+			BeatIntent:  scene.BeatIntent,
+			POV:         scene.POV,
+			Tone:        scene.Tone,
+			TargetWords: scene.TargetWords,
+		}
 	}
-
-	params := builtContext.Params
 
 	if !s.runStep(ctx, genID, "generate", func(sCtx context.Context) error {
 		_, err := genWorker.Work(sCtx, worker.GenerateSceneArgs{
@@ -405,7 +414,7 @@ func (s *GenerationService) runPipeline(ctx context.Context, genID string, scene
 	if sceneText != "" {
 		s.runNonCriticalStep(ctx, genID, "summary", func(sCtx context.Context) error {
 			prevSummary := ""
-			if existing, _ := s.sumRepo.GetByLevel(sCtx, scene.StoryID, "story"); existing != nil {
+			if existing, _ := s.sumRepo.GetByLevel(sCtx, scene.StoryID, domain.SummaryLevelStory); existing != nil {
 				prevSummary = existing.Content
 			}
 			return sumWorker.Work(sCtx, worker.SummaryArgs{

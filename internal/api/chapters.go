@@ -66,6 +66,16 @@ func (h *Handlers) GetChapter(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, chapter)
 }
 
+// DeleteChapter handles DELETE /api/v1/stories/{storyID}/chapters/{chapterID}.
+func (h *Handlers) DeleteChapter(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "chapterID")
+	if err := h.chapterSvc.Delete(r.Context(), id); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // UpdateChapter handles PUT /api/v1/stories/{storyID}/chapters/{chapterID}.
 func (h *Handlers) UpdateChapter(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "chapterID")

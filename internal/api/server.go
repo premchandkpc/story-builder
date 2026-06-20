@@ -98,7 +98,7 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 					r.Route("/{chapterID}", func(r chi.Router) {
 						r.Get("/", h.GetChapter)
 						r.Put("/", h.UpdateChapter)
-						r.Delete("/", h.NotImplemented)
+						r.Delete("/", h.DeleteChapter)
 						r.Get("/scenes", h.NotImplemented)
 					})
 				})

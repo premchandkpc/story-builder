@@ -38,6 +38,10 @@ func (s *ChapterSvc) ListByAct(ctx context.Context, storyID string, actNumber in
 	return s.repo.ListByAct(ctx, storyID, actNumber)
 }
 
+func (s *ChapterSvc) Delete(ctx context.Context, id string) error {
+	return s.repo.Delete(ctx, id)
+}
+
 func (s *ChapterSvc) Update(ctx context.Context, c *domain.Chapter) (*domain.Chapter, error) {
 	c.UpdatedAt = time.Now()
 	if err := s.repo.Update(ctx, c); err != nil {

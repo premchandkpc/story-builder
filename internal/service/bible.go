@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/premchand/story-builder/internal/domain"
@@ -16,7 +17,7 @@ type BibleService struct {
 	storyRepo  repository.StoryRepository
 	charRepo   repository.CharacterRepository
 	genSvc     llm.BibleService
-	genInFlight map[string]bool
+	genInFlight sync.Map
 }
 
 func NewBibleService(bibleRepo repository.BibleRepository, storyRepo repository.StoryRepository, charRepo repository.CharacterRepository, genSvc llm.BibleService) *BibleService {
@@ -25,7 +26,6 @@ func NewBibleService(bibleRepo repository.BibleRepository, storyRepo repository.
 		storyRepo:  storyRepo,
 		charRepo:   charRepo,
 		genSvc:     genSvc,
-		genInFlight: make(map[string]bool),
 	}
 }
 
@@ -34,11 +34,10 @@ func (s *BibleService) Get(ctx context.Context, storyID string) (*domain.StoryBi
 }
 
 func (s *BibleService) Generate(ctx context.Context, storyID string) (*domain.StoryBible, error) {
-	if s.genInFlight[storyID] {
+	if _, loaded := s.genInFlight.LoadOrStore(storyID, true); loaded {
 		return nil, fmt.Errorf("bible generation already in progress for story %s", storyID)
 	}
-	s.genInFlight[storyID] = true
-	defer delete(s.genInFlight, storyID)
+	defer s.genInFlight.Delete(storyID)
 
 	story, err := s.storyRepo.Get(ctx, storyID)
 	if err != nil {

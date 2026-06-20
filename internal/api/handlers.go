@@ -95,6 +95,7 @@ type ChapterService interface {
 	ListByStory(ctx context.Context, storyID string) ([]*domain.Chapter, error)
 	ListByAct(ctx context.Context, storyID string, actNumber int) ([]*domain.Chapter, error)
 	Update(ctx context.Context, c *domain.Chapter) (*domain.Chapter, error)
+	Delete(ctx context.Context, id string) error
 }
 
 // LocationService manages story locations (hierarchical, named places).

@@ -147,8 +147,8 @@ func TestBibleService_Generate(t *testing.T) {
 
 	t.Run("single-flight guard prevents concurrent generation", func(t *testing.T) {
 		storyRepo.Create(context.Background(), &domain.Story{Title: "Test Story 2", MainPrompt: "Another world"})
-		svc.genInFlight["mock-id-2"] = true
-		defer delete(svc.genInFlight, "mock-id-2")
+		svc.genInFlight.Store("mock-id-2", true)
+		defer svc.genInFlight.Delete("mock-id-2")
 
 		_, err := svc.Generate(context.Background(), "mock-id-2")
 		if err == nil {
