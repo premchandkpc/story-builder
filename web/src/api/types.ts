@@ -1,28 +1,5 @@
-// ---- Interface: Actor ----
-// Defines the shape of an actor object returned from the API.
-// An "actor" is a real person who can be cast into a role.
-export interface Actor {
-  id: string              // unique identifier from MongoDB
-  name: string            // display name
-  gender: string          // gender identity
-  ethnicity: string       // ethnic background
-  race: string            // racial category
-  skin_tone: string       // skin color description
-  eye_color: string       // eye color
-  hair_color: string      // hair color
-  hair_style: string      // hairstyle description
-  build: string           // body type (e.g. "athletic", "slim")
-  height_cm: number       // height in centimeters
-  weight_kg: number       // weight in kilograms
-  age: number             // age in years
-  nationality: string     // nationality/country
-  traits: Record<string, unknown> // key-value map of miscellaneous traits
-  created_at: string      // ISO timestamp when record was created
-}
-
 // ---- Interface: Character ----
 // A "character" is a fictional role in a story.
-// Multiple actors can be cast as the same character across different stories.
 export interface Character {
   id: string                       // unique identifier
   version: number                  // version number for optimistic concurrency
@@ -40,36 +17,6 @@ export interface Character {
   created_at: string               // ISO timestamp
 }
 
-// ---- Interface: CharacterTrait ----
-// Defines a reusable trait (e.g. "brave", "cunning") that can be assigned to characters.
-export interface CharacterTrait {
-  id: string                // unique identifier
-  name: string              // trait name
-  category: string          // category grouping (e.g. "personality", "flaw")
-  description: string       // explanation of the trait
-  created_at: string        // ISO timestamp
-}
-
-// ---- Interface: TraitAssignment ----
-// Links a specific character to a trait with intensity level.
-export interface TraitAssignment {
-  character_id: string   // which character has the trait
-  trait_id: string       // which trait is assigned
-  intensity: number      // how strong the trait manifests (e.g. 1-10)
-  note: string           // optional note about the assignment
-}
-
-// ---- Interface: Casting ----
-// Links an actor to a character within a specific story.
-export interface Casting {
-  id: string           // unique identifier
-  story_id: string     // which story
-  actor_id: string     // which actor is cast
-  character_id: string // which role/character they play
-  role_type: string    // type of role (e.g. "protagonist", "antagonist")
-  created_at: string   // ISO timestamp
-}
-
 // ---- Interface: Location ----
 // A location/setting that scenes can reference.
 export interface Location {
@@ -78,15 +25,6 @@ export interface Location {
   name: string         // location name
   description: string  // description of the location
   props: string[]      // notable objects/props at this location
-  created_at: string   // ISO timestamp
-}
-
-// ---- Interface: Lore ----
-// World-building lore entries with tags for search.
-export interface Lore {
-  id: string           // unique identifier
-  tags: string[]       // categorization tags
-  content: string      // the lore text content
   created_at: string   // ISO timestamp
 }
 
@@ -120,15 +58,6 @@ export interface Scene {
   sort_order: number                // ordering within the chapter
   created_at: string                // ISO timestamp
   updated_at: string                // ISO timestamp of last update
-}
-
-// ---- Interface: SceneEdge ----
-// Directed edge connecting two scenes in the DAG.
-export interface SceneEdge {
-  story_id: string       // parent story
-  from_scene: string     // source scene ID
-  to_scene: string       // target scene ID
-  edge_type: EdgeType    // relationship: seq/fork/join/choice
 }
 
 // ---- Interface: Story ----
@@ -285,35 +214,6 @@ export interface CreateCharacterPayload {
   relationships: Record<string, string>
 }
 
-export interface CreateActorPayload {
-  name: string
-  gender?: string
-  ethnicity?: string
-  race?: string
-  skin_tone?: string
-  eye_color?: string
-  hair_color?: string
-  hair_style?: string
-  build?: string
-  height_cm?: number
-  weight_kg?: number
-  age?: number
-  nationality?: string
-  traits?: Record<string, unknown>
-}
-
-export interface CreateCharacterTraitPayload {
-  name: string
-  category?: string
-  description?: string
-}
-
-export interface CreateCastingPayload {
-  actor_id: string
-  character_id: string
-  role_type: string
-}
-
 export interface CreateLocationPayload {
   name: string
   description: string
@@ -362,12 +262,6 @@ export interface StorySummary {
   content: string                     // summary text
   word_count: number                  // word count of the summary
   created_at: string
-}
-
-export interface ElevateCheck {
-  should_elevate: boolean  // whether summaries should be promoted to next level
-  level: string            // current level checked
-  threshold: number        // threshold used for the check
 }
 
 export interface StoryGenerateResult {

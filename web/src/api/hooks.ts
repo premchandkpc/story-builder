@@ -16,7 +16,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 // useNavigate: React Router hook to programmatically navigate between pages
 import { useNavigate } from "react-router-dom"
 import { api } from "./client"
-import type { Chapter, Scene, Story, StoryStats } from "./types"
+import type { Story, StoryStats } from "./types"
 
 // ---- useStories() ----
 // Custom hook that fetches the list of all stories.
@@ -25,39 +25,6 @@ export function useStories() {
   return useQuery<Story[]>({
     queryKey: ["stories"],        // unique cache key — identifies this query
     queryFn: () => api.stories.list(), // the function that fetches data
-  })
-}
-
-// ---- useChapters(storyId) ----
-// Fetches chapters for a specific story.
-// queryKey includes storyId so each story's chapters are cached separately.
-export function useChapters(storyId: string) {
-  return useQuery<Chapter[]>({
-    queryKey: ["chapters", storyId],
-    queryFn: () => api.chapters.list(storyId),
-  })
-}
-
-// ---- useCreateChapter(storyId) ----
-// Returns a mutation function that creates a new chapter.
-// On success, it invalidates the chapters cache so the list auto-refetches.
-export function useCreateChapter(storyId: string) {
-  const qc = useQueryClient()        // get access to the query cache
-  return useMutation({
-    mutationFn: (data: { title: string; description?: string }) =>
-      api.chapters.create(storyId, data),
-    // onSuccess runs after the mutation succeeds:
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["chapters", storyId] }),
-    // invalidateQueries tells React Query: "hey, this data is now stale, refetch it"
-  })
-}
-
-// ---- useScenes(storyId, chapterId) ----
-// Fetches scenes for a specific story + chapter combination.
-export function useScenes(storyId: string, chapterId: string) {
-  return useQuery<Scene[]>({
-    queryKey: ["scenes", storyId, chapterId],
-    queryFn: () => api.scenes.list(storyId, chapterId),
   })
 }
 

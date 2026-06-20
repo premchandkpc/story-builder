@@ -148,8 +148,6 @@ api.generations.generate()   // POST /api/v1/stories/:id/nodes/:nid/generate
 | Hook | Returns | Cache Key |
 |---|---|---|
 | `useStories()` | `Story[]` | `["stories"]` |
-| `useChapters(storyId)` | `Chapter[]` | `["chapters", storyId]` |
-| `useScenes(storyId, chapterId)` | `Scene[]` | `["scenes", storyId, chapterId]` |
 | `useStoryNodeStats(storyId)` | `StoryStats` | `["storyStats", storyId]` |
 | `useAllStoryStats(stories)` | `Record<string, StoryStats>` | `["allStoryStats", sortedIds]` |
 
@@ -157,7 +155,6 @@ api.generations.generate()   // POST /api/v1/stories/:id/nodes/:nid/generate
 
 | Hook | Side Effect |
 |---|---|
-| `useCreateChapter(storyId)` | Invalidates `["chapters", storyId]` |
 | `useCreateStory()` | Invalidates `["stories"]`, navigates to `/stories/:id` |
 | `useGenerateTitle()` | None (returns `{ title }`) |
 | `useGenerateStory()` | Invalidates `["stories"]` after 3s delay |

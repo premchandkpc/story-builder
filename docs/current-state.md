@@ -78,4 +78,4 @@ GenerationJobWorker (goroutine):
 
 | Feature | Priority |
 |---------|----------|
-| API types/client split by feature | Low |
+| API types/client split by feature | ✅ Done — removed dead stubs |

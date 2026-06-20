@@ -50,9 +50,9 @@
 | PUT | `/characters/{id}` | 🟡 Beta | Update character |
 | GET | `/characters/{id}/memories` | 🔴 Partial | List character memories |
 | POST | `/characters/{id}/memories/search` | 🔴 Partial | Search memories |
-| GET | `/characters/{id}/traits` | 🔴 Stub | Returns `[]` |
-| POST | `/characters/{id}/traits/assign` | ⛔ Stub | `NotImplemented` |
-| DELETE | `/characters/{id}/traits/{tid}` | ⛔ Stub | `NotImplemented` |
+| GET | `/characters/{id}/traits` | ⛔ Moved to experimental | Returns `[]` |
+| POST | `/characters/{id}/traits/assign` | ⛔ Moved to experimental | `NotImplemented` |
+| DELETE | `/characters/{id}/traits/{tid}` | ⛔ Moved to experimental | `NotImplemented` |
 
 ## Story-scoped characters
 
@@ -92,8 +92,8 @@
 |--------|------|--------|-------|
 | GET | `/stories/{id}/summaries/level` | 🟡 Beta | Get summary by level |
 | GET | `/stories/{id}/summaries/nodes/{nid}` | 🟡 Beta | Get scene/node summary |
-| GET | `/stories/{id}/summaries/count` | ⛔ Stub | `NotImplemented` |
-| GET | `/stories/{id}/summaries/elevate` | ⛔ Stub | `NotImplemented` |
+| GET | `/stories/{id}/summaries/count` | ⛔ Moved to experimental | `NotImplemented` |
+| GET | `/stories/{id}/summaries/elevate` | ⛔ Moved to experimental | `NotImplemented` |
 
 ## Blueprint
 
@@ -117,28 +117,24 @@
 
 | Method | Path | Status | Notes |
 |--------|------|--------|-------|
-| PUT | `/stories/{id}/nodes/{nid}/scene/structure` | ⛔ Stub | Unimplemented |
-| GET | `/stories/{id}/nodes/{nid}/scene/structure` | ⛔ Stub | Unimplemented |
-| POST | `/stories/{id}/nodes/{nid}/scene/start` | ⛔ Stub | Unimplemented |
-| POST | `/stories/{id}/nodes/{nid}/scene/next` | ⛔ Stub | Unimplemented |
-| POST | `/stories/{id}/nodes/{nid}/scene/finish` | ⛔ Stub | Unimplemented |
-| GET | `/stories/{id}/nodes/{nid}/scene/turns` | ⛔ Stub | Unimplemented |
+| PUT | `/experimental/stories/{id}/nodes/{nid}/scene/structure` | ⛔ Stub | Unimplemented |
+| GET | `/experimental/stories/{id}/nodes/{nid}/scene/structure` | ⛔ Stub | Unimplemented |
+| POST | `/experimental/stories/{id}/nodes/{nid}/scene/start` | ⛔ Stub | Unimplemented |
+| POST | `/experimental/stories/{id}/nodes/{nid}/scene/next` | ⛔ Stub | Unimplemented |
+| POST | `/experimental/stories/{id}/nodes/{nid}/scene/finish` | ⛔ Stub | Unimplemented |
+| GET | `/experimental/stories/{id}/nodes/{nid}/scene/turns` | ⛔ Stub | Unimplemented |
 
-## Stub resources (all experimental)
+## Experimental routes
 
-| Method | Path | Status | Notes |
-|--------|------|--------|-------|
-| GET/POST | `/actors` | ⛔ Stub | Not implemented |
-| GET/PUT | `/actors/{id}` | ⛔ Stub | Not implemented |
-| GET/POST | `/character-traits` | ⛔ Stub | Not implemented |
-| GET | `/character-traits/{id}` | ⛔ Stub | Not implemented |
-| POST | `/character-traits` | ⛔ Stub | Not implemented |
-| GET/POST | `/lore` | ⛔ Stub | Not implemented |
-| POST | `/lore/search` | ⛔ Stub | Not implemented |
-| POST | `/stories/{id}/casting` | ⛔ Stub | Not implemented |
-| GET | `/stories/{id}/casting` | ⛔ Stub | Returns `[]` |
-| GET | `/casting/actor/{id}` | ⛔ Stub | Not implemented |
-| GET | `/casting/character/{id}` | ⛔ Stub | Not implemented |
+All feature stubs live under `/api/v1/experimental`. They return 501 or `[]`.
+
+| Group | Endpoints | Status |
+|-------|-----------|--------|
+| Scene turns | `PUT/GET /stories/{id}/nodes/{nid}/scene/structure`, `POST {start,next,finish}`, `GET turns` | ⛔ Stub |
+| Actors | `GET/POST /actors`, `GET/PUT /actors/{id}` | ⛔ Stub |
+| Character traits | `GET /character-traits`, `GET/POST /character-traits/{id}`, `POST assign`, `DELETE unassign` | ⛔ Stub |
+| Lore | `GET /lore`, `POST /lore`, `POST /lore/search` | ⛔ Stub |
+| Casting | `POST /stories/{id}/casting`, `GET /stories/{id}/casting`, `GET /casting/actor/{id}`, `GET /casting/character/{id}` | ⛔ Stub |
 
 ## Legend
 

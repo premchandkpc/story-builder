@@ -536,24 +536,15 @@ Delete a chapter.
 
 ---
 
-## Stubs (Not Implemented)
+## Experimental Routes (Stubs)
 
-These endpoints return `501 Not Implemented` or `200 []`:
+All feature stubs are behind `/api/v1/experimental`:
 
-| Endpoint | Behavior |
-|---|---|
-| `GET /api/v1/actors` | `[]` |
-| `POST /api/v1/actors` | 501 |
-| `GET /api/v1/actors/{id}` | 501 |
-| `PUT /api/v1/actors/{id}` | 501 |
-| `GET /api/v1/character-traits` | `[]` |
-| `GET /api/v1/character-traits/{id}` | 501 |
-| `POST /api/v1/character-traits` | 501 |
-| `GET /api/v1/lore` | `[]` |
-| `POST /api/v1/lore` | 501 |
-| `POST /api/v1/lore/search` | 501 |
-| `GET /api/v1/stories/{id}/casting` | `[]` |
-| `POST /api/v1/stories/{id}/casting` | 501 |
-| `GET /api/v1/casting/actor/{id}` | 501 |
-| `GET /api/v1/casting/character/{id}` | 501 |
+| Group | Endpoint | Behavior |
+|---|---|---|
+| Scene turns | `PUT/GET .../scene/structure`, `POST .../scene/{start,next,finish}`, `GET .../scene/turns` | 501 |
+| Actors | `GET/POST /experimental/actors`, `GET/PUT /experimental/actors/{id}` | `[]` / 501 |
+| Character traits | `GET /experimental/character-traits`, `POST assign`, `DELETE unassign` | `[]` / 501 |
+| Lore | `GET /experimental/lore`, `POST /experimental/lore`, `POST .../search` | `[]` / 501 |
+| Casting | `POST /experimental/stories/{id}/casting`, `GET .../casting`, `GET .../casting/actor/{id}`, `GET .../casting/character/{id}` | `[]` / 501 |
 | `PUT /api/v1/locations/{id}` | Name field not mutable; accepts `description` + `props` only |

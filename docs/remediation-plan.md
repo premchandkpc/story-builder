@@ -29,5 +29,5 @@
 | # | Fix | Priority | Files |
 |---|-----|----------|-------|
 | 10 | Build accept-generation UI flow | P1 | `web/src/components/`, `web/src/api/` |
-| 11 | Split `api/types.ts` and `api/client.ts` by feature | P2 | `web/src/api/` |
+| 11 | Split `api/types.ts` and `api/client.ts` by feature | P2 | `web/src/api/` | ✅ Done — removed dead stubs (actors, lore, traits, casting, nodeScene) |
 | 12 | Backend stats endpoint for story list | P2 | `internal/api/stories.go`, `internal/service/` |

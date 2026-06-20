@@ -538,10 +538,7 @@ The frontend mirrors backend models as TypeScript interfaces in `web/src/api/typ
 | `Topology` | `scenes` + `scene_edges` | Full DAG snapshot |
 | `Character` | `characters` | Immutable character definition |
 | `Location` | (separate collection) | Story settings |
-| `Lore` | (separate collection) | World-building entries |
-| `SceneTurn` | (interactive gen) | Single turn in dialogue generation |
 | `StorySummary` | `summaries` | Hierarchical summaries |
-| `Casting` | (separate) | Actor→Character links |
 | `SceneStructure` | embedded in scene | Turn-based flow config |
 | `SceneTurn` | `scene_turns` | Agent turn during generation |
 | `AgentRun` | `agent_runs` | Agent execution log |
