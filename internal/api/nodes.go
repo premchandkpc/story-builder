@@ -13,6 +13,7 @@ import (
 	"github.com/premchand/story-builder/internal/graph"
 )
 
+// graphNode is the V2 transport representation of a scene/DAG node.
 type graphNode struct {
 	ID             string         `json:"id"`
 	StoryID        string         `json:"story_id"`
@@ -29,6 +30,7 @@ type graphNode struct {
 	UpdatedAt      time.Time      `json:"updated_at"`
 }
 
+// graphEdge is the V2 transport representation of a directed edge.
 type graphEdge struct {
 	StoryID  string `json:"story_id"`
 	FromNode string `json:"from_node"`
@@ -36,12 +38,14 @@ type graphEdge struct {
 	EdgeType string `json:"edge_type"`
 }
 
+// topologyResponse bundles nodes, edges, and a topological ordering.
 type topologyResponse struct {
 	Nodes            []graphNode `json:"nodes"`
 	Edges            []graphEdge `json:"edges"`
 	TopologicalOrder []string    `json:"topological_order"`
 }
 
+// sceneToNode converts a domain.Scene into the V2 graphNode shape.
 func sceneToNode(s *domain.Scene) graphNode {
 	return graphNode{
 		ID:             s.ID,
@@ -60,6 +64,7 @@ func sceneToNode(s *domain.Scene) graphNode {
 	}
 }
 
+// edgeToGraphEdge converts a domain.SceneEdge into the V2 graphEdge shape.
 func edgeToGraphEdge(e *domain.SceneEdge) graphEdge {
 	return graphEdge{
 		StoryID:  e.StoryID,
@@ -69,6 +74,7 @@ func edgeToGraphEdge(e *domain.SceneEdge) graphEdge {
 	}
 }
 
+// extractIDs pulls non-nil scene IDs into a string slice.
 func extractIDs(items []*domain.Scene) []string {
 	ids := make([]string, 0, len(items))
 	for _, item := range items {
@@ -79,6 +85,7 @@ func extractIDs(items []*domain.Scene) []string {
 	return ids
 }
 
+// ListNodes handles GET /api/v1/stories/{storyID}/nodes.
 func (h *Handlers) ListNodes(w http.ResponseWriter, r *http.Request) {
 	storyID := chi.URLParam(r, "storyID")
 	scenes, err := h.sceneSvc.List(r.Context(), storyID)
@@ -93,6 +100,7 @@ func (h *Handlers) ListNodes(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, nodes)
 }
 
+// GetNode handles GET /api/v1/stories/{storyID}/nodes/{nodeID}.
 func (h *Handlers) GetNode(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "nodeID")
 	scene, err := h.sceneSvc.Get(r.Context(), id)
@@ -107,6 +115,7 @@ func (h *Handlers) GetNode(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, sceneToNode(scene))
 }
 
+// CreateNode handles POST /api/v1/stories/{storyID}/nodes.
 func (h *Handlers) CreateNode(w http.ResponseWriter, r *http.Request) {
 	storyID := chi.URLParam(r, "storyID")
 	var body struct {
@@ -146,6 +155,7 @@ func (h *Handlers) CreateNode(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, sceneToNode(created))
 }
 
+// UpdateNode handles PUT /api/v1/stories/{storyID}/nodes/{nodeID}.
 func (h *Handlers) UpdateNode(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "nodeID")
 	var body struct {
@@ -181,6 +191,7 @@ func (h *Handlers) UpdateNode(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, sceneToNode(updated))
 }
 
+// DeleteNode handles DELETE /api/v1/stories/{storyID}/nodes/{nodeID}.
 func (h *Handlers) DeleteNode(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "nodeID")
 	if err := h.sceneSvc.Delete(r.Context(), id); err != nil {
@@ -190,6 +201,8 @@ func (h *Handlers) DeleteNode(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// V2Topology handles GET /api/v1/stories/{storyID}/topology.
+// Returns nodes, edges, and a topological ordering. Falls back to timeline position if sort fails.
 func (h *Handlers) V2Topology(w http.ResponseWriter, r *http.Request) {
 	storyID := chi.URLParam(r, "storyID")
 	scenes, edges, err := h.sceneSvc.Topology(r.Context(), storyID)

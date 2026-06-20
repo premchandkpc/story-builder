@@ -15,11 +15,13 @@ import (
 	"github.com/premchand/story-builder/internal/log"
 )
 
+// Server wraps the chi router and handler dependencies.
 type Server struct {
 	Router    *chi.Mux
 	handler   *Handlers
 }
 
+// NewServer creates a chi router, applies middleware, and registers all routes.
 func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 	s := &Server{
 		handler: h,
@@ -46,7 +48,7 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 	})
 
 	r.Route("/api/v1", func(r chi.Router) {
-		// ─── Stories ──────────────────────────────────────────
+		// Stories CRUD + LLM generation
 		r.Route("/stories", func(r chi.Router) {
 			r.Post("/", h.CreateStory)
 			r.Get("/", h.ListStories)
@@ -58,10 +60,9 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 				r.Put("/", h.UpdateStory)
 				r.Delete("/", h.DeleteStory)
 
-				// V2-compat topology (includes topological_order)
 				r.Get("/topology", h.V2Topology)
 
-				// V2-compat nodes
+				// V2 graph nodes
 				r.Route("/nodes", func(r chi.Router) {
 					r.Get("/", h.ListNodes)
 					r.Post("/", h.CreateNode)
@@ -72,7 +73,6 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 						r.Post("/generate", h.V2GenerateNode)
 						r.Get("/generations", h.V2ListNodeGenerations)
 						r.Post("/accept", h.V2AcceptGeneration)
-						// Interactive scene (stub — not yet implemented)
 						r.Route("/scene", func(r chi.Router) {
 							r.Put("/structure", h.NotImplemented)
 							r.Get("/structure", h.NotImplemented)
@@ -103,6 +103,7 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 					})
 				})
 
+				// Story-scoped character + location + timeline + summary routes
 				r.Route("/characters", func(r chi.Router) {
 					r.Post("/", h.CreateCharacter)
 					r.Get("/", h.ListCharacters)
@@ -128,7 +129,7 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 			})
 		})
 
-		// ─── Characters (top-level) ──────────────────────────
+		// Top-level character CRUD
 		r.Get("/characters", h.V2ListCharacters)
 		r.Post("/characters", h.V2CreateCharacter)
 		r.Route("/characters/{charID}", func(r chi.Router) {
@@ -141,7 +142,7 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 			r.Delete("/traits/{traitID}", h.NotImplemented)
 		})
 
-		// ─── Actors (stub) ───────────────────────────────────
+		// Actor stubs
 		r.Get("/actors", h.EmptyArray)
 		r.Post("/actors", h.NotImplemented)
 		r.Route("/actors/{id}", func(r chi.Router) {
@@ -149,24 +150,24 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 			r.Put("/", h.NotImplemented)
 		})
 
-		// ─── Character Traits (stub) ─────────────────────────
+		// Character trait stubs
 		r.Get("/character-traits", h.EmptyArray)
 		r.Get("/character-traits/{id}", h.NotImplemented)
 		r.Post("/character-traits", h.NotImplemented)
 
-		// ─── Story Blueprint ──────────────────────────────────
+		// Story blueprint
 		r.Route("/stories/{storyID}/blueprint", func(r chi.Router) {
 			r.Get("/", h.GetBlueprint)
 			r.Put("/", h.UpdateBlueprint)
 		})
 
-		// ─── Generations ─────────────────────────────────────
+		// Generation status and SSE progress
 		r.Route("/generations/{genID}", func(r chi.Router) {
 			r.Get("/status", h.GetGenerationStatus)
 			r.Get("/progress", h.SSEGenerationProgress)
 		})
 
-		// ─── Bible ────────────────────────────────────────────
+		// Story bible
 		r.Route("/stories/{storyID}/bible", func(r chi.Router) {
 			r.Get("/", h.GetBible)
 			r.Post("/generate", h.GenerateBible)
@@ -174,18 +175,18 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 			r.Delete("/", h.DeleteBible)
 		})
 
-		// ─── Locations ───────────────────────────────────────
+		// Top-level location lookup
 		r.Route("/locations/{id}", func(r chi.Router) {
 			r.Get("/", h.GetLocation)
 			r.Put("/", h.UpdateLocation)
 		})
 
-		// ─── Lore (stub) ─────────────────────────────────────
+		// Lore stubs
 		r.Get("/lore", h.EmptyArray)
 		r.Post("/lore", h.NotImplemented)
 		r.Post("/lore/search", h.NotImplemented)
 
-		// ─── Casting (stub) ──────────────────────────────────
+		// Casting stubs
 		r.Post("/stories/{storyID}/casting", h.NotImplemented)
 		r.Get("/stories/{storyID}/casting", h.EmptyArray)
 		r.Get("/casting/actor/{actorID}", h.NotImplemented)
@@ -196,12 +197,14 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 	return s
 }
 
+// writeJSON serializes v as JSON with the given status code.
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(v)
 }
 
+// middlewareRateLimit returns a middleware that enforces a sliding-window rate limit.
 func middlewareRateLimit(limiter *cache.SlidingWindowRateLimiter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -215,6 +218,7 @@ func middlewareRateLimit(limiter *cache.SlidingWindowRateLimiter) func(http.Hand
 	}
 }
 
+// timeoutWriter wraps http.ResponseWriter to detect handler deadline exceeded.
 type timeoutWriter struct {
 	http.ResponseWriter
 	done chan struct{}
@@ -229,6 +233,7 @@ func (tw *timeoutWriter) Write(b []byte) (int, error) {
 	}
 }
 
+// contextTimeout returns middleware that applies a context deadline to the request.
 func contextTimeout(timeout time.Duration) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

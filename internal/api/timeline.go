@@ -9,6 +9,7 @@ import (
 	"github.com/premchand/story-builder/internal/domain"
 )
 
+// CreateTimelineEvent handles POST /api/v1/stories/{storyID}/timeline.
 func (h *Handlers) CreateTimelineEvent(w http.ResponseWriter, r *http.Request) {
 	storyID := chi.URLParam(r, "storyID")
 	var evt domain.TimelineEvent
@@ -26,6 +27,7 @@ func (h *Handlers) CreateTimelineEvent(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, created)
 }
 
+// ListTimelineEvents handles GET /api/v1/stories/{storyID}/timeline.
 func (h *Handlers) ListTimelineEvents(w http.ResponseWriter, r *http.Request) {
 	storyID := chi.URLParam(r, "storyID")
 	events, err := h.tlSvc.List(r.Context(), storyID)

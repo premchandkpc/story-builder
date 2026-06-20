@@ -1,3 +1,5 @@
+// Package api implements the HTTP transport layer.
+// Handlers wire chi route callbacks to service-layer interfaces.
 package api
 
 import (
@@ -11,6 +13,7 @@ import (
 	"github.com/premchand/story-builder/internal/service"
 )
 
+// StoryService defines story CRUD + blueprint operations.
 type StoryService interface {
 	Create(ctx context.Context, title string) (*domain.Story, error)
 	Get(ctx context.Context, id string) (*domain.Story, error)
@@ -21,6 +24,7 @@ type StoryService interface {
 	UpdateBlueprint(ctx context.Context, id string, bp *domain.StoryBlueprint) error
 }
 
+// SceneService manages DAG scene nodes.
 type SceneService interface {
 	Create(ctx context.Context, scene *domain.Scene) (*domain.Scene, error)
 	Get(ctx context.Context, id string) (*domain.Scene, error)
@@ -30,12 +34,14 @@ type SceneService interface {
 	Topology(ctx context.Context, storyID string) ([]*domain.Scene, []*domain.SceneEdge, error)
 }
 
+// EdgeService manages directed edges between scene nodes.
 type EdgeService interface {
 	Create(ctx context.Context, e *domain.SceneEdge) (*domain.SceneEdge, error)
 	List(ctx context.Context, storyID string) ([]*domain.SceneEdge, error)
 	Delete(ctx context.Context, storyID, from, to string) error
 }
 
+// CharacterService manages character definitions and immutable version log.
 type CharacterService interface {
 	Create(ctx context.Context, c *domain.Character) (*domain.Character, error)
 	Get(ctx context.Context, id string) (*domain.Character, error)
@@ -44,37 +50,45 @@ type CharacterService interface {
 	List(ctx context.Context, storyID string) ([]*domain.Character, error)
 }
 
+// GenerationWriteService triggers LLM generation and accepts results.
 type GenerationWriteService interface {
 	Generate(ctx context.Context, sceneID string) (*domain.Generation, error)
 	AcceptGeneration(ctx context.Context, sceneID, genID string) error
 }
 
+// GenerationReadService queries generation artifacts.
 type GenerationReadService interface {
 	GetGeneration(ctx context.Context, genID string) (*domain.Generation, error)
 	ListGenerations(ctx context.Context, sceneID string) ([]*domain.Generation, error)
 }
 
+// TimelineService records and queries ordered story events.
 type TimelineService interface {
 	Create(ctx context.Context, e *domain.TimelineEvent) (*domain.TimelineEvent, error)
 	List(ctx context.Context, storyID string) ([]*domain.TimelineEvent, error)
 }
 
+// SummaryService retrieves cached summaries at various granularity levels.
 type SummaryService interface {
 	GetByLevel(ctx context.Context, storyID, level string) (*domain.Summary, error)
 	GetSceneSummary(ctx context.Context, storyID, sceneID string) (*domain.Summary, error)
 }
 
+// MemoryService provides semantic memory storage and vector search.
 type MemoryService interface {
 	ListByCharacter(ctx context.Context, charID string) ([]*domain.CharacterMemory, error)
 	Search(ctx context.Context, storyID, characterID, query string, limit int) ([]*domain.CharacterMemory, error)
 }
 
+// BibleService manages the generated story bible document.
 type BibleService interface {
 	Get(ctx context.Context, storyID string) (*domain.StoryBible, error)
 	Generate(ctx context.Context, storyID string) (*domain.StoryBible, error)
+	Update(ctx context.Context, bible *domain.StoryBible) error
 	DeleteByStory(ctx context.Context, storyID string) error
 }
 
+// ChapterService manages chapter groupings within acts.
 type ChapterService interface {
 	Create(ctx context.Context, c *domain.Chapter) (*domain.Chapter, error)
 	Get(ctx context.Context, id string) (*domain.Chapter, error)
@@ -83,6 +97,7 @@ type ChapterService interface {
 	Update(ctx context.Context, c *domain.Chapter) (*domain.Chapter, error)
 }
 
+// LocationService manages story locations (hierarchical, named places).
 type LocationService interface {
 	Create(ctx context.Context, loc *domain.Location) error
 	Get(ctx context.Context, id string) (*domain.Location, error)
@@ -92,6 +107,7 @@ type LocationService interface {
 	GetByName(ctx context.Context, storyID, name string) (*domain.Location, error)
 }
 
+// Handlers groups all HTTP handler methods and their injected service dependencies.
 type Handlers struct {
 	storySvc     StoryService
 	sceneSvc     SceneService
@@ -111,6 +127,7 @@ type Handlers struct {
 	eventBus     events.Bus
 }
 
+// NewHandlers wires all service dependencies into a single Handlers struct.
 func NewHandlers(
 	storySvc StoryService,
 	sceneSvc SceneService,
@@ -139,6 +156,7 @@ func NewHandlers(
 	}
 }
 
+// publishEntityEvent fires a domain event onto the event bus, if configured.
 func (h *Handlers) publishEntityEvent(ctx context.Context, eventType, storyID string, data map[string]any) {
 	if h.eventBus == nil {
 		return
@@ -150,6 +168,7 @@ func (h *Handlers) publishEntityEvent(ctx context.Context, eventType, storyID st
 	})
 }
 
+// writeError sends a JSON error response and logs 5xx server errors.
 func writeError(w http.ResponseWriter, status int, msg string) {
 	if status >= 500 {
 		slog.Error("server error", "status", status, "msg", msg)

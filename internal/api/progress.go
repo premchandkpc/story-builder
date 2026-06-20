@@ -11,17 +11,21 @@ import (
 	"github.com/premchand/story-builder/internal/service"
 )
 
+// ProgressHub is an in-memory pub/sub hub for SSE generation progress events.
+// Subscribers receive ProgressEvent messages on a buffered channel.
 type ProgressHub struct {
 	mu     sync.RWMutex
 	subs   map[string]map[chan service.ProgressEvent]struct{}
 }
 
+// NewProgressHub creates an empty ProgressHub.
 func NewProgressHub() *ProgressHub {
 	return &ProgressHub{
 		subs: make(map[string]map[chan service.ProgressEvent]struct{}),
 	}
 }
 
+// Subscribe registers a channel for a given genID. Returns the channel.
 func (h *ProgressHub) Subscribe(genID string) chan service.ProgressEvent {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -33,6 +37,7 @@ func (h *ProgressHub) Subscribe(genID string) chan service.ProgressEvent {
 	return ch
 }
 
+// Unsubscribe removes a channel and closes it. Cleans up the map entry when empty.
 func (h *ProgressHub) Unsubscribe(genID string, ch chan service.ProgressEvent) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -45,6 +50,7 @@ func (h *ProgressHub) Unsubscribe(genID string, ch chan service.ProgressEvent) {
 	}
 }
 
+// Publish sends an event to all subscribers of a genID. Drops if a subscriber is slow.
 func (h *ProgressHub) Publish(genID string, event service.ProgressEvent) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -59,10 +65,13 @@ func (h *ProgressHub) Publish(genID string, event service.ProgressEvent) {
 	}
 }
 
+// PublishEvent is a convenience wrapper that creates a ProgressEvent and publishes it.
 func (h *ProgressHub) PublishEvent(genID, step, status string) {
 	h.Publish(genID, service.ProgressEvent{GenID: genID, Step: step, Status: status})
 }
 
+// SSEGenerationProgress handles GET /api/v1/generations/{genID}/progress.
+// Streams Server-Sent Events for generation lifecycle (connected → progress → complete/error).
 func (h *Handlers) SSEGenerationProgress(w http.ResponseWriter, r *http.Request) {
 	genID := chi.URLParam(r, "genID")
 	flusher, ok := w.(http.Flusher)

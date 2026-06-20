@@ -1,19 +1,20 @@
 :root {
-  --bg: #1a1a24;
-  --surface: #24243a;
-  --surface-hover: #2e2e48;
-  --border: #3a3a52;
-  --text: #e8e4d8;
-  --text-muted: #8888a0;
+  --bg: #1a1614;
+  --surface: #241f1b;
+  --surface-hover: #2e2824;
+  --border: #3d342e;
+  --text: #e8ddd0;
+  --text-muted: #8c7e70;
   --accent: #d4a853;
   --accent-hover: #e0b96a;
-  --secondary: #c9734a;
-  --success: #7bb87b;
-  --error: #d46767;
+  --secondary: #b8735c;
+  --success: #6b8f5e;
+  --error: #b05c50;
   --cork: #c4a46c;
 
   --font-heading: 'Playfair Display', Georgia, serif;
   --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-meta: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
 
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);

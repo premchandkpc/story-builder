@@ -9,6 +9,7 @@ import (
 	"github.com/premchand/story-builder/internal/domain"
 )
 
+// ListMemories handles GET /api/v1/characters/{charID}/memories.
 func (h *Handlers) ListMemories(w http.ResponseWriter, r *http.Request) {
 	charID := chi.URLParam(r, "charID")
 	mems, err := h.memSvc.ListByCharacter(r.Context(), charID)
@@ -22,12 +23,15 @@ func (h *Handlers) ListMemories(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, mems)
 }
 
+// searchMemoriesRequest is the JSON body for semantic memory search.
 type searchMemoriesRequest struct {
 	StoryID string `json:"story_id"`
 	Query   string `json:"query"`
 	Limit   int    `json:"limit,omitempty"`
 }
 
+// SearchMemories handles POST /api/v1/characters/{charID}/memories/search.
+// Performs vector similarity search on character memories.
 func (h *Handlers) SearchMemories(w http.ResponseWriter, r *http.Request) {
 	charID := chi.URLParam(r, "charID")
 

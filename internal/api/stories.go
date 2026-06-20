@@ -8,9 +8,11 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/premchand/story-builder/internal/domain"
+	"github.com/premchand/story-builder/internal/events"
 	"github.com/premchand/story-builder/internal/service"
 )
 
+// CreateStory handles POST /api/v1/stories.
 func (h *Handlers) CreateStory(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Title string `json:"title"`
@@ -33,6 +35,7 @@ func (h *Handlers) CreateStory(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, story)
 }
 
+// GetStory handles GET /api/v1/stories/{storyID}.
 func (h *Handlers) GetStory(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "storyID")
 	story, err := h.storySvc.Get(r.Context(), id)
@@ -47,6 +50,7 @@ func (h *Handlers) GetStory(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, story)
 }
 
+// UpdateStory handles PUT /api/v1/stories/{storyID}.
 func (h *Handlers) UpdateStory(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "storyID")
 	var body struct {
@@ -68,6 +72,7 @@ func (h *Handlers) UpdateStory(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, updated)
 }
 
+// ListStories handles GET /api/v1/stories.
 func (h *Handlers) ListStories(w http.ResponseWriter, r *http.Request) {
 	stories, err := h.storySvc.List(r.Context())
 	if err != nil {
@@ -77,6 +82,7 @@ func (h *Handlers) ListStories(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, stories)
 }
 
+// DeleteStory handles DELETE /api/v1/stories/{storyID}.
 func (h *Handlers) DeleteStory(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "storyID")
 	if err := h.storySvc.Delete(r.Context(), id); err != nil {
@@ -86,6 +92,8 @@ func (h *Handlers) DeleteStory(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// GenerateStory handles POST /api/v1/stories/generate.
+// Calls the LLM outline service, creates a story, characters, locations, scenes, and edges from the outline.
 func (h *Handlers) GenerateStory(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Synopsis string `json:"synopsis"`
@@ -239,6 +247,8 @@ func (h *Handlers) GenerateStory(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// GenerateTitle handles POST /api/v1/stories/generate-title.
+// Uses the LLM title service to generate a title from a synopsis.
 func (h *Handlers) GenerateTitle(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Synopsis string `json:"synopsis"`
@@ -259,6 +269,7 @@ func (h *Handlers) GenerateTitle(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"title": title})
 }
 
+// pickString returns s[idx] if in bounds, empty string otherwise.
 func pickString(s []string, idx int) string {
 	if idx < len(s) {
 		return s[idx]
@@ -266,6 +277,7 @@ func pickString(s []string, idx int) string {
 	return ""
 }
 
+// GetBlueprint handles GET /api/v1/stories/{storyID}/blueprint.
 func (h *Handlers) GetBlueprint(w http.ResponseWriter, r *http.Request) {
 	storyID := chi.URLParam(r, "storyID")
 	bp, err := h.storySvc.GetBlueprint(r.Context(), storyID)
@@ -280,6 +292,7 @@ func (h *Handlers) GetBlueprint(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, bp)
 }
 
+// UpdateBlueprint handles PUT /api/v1/stories/{storyID}/blueprint.
 func (h *Handlers) UpdateBlueprint(w http.ResponseWriter, r *http.Request) {
 	storyID := chi.URLParam(r, "storyID")
 	var bp domain.StoryBlueprint

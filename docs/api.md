@@ -83,7 +83,7 @@ Get full graph topology (nodes + edges) for a story.
 
 ### `POST /api/v1/stories/generate`
 
-Generate a full story outline from a synopsis via LLM. Takes 30-120s.
+Generate a full story outline from a synopsis via LLM. Server timeout: 5min.
 
 **Request:**
 ```json
@@ -166,7 +166,10 @@ Accept a generation and update the node's content.
 {"generation_id": "gen_uuid"}
 ```
 
-**Response 204:** No Content.
+**Response 200:**
+```json
+{"status": "accepted"}
+```
 
 ---
 
@@ -194,92 +197,13 @@ List all edges for a story.
 
 ### `DELETE /api/v1/stories/{storyID}/edges`
 
-Delete an edge. Uses query parameters, not body.
+Delete an edge. Uses query params.
 
-**Query params:** `?from=node_a&to=node_b`
+**Query params:** `from_scene=node_a&to_scene=node_b`
 
 **Response 204:** No Content.
 
 ---
-
-## Scene Edges (Legacy)
-
-### `POST /api/v1/stories/{storyID}/scene-edges`
-
-Create a legacy scene-scoped edge.
-
-**Request:**
-```json
-{
-  "fromSceneId": "scene_a",
-  "toSceneId": "scene_b",
-  "type": "seq"
-}
-```
-
-Valid `type` values: `seq`, `fork`, `join`, `choice`
-
-### `GET /api/v1/stories/{storyID}/scene-edges`
-
-List all scene edges.
-
----
-
-## Scenes (Legacy)
-
-### `POST /api/v1/stories/{storyID}/scenes`
-
-**Request:**
-```json
-{
-  "title": "Arrival",
-  "beatIntent": "Hero arrives at the castle",
-  "participants": ["char_1", "char_2"],
-  "locationRef": "loc_1",
-  "pov": "hero",
-  "tone": "mysterious",
-  "targetWords": 500
-}
-```
-
-**Response 201:** Full scene object.
-
-### `GET /api/v1/stories/{storyID}/scenes`
-
-List all scenes for a story.
-
-### `GET /api/v1/stories/{storyID}/scenes/{id}`
-
-Get scene by ID.
-
-### `PUT /api/v1/stories/{storyID}/scenes/{id}`
-
-Update scene. Same body as create.
-
-### `DELETE /api/v1/stories/{storyID}/scenes/{id}`
-
-Delete scene and its edges.
-
-### `POST /api/v1/stories/{storyID}/scenes/{id}/generate`
-
-Trigger LLM prose generation for a scene. No request body.
-
-**Response 200:** Full generation object.
-
-### `GET /api/v1/stories/{storyID}/scenes/{id}/generations`
-
-List all generations for a scene (newest first).
-
-### `POST /api/v1/stories/{storyID}/scenes/{id}/accept`
-
-Accept a generation and trigger pipeline.
-
-**Request:**
-```json
-{"generation_id": "gen_uuid"}
-```
-
-**Response 204:** No Content.
 
 ---
 
@@ -308,7 +232,7 @@ Create a character. `storyId` is required in body.
 
 ### `GET /api/v1/characters`
 
-List all characters across stories.
+List characters for a story. Requires `?story_id=...` query param (returns `[]` if omitted).
 
 ### `GET /api/v1/characters/{charID}`
 
@@ -422,12 +346,11 @@ Get location by ID.
 
 ### `PUT /api/v1/locations/{id}`
 
-Update a location.
+Update a location (name not currently mutable via this endpoint).
 
 **Request:**
 ```json
 {
-  "name": "Castle Gates",
   "description": "The heavily fortified main entrance",
   "props": ["portcullis", "moat", "drawbridge"]
 }
@@ -452,6 +375,8 @@ Get scene-level summary.
 ### `GET /api/v1/stories/{storyID}/summaries/nodes/{nodeID}`
 
 Get node-level summary.
+
+**Note:** Both `/scenes/{sceneID}` and `/nodes/{nodeID}` map to the same handler, which reads whichever param is present.
 
 ---
 
@@ -487,8 +412,14 @@ Server-Sent Events stream for generation progress.
 **Response 200:** `text/event-stream`
 
 ```
-data: {"type":"progress","percent":50,"message":"Generating prose..."}
-data: {"type":"complete","generation_id":"gen_uuid"}
+event: connected
+data: {"genId":"gen_uuid"}
+
+event: progress
+data: {"genId":"gen_uuid","step":"generating","status":"running"}
+
+event: progress
+data: {"genId":"gen_uuid","step":"complete","status":"success"}
 ```
 
 ---
@@ -536,21 +467,13 @@ Get the story bible.
 
 Generate a new bible via LLM (claude-sonnet). No request body.
 
-**Response 201:** Full bible object.
-
-**Response 409:** `{"error": "bible already exists for this story"}` (single-flight guard prevents duplicate generation).
+**Response 202:** Full bible object (accepted for async generation).
 
 ### `PUT /api/v1/stories/{storyID}/bible`
 
-Update the story bible.
+Update the story bible. Replaces the existing bible document with the sent body.
 
-**Request:**
-```json
-{
-  "tone": "updated tone",
-  "centralTheme": "updated theme"
-}
-```
+**Request:** Full or partial bible object (fields are replaced at document level).
 
 **Response 200:** Updated bible object.
 
@@ -581,6 +504,8 @@ Create a chapter.
 
 **Response 201:** Full chapter object with generated ID.
 
+**Note:** If `chapterNumber` is omitted, the field is set to its zero value.
+
 ### `GET /api/v1/stories/{storyID}/chapters`
 
 List all chapters for a story, sorted by actNumber then chapterNum.
@@ -605,9 +530,7 @@ Update a chapter.
 
 ### `DELETE /api/v1/stories/{storyID}/chapters/{id}`
 
-Delete a chapter.
-
-**Response 204:** No Content.
+Delete a chapter. **Currently returns 501 Not Implemented.**
 
 ---
 
@@ -631,3 +554,5 @@ These endpoints return `501 Not Implemented` or `200 []`:
 | `POST /api/v1/stories/{id}/casting` | 501 |
 | `GET /api/v1/casting/actor/{id}` | 501 |
 | `GET /api/v1/casting/character/{id}` | 501 |
+| `DELETE /api/v1/stories/{id}/chapters/{id}` | 501 |
+| `PUT /api/v1/locations/{id}` | Name field not mutable; accepts `description` + `props` only |

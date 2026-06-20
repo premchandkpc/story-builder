@@ -55,3 +55,5 @@ QODER.md
 ### Dead config / simulation
 /config/
 /cmd/simulate/
+
+.agents/

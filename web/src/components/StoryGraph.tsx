@@ -318,7 +318,7 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
       const topo = await api.topology.get(storyId)
       const realEdge = topo.edges[edgeIndex]
       if (realEdge) {
-        await api.edges.delete(storyId, realEdge.from_node)
+        await api.edges.delete(storyId, realEdge.from_node, realEdge.to_node)
       }
       toast("Edge deleted", "success")
       setSelectedEdge(null)

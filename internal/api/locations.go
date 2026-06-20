@@ -9,6 +9,7 @@ import (
 	"github.com/premchand/story-builder/internal/domain"
 )
 
+// ListStoryLocations handles GET /api/v1/stories/{storyID}/locations.
 func (h *Handlers) ListStoryLocations(w http.ResponseWriter, r *http.Request) {
 	storyID := chi.URLParam(r, "storyID")
 	locs, err := h.locSvc.ListByStory(r.Context(), storyID)
@@ -19,6 +20,7 @@ func (h *Handlers) ListStoryLocations(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, locs)
 }
 
+// CreateLocation handles POST /api/v1/stories/{storyID}/locations.
 func (h *Handlers) CreateLocation(w http.ResponseWriter, r *http.Request) {
 	storyID := chi.URLParam(r, "storyID")
 	var body struct {
@@ -47,6 +49,7 @@ func (h *Handlers) CreateLocation(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, loc)
 }
 
+// GetLocation handles GET /api/v1/locations/{id}.
 func (h *Handlers) GetLocation(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	loc, err := h.locSvc.Get(r.Context(), id)
@@ -61,6 +64,8 @@ func (h *Handlers) GetLocation(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, loc)
 }
 
+// UpdateLocation handles PUT /api/v1/locations/{id}.
+// Name is not currently mutable via this endpoint.
 func (h *Handlers) UpdateLocation(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {

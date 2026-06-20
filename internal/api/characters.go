@@ -9,6 +9,7 @@ import (
 	"github.com/premchand/story-builder/internal/domain"
 )
 
+// CreateCharacter handles POST /api/v1/stories/{storyID}/characters.
 func (h *Handlers) CreateCharacter(w http.ResponseWriter, r *http.Request) {
 	storyID := chi.URLParam(r, "storyID")
 	var char domain.Character
@@ -30,20 +31,7 @@ func (h *Handlers) CreateCharacter(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, created)
 }
 
-func (h *Handlers) GetCharacter(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "charID")
-	char, err := h.charSvc.Get(r.Context(), id)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if char == nil {
-		writeError(w, http.StatusNotFound, "character not found")
-		return
-	}
-	writeJSON(w, http.StatusOK, char)
-}
-
+// ListCharacters handles GET /api/v1/stories/{storyID}/characters.
 func (h *Handlers) ListCharacters(w http.ResponseWriter, r *http.Request) {
 	storyID := chi.URLParam(r, "storyID")
 	chars, err := h.charSvc.List(r.Context(), storyID)
@@ -54,6 +42,8 @@ func (h *Handlers) ListCharacters(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, chars)
 }
 
+// V2ListCharacters handles GET /api/v1/characters.
+// Requires ?story_id= query param; returns empty array if omitted.
 func (h *Handlers) V2ListCharacters(w http.ResponseWriter, r *http.Request) {
 	storyID := r.URL.Query().Get("story_id")
 	if storyID == "" {
@@ -71,6 +61,7 @@ func (h *Handlers) V2ListCharacters(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, chars)
 }
 
+// V2CreateCharacter handles POST /api/v1/characters.
 func (h *Handlers) V2CreateCharacter(w http.ResponseWriter, r *http.Request) {
 	var char domain.Character
 	if err := json.NewDecoder(r.Body).Decode(&char); err != nil {
@@ -89,6 +80,7 @@ func (h *Handlers) V2CreateCharacter(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, created)
 }
 
+// V2GetCharacter handles GET /api/v1/characters/{charID}.
 func (h *Handlers) V2GetCharacter(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "charID")
 	char, err := h.charSvc.Get(r.Context(), id)
@@ -103,6 +95,8 @@ func (h *Handlers) V2GetCharacter(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, char)
 }
 
+// V2UpdateCharacter handles PUT /api/v1/characters/{charID}.
+// Uses GetLatest for merge-then-update (creates a new versioned document).
 func (h *Handlers) V2UpdateCharacter(w http.ResponseWriter, r *http.Request) {
 	charID := chi.URLParam(r, "charID")
 	existing, err := h.charSvc.GetLatest(r.Context(), charID)

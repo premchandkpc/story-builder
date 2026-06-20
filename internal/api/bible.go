@@ -6,8 +6,11 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/premchand/story-builder/internal/domain"
 )
 
+// GetBible handles GET /api/v1/stories/{storyID}/bible.
 func (h *Handlers) GetBible(w http.ResponseWriter, r *http.Request) {
 	storyID := chi.URLParam(r, "storyID")
 	bible, err := h.bibleSvc.Get(r.Context(), storyID)
@@ -22,6 +25,8 @@ func (h *Handlers) GetBible(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, bible)
 }
 
+// GenerateBible handles POST /api/v1/stories/{storyID}/bible/generate.
+// Triggers LLM bible generation. Returns immediately with 202; generation is async.
 func (h *Handlers) GenerateBible(w http.ResponseWriter, r *http.Request) {
 	storyID := chi.URLParam(r, "storyID")
 
@@ -35,6 +40,7 @@ func (h *Handlers) GenerateBible(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, bible)
 }
 
+// DeleteBible handles DELETE /api/v1/stories/{storyID}/bible.
 func (h *Handlers) DeleteBible(w http.ResponseWriter, r *http.Request) {
 	storyID := chi.URLParam(r, "storyID")
 	if err := h.bibleSvc.DeleteByStory(r.Context(), storyID); err != nil {
@@ -44,14 +50,18 @@ func (h *Handlers) DeleteBible(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// UpdateBible handles PUT /api/v1/stories/{storyID}/bible.
 func (h *Handlers) UpdateBible(w http.ResponseWriter, r *http.Request) {
-	_ = chi.URLParam(r, "storyID")
-	var body struct {
-		Bible json.RawMessage `json:"bible"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	storyID := chi.URLParam(r, "storyID")
+	var bible domain.StoryBible
+	if err := json.NewDecoder(r.Body).Decode(&bible); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "not_implemented"})
+	bible.StoryID = storyID
+	if err := h.bibleSvc.Update(r.Context(), &bible); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, bible)
 }

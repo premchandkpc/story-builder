@@ -211,10 +211,10 @@ export const api = {
   // ==========================================
   edges: {
     list:   (storyId: string) => request<GraphEdge[]>(`/stories/${storyId}/edges`),
-    get:    (storyId: string, id: string) => request<GraphEdge>(`/stories/${storyId}/edges/${id}`),
     create: (storyId: string, data: CreateEdgePayload) =>
       request<void>(`/stories/${storyId}/edges`, { method: "POST", body: JSON.stringify(data) }),
-    delete: (storyId: string, id: string) => request<void>(`/stories/${storyId}/edges/${id}`, { method: "DELETE" }),
+    delete: (storyId: string, fromNode: string, toNode: string) =>
+      request<void>(`/stories/${storyId}/edges?from_scene=${encodeURIComponent(fromNode)}&to_scene=${encodeURIComponent(toNode)}`, { method: "DELETE" }),
   },
 
   // ==========================================
