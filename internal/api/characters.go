@@ -96,18 +96,9 @@ func (h *Handlers) V2GetCharacter(w http.ResponseWriter, r *http.Request) {
 }
 
 // V2UpdateCharacter handles PUT /api/v1/characters/{charID}.
-// Uses GetLatest for merge-then-update (creates a new versioned document).
+// The service layer handles merge-then-versioned-update.
 func (h *Handlers) V2UpdateCharacter(w http.ResponseWriter, r *http.Request) {
 	charID := chi.URLParam(r, "charID")
-	existing, err := h.charSvc.GetLatest(r.Context(), charID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if existing == nil {
-		writeError(w, http.StatusNotFound, "character not found")
-		return
-	}
 	var body struct {
 		Name           string            `json:"name,omitempty"`
 		Persona        string            `json:"persona,omitempty"`
@@ -119,12 +110,17 @@ func (h *Handlers) V2UpdateCharacter(w http.ResponseWriter, r *http.Request) {
 		Traits         []string          `json:"traits,omitempty"`
 		VoiceSamples   []string          `json:"voiceSamples,omitempty"`
 		Relationships  map[string]string `json:"relationships,omitempty"`
+		Want           string            `json:"want,omitempty"`
+		Need           string            `json:"need,omitempty"`
+		FalseBelief    string            `json:"falseBelief,omitempty"`
+		Fear           string            `json:"fear,omitempty"`
+		ArcType        string            `json:"arcType,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	updated := *existing
+	updated := &domain.Character{CharID: charID}
 	if body.Name != "" {
 		updated.Name = body.Name
 	}
@@ -155,7 +151,22 @@ func (h *Handlers) V2UpdateCharacter(w http.ResponseWriter, r *http.Request) {
 	if body.Relationships != nil {
 		updated.Relationships = body.Relationships
 	}
-	result, err := h.charSvc.Update(r.Context(), &updated)
+	if body.Want != "" {
+		updated.Want = body.Want
+	}
+	if body.Need != "" {
+		updated.Need = body.Need
+	}
+	if body.FalseBelief != "" {
+		updated.FalseBelief = body.FalseBelief
+	}
+	if body.Fear != "" {
+		updated.Fear = body.Fear
+	}
+	if body.ArcType != "" {
+		updated.ArcType = body.ArcType
+	}
+	result, err := h.charSvc.Update(r.Context(), updated)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

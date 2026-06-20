@@ -84,6 +84,10 @@ func EnsureIndexes(ctx context.Context, db *mongo.Database) error {
 			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "order", Value: 1}}},
 			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "sceneId", Value: 1}}},
 		},
+		"jobs": {
+			{Keys: bson.D{{Key: "type", Value: 1}, {Key: "status", Value: 1}}},
+			{Keys: bson.D{{Key: "status", Value: 1}, {Key: "updatedAt", Value: 1}}},
+		},
 	}
 
 	for collName, models := range indexes {

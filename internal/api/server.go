@@ -73,14 +73,6 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 						r.Post("/generate", h.V2GenerateNode)
 						r.Get("/generations", h.V2ListNodeGenerations)
 						r.Post("/accept", h.V2AcceptGeneration)
-						r.Route("/scene", func(r chi.Router) {
-							r.Put("/structure", h.NotImplemented)
-							r.Get("/structure", h.NotImplemented)
-							r.Post("/start", h.NotImplemented)
-							r.Post("/next", h.NotImplemented)
-							r.Post("/finish", h.NotImplemented)
-							r.Get("/turns", h.NotImplemented)
-						})
 					})
 				})
 
@@ -89,9 +81,10 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 					r.Post("/", h.V2CreateEdge)
 					r.Get("/", h.V2ListEdges)
 					r.Delete("/", h.DeleteEdge)
+					r.Delete("/{edgeID}", h.DeleteEdgeByID)
 				})
 
-				// Chapters
+				// Chapters (deprecated — no new features)
 				r.Route("/chapters", func(r chi.Router) {
 					r.Get("/", h.ListChapters)
 					r.Post("/", h.CreateChapter)
@@ -99,7 +92,6 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 						r.Get("/", h.GetChapter)
 						r.Put("/", h.UpdateChapter)
 						r.Delete("/", h.DeleteChapter)
-						r.Get("/scenes", h.NotImplemented)
 					})
 				})
 
@@ -121,9 +113,6 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 
 				r.Route("/summaries", func(r chi.Router) {
 					r.Get("/level", h.GetSummaryByLevel)
-					r.Get("/count", h.NotImplemented)
-					r.Get("/elevate", h.NotImplemented)
-					r.Get("/scenes/{sceneID}", h.GetSceneSummary)
 					r.Get("/nodes/{nodeID}", h.GetSceneSummary)
 				})
 			})
@@ -137,23 +126,7 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 			r.Put("/", h.V2UpdateCharacter)
 			r.Get("/memories", h.ListMemories)
 			r.Post("/memories/search", h.SearchMemories)
-			r.Get("/traits", h.EmptyArray)
-			r.Post("/traits/assign", h.NotImplemented)
-			r.Delete("/traits/{traitID}", h.NotImplemented)
 		})
-
-		// Actor stubs
-		r.Get("/actors", h.EmptyArray)
-		r.Post("/actors", h.NotImplemented)
-		r.Route("/actors/{id}", func(r chi.Router) {
-			r.Get("/", h.NotImplemented)
-			r.Put("/", h.NotImplemented)
-		})
-
-		// Character trait stubs
-		r.Get("/character-traits", h.EmptyArray)
-		r.Get("/character-traits/{id}", h.NotImplemented)
-		r.Post("/character-traits", h.NotImplemented)
 
 		// Story blueprint
 		r.Route("/stories/{storyID}/blueprint", func(r chi.Router) {
@@ -181,16 +154,44 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 			r.Put("/", h.UpdateLocation)
 		})
 
-		// Lore stubs
-		r.Get("/lore", h.EmptyArray)
-		r.Post("/lore", h.NotImplemented)
-		r.Post("/lore/search", h.NotImplemented)
+		// Experimental / in-development features
+		r.Route("/experimental", func(r chi.Router) {
+			// Scene turns (interactive turn-by-turn generation)
+			r.Route("/stories/{storyID}/nodes/{nodeID}/scene", func(r chi.Router) {
+				r.Put("/structure", h.NotImplemented)
+				r.Get("/structure", h.NotImplemented)
+				r.Post("/start", h.NotImplemented)
+				r.Post("/next", h.NotImplemented)
+				r.Post("/finish", h.NotImplemented)
+				r.Get("/turns", h.NotImplemented)
+			})
 
-		// Casting stubs
-		r.Post("/stories/{storyID}/casting", h.NotImplemented)
-		r.Get("/stories/{storyID}/casting", h.EmptyArray)
-		r.Get("/casting/actor/{actorID}", h.NotImplemented)
-		r.Get("/casting/character/{characterID}", h.NotImplemented)
+			// Actors
+			r.Get("/actors", h.EmptyArray)
+			r.Post("/actors", h.NotImplemented)
+			r.Route("/actors/{id}", func(r chi.Router) {
+				r.Get("/", h.NotImplemented)
+				r.Put("/", h.NotImplemented)
+			})
+
+			// Character traits
+			r.Get("/character-traits", h.EmptyArray)
+			r.Get("/character-traits/{id}", h.NotImplemented)
+			r.Post("/character-traits", h.NotImplemented)
+			r.Post("/characters/{charID}/traits/assign", h.NotImplemented)
+			r.Delete("/characters/{charID}/traits/{traitID}", h.NotImplemented)
+
+			// Lore
+			r.Get("/lore", h.EmptyArray)
+			r.Post("/lore", h.NotImplemented)
+			r.Post("/lore/search", h.NotImplemented)
+
+			// Casting
+			r.Post("/stories/{storyID}/casting", h.NotImplemented)
+			r.Get("/stories/{storyID}/casting", h.EmptyArray)
+			r.Get("/casting/actor/{actorID}", h.NotImplemented)
+			r.Get("/casting/character/{characterID}", h.NotImplemented)
+		})
 	})
 
 	s.Router = r
@@ -205,10 +206,13 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 }
 
 // middlewareRateLimit returns a middleware that enforces a sliding-window rate limit.
+// Keys are derived from the request method + route pattern for finer-grained control.
 func middlewareRateLimit(limiter *cache.SlidingWindowRateLimiter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ok, err := limiter.Allow(r.Context(), "http:api")
+			// Derive key from method + first two path segments for route-group awareness
+			key := routeRateLimitKey(r.Method, r.URL.Path)
+			ok, err := limiter.Allow(r.Context(), key)
 			if err != nil || !ok {
 				writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
 				return
@@ -216,6 +220,12 @@ func middlewareRateLimit(limiter *cache.SlidingWindowRateLimiter) func(http.Hand
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// routeRateLimitKey produces a rate-limit key scoped by HTTP method and route group.
+// Examples: "POST:/api/v1/stories/generate", "GET:/api/v1/stories/{id}/topology"
+func routeRateLimitKey(method, path string) string {
+	return method + ":" + path
 }
 
 // timeoutWriter wraps http.ResponseWriter to detect handler deadline exceeded.

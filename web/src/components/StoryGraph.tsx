@@ -7,6 +7,7 @@ import {
   type Node,
   type Edge,
   type Connection,
+  type OnNodeDrag,
   useNodesState,
   useEdgesState,
   addEdge,
@@ -82,8 +83,8 @@ function toReactFlowNodes(
 }
 
 function toReactFlowEdges(edges: GraphEdge[]): Edge[] {
-  return edges.map((e, i) => ({
-    id: `e-${i}`,
+  return edges.map((e) => ({
+    id: e.id,
     source: e.from_node,
     target: e.to_node,
     label: e.edge_type === "seq" ? "" : e.edge_type,
@@ -210,23 +211,23 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
     async (connection: Connection) => {
       if (!connection.source || !connection.target) return
       const edgeType = pendingEdgeType
-      setEdges((eds: Edge[]) => addEdge({
-        ...connection,
-        id: `e-${Date.now()}`,
-        label: edgeType === "seq" ? "" : edgeType,
-        style: {
-          stroke: edgeType === "fork" ? "#c9734a" : edgeType === "join" ? "#d4a853" : "#8888a0",
-          strokeWidth: edgeType === "seq" ? 1.5 : 2.5,
-          strokeDasharray: edgeType === "choice" ? "5 5" : undefined,
-        },
-        labelStyle: { fill: "#8888a0", fontSize: 10 },
-      }, eds))
       try {
-        await api.edges.create(storyId, {
+        const created = await api.edges.create(storyId, {
           from_node: connection.source,
           to_node: connection.target,
           edge_type: edgeType,
         })
+        setEdges((eds: Edge[]) => addEdge({
+          ...connection,
+          id: created.id,
+          label: edgeType === "seq" ? "" : edgeType,
+          style: {
+            stroke: edgeType === "fork" ? "#c9734a" : edgeType === "join" ? "#d4a853" : "#8888a0",
+            strokeWidth: edgeType === "seq" ? 1.5 : 2.5,
+            strokeDasharray: edgeType === "choice" ? "5 5" : undefined,
+          },
+          labelStyle: { fill: "#8888a0", fontSize: 10 },
+        }, eds))
         toast("Edge created", "success")
       } catch (err) {
         showError("Failed to create edge")
@@ -255,6 +256,17 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
     setSelectedEdge(edge)
     setActiveTab("edit")
   }, [])
+
+  const onNodeDragEnd: OnNodeDrag = useCallback(
+    async (_event: any, node: Node) => {
+      try {
+        await api.nodes.updatePosition(storyId, node.id, node.position.x, node.position.y)
+      } catch (err) {
+        console.error("persist position:", err)
+      }
+    },
+    [storyId],
+  )
 
   const onPaneClick = useCallback(() => {
     setSelectedNode(null)
@@ -314,12 +326,7 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
   const deleteEdge = useCallback(async () => {
     if (!selectedEdge) return
     try {
-      const edgeIndex = parseInt(selectedEdge.id.replace("e-", ""), 10)
-      const topo = await api.topology.get(storyId)
-      const realEdge = topo.edges[edgeIndex]
-      if (realEdge) {
-        await api.edges.delete(storyId, realEdge.from_node, realEdge.to_node)
-      }
+      await api.edges.deleteById(storyId, selectedEdge.id)
       toast("Edge deleted", "success")
       setSelectedEdge(null)
       await fetchGraph()
@@ -593,6 +600,7 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeClick={onNodeClick}
+          onNodeDragStop={onNodeDragEnd}
           onEdgeClick={onEdgeClick}
           onPaneClick={onPaneClick}
           nodeTypes={nodeTypes}

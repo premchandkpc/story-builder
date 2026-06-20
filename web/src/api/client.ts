@@ -7,7 +7,7 @@ import type {
   CreateCastingPayload, CreateChapterPayload, CreateLocationPayload,
   CreateNodePayload, CreateScenePayload, CreateStoryPayload, CreateEdgePayload,
   ElevateCheck, Generation, GraphEdge, GraphNode, Location, Lore,
-  Scene, SceneEdge, Story, StoryGenerateResult, StorySummary, Topology, TraitAssignment,
+  Scene, SceneEdge, Story, StoryGenerateResult, StorySummary, Topology, TraitAssignment, UpdateNodePayload,
 } from "./types"
 
 // ---- Base URL ----
@@ -169,10 +169,15 @@ export const api = {
     get:    (storyId: string, id: string)    => request<GraphNode>(`/stories/${storyId}/nodes/${id}`),
     create: (storyId: string, data: CreateNodePayload) =>
       request<GraphNode>(`/stories/${storyId}/nodes`, { method: "POST", body: JSON.stringify(data) }),
-    update: (storyId: string, id: string, data: CreateNodePayload) =>
+    update: (storyId: string, id: string, data: UpdateNodePayload) =>
       request<GraphNode>(`/stories/${storyId}/nodes/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     delete: (storyId: string, id: string) =>
       request<void>(`/stories/${storyId}/nodes/${id}`, { method: "DELETE" }),
+    updatePosition: (storyId: string, id: string, x: number, y: number) =>
+      request<GraphNode>(`/stories/${storyId}/nodes/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ position_x: x, position_y: y }),
+      }),
   },
 
   // ==========================================
@@ -212,9 +217,11 @@ export const api = {
   edges: {
     list:   (storyId: string) => request<GraphEdge[]>(`/stories/${storyId}/edges`),
     create: (storyId: string, data: CreateEdgePayload) =>
-      request<void>(`/stories/${storyId}/edges`, { method: "POST", body: JSON.stringify(data) }),
+      request<GraphEdge>(`/stories/${storyId}/edges`, { method: "POST", body: JSON.stringify(data) }),
     delete: (storyId: string, fromNode: string, toNode: string) =>
       request<void>(`/stories/${storyId}/edges?from_scene=${encodeURIComponent(fromNode)}&to_scene=${encodeURIComponent(toNode)}`, { method: "DELETE" }),
+    deleteById: (storyId: string, edgeId: string) =>
+      request<void>(`/stories/${storyId}/edges/${edgeId}`, { method: "DELETE" }),
   },
 
   // ==========================================

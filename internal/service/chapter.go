@@ -43,9 +43,37 @@ func (s *ChapterSvc) Delete(ctx context.Context, id string) error {
 }
 
 func (s *ChapterSvc) Update(ctx context.Context, c *domain.Chapter) (*domain.Chapter, error) {
-	c.UpdatedAt = time.Now()
-	if err := s.repo.Update(ctx, c); err != nil {
+	existing, err := s.repo.Get(ctx, c.ID)
+	if err != nil {
+		return nil, fmt.Errorf("get chapter for update: %w", err)
+	}
+	if existing == nil {
+		return nil, fmt.Errorf("chapter not found")
+	}
+	if c.Title != "" {
+		existing.Title = c.Title
+	}
+	if c.Summary != "" {
+		existing.Summary = c.Summary
+	}
+	if c.Goal != "" {
+		existing.Goal = c.Goal
+	}
+	if c.Scenes != nil {
+		existing.Scenes = c.Scenes
+	}
+	if c.Status != "" {
+		existing.Status = c.Status
+	}
+	if c.ActNumber != 0 {
+		existing.ActNumber = c.ActNumber
+	}
+	if c.ChapterNum != 0 {
+		existing.ChapterNum = c.ChapterNum
+	}
+	existing.UpdatedAt = time.Now()
+	if err := s.repo.Update(ctx, existing); err != nil {
 		return nil, fmt.Errorf("update chapter: %w", err)
 	}
-	return c, nil
+	return existing, nil
 }

@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/premchand/story-builder/internal/domain"
 )
@@ -128,16 +130,82 @@ func (m *mockEdgeRepo) DeleteByStory(ctx context.Context, storyID string) error 
 	return nil
 }
 
-type mockGenRepo struct{}
+func (m *mockEdgeRepo) DeleteByID(ctx context.Context, edgeID string) error {
+	return nil
+}
 
-func (m *mockGenRepo) Create(ctx context.Context, g *domain.Generation) error { return nil }
-func (m *mockGenRepo) Get(ctx context.Context, id string) (*domain.Generation, error) { return nil, nil }
-func (m *mockGenRepo) Update(ctx context.Context, g *domain.Generation) error { return nil }
-func (m *mockGenRepo) ListByScene(ctx context.Context, sceneID string) ([]*domain.Generation, error) { return nil, nil }
-func (m *mockGenRepo) ListByStory(ctx context.Context, storyID string) ([]*domain.Generation, error) { return nil, nil }
-func (m *mockGenRepo) DeleteByScene(ctx context.Context, sceneID string) error { return nil }
-func (m *mockGenRepo) DeleteByStory(ctx context.Context, storyID string) error { return nil }
-func (m *mockGenRepo) SetStepStatus(ctx context.Context, genID, step, status string) error { return nil }
+type mockGenRepo struct {
+	mu    sync.Mutex
+	gens  map[string]*domain.Generation
+}
+
+func newMockGenRepo() *mockGenRepo {
+	return &mockGenRepo{gens: make(map[string]*domain.Generation)}
+}
+
+func (m *mockGenRepo) Create(_ context.Context, g *domain.Generation) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.gens == nil {
+		m.gens = make(map[string]*domain.Generation)
+	}
+	if g.ID == "" {
+		g.ID = "gen-" + g.SceneID
+	}
+	g.CreatedAt = time.Now()
+	m.gens[g.ID] = g
+	return nil
+}
+
+func (m *mockGenRepo) Get(_ context.Context, id string) (*domain.Generation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.gens == nil {
+		return nil, nil
+	}
+	g, ok := m.gens[id]
+	if !ok {
+		return nil, nil
+	}
+	return g, nil
+}
+
+func (m *mockGenRepo) Update(_ context.Context, g *domain.Generation) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.gens[g.ID] = g
+	return nil
+}
+
+func (m *mockGenRepo) ListByScene(_ context.Context, sceneID string) ([]*domain.Generation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var gens []*domain.Generation
+	if m.gens != nil {
+		for _, g := range m.gens {
+			if g.SceneID == sceneID {
+				gens = append(gens, g)
+			}
+		}
+	}
+	return gens, nil
+}
+
+func (m *mockGenRepo) ListByStory(_ context.Context, storyID string) ([]*domain.Generation, error) {
+	return nil, nil
+}
+
+func (m *mockGenRepo) DeleteByScene(_ context.Context, sceneID string) error {
+	return nil
+}
+
+func (m *mockGenRepo) DeleteByStory(_ context.Context, storyID string) error {
+	return nil
+}
+
+func (m *mockGenRepo) SetStepStatus(_ context.Context, genID, step, status string) error {
+	return nil
+}
 
 func TestSceneService_Topology(t *testing.T) {
 	sceneMock := newMockSceneRepo()
@@ -208,6 +276,71 @@ func TestCharacterService(t *testing.T) {
 			t.Fatalf("expected 2 characters, got %d", len(chars))
 		}
 	})
+}
+
+// ── Mock JobRepository ────────────────────────────────────────────────
+
+type mockJobRepo struct {
+	mu   sync.Mutex
+	jobs map[string]*domain.Job
+}
+
+func newMockJobRepo() *mockJobRepo {
+	return &mockJobRepo{jobs: make(map[string]*domain.Job)}
+}
+
+func (m *mockJobRepo) Create(_ context.Context, j *domain.Job) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	j.ID = "job-" + j.SceneID
+	j.CreatedAt = time.Now()
+	m.jobs[j.ID] = j
+	return nil
+}
+
+func (m *mockJobRepo) Get(_ context.Context, id string) (*domain.Job, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	j, ok := m.jobs[id]
+	if !ok {
+		return nil, nil
+	}
+	return j, nil
+}
+
+func (m *mockJobRepo) Update(_ context.Context, j *domain.Job) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.jobs[j.ID] = j
+	return nil
+}
+
+func (m *mockJobRepo) PickPending(_ context.Context, _ string, _ time.Duration) (*domain.Job, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, j := range m.jobs {
+		if j.Status == domain.JobStatusPending {
+			j.Status = domain.JobStatusRunning
+			return j, nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *mockJobRepo) ListPending(_ context.Context) ([]*domain.Job, error) {
+	return nil, nil
+}
+
+func (m *mockJobRepo) ListStuck(_ context.Context, _ time.Duration) ([]*domain.Job, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var stuck []*domain.Job
+	for _, j := range m.jobs {
+		if j.Status == domain.JobStatusRunning {
+			stuck = append(stuck, j)
+		}
+	}
+	return stuck, nil
 }
 
 // ── Mock CharacterRepository ──────────────────────────────────────────

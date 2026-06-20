@@ -39,6 +39,7 @@ type EdgeService interface {
 	Create(ctx context.Context, e *domain.SceneEdge) (*domain.SceneEdge, error)
 	List(ctx context.Context, storyID string) ([]*domain.SceneEdge, error)
 	Delete(ctx context.Context, storyID, from, to string) error
+	DeleteByID(ctx context.Context, edgeID string) error
 }
 
 // CharacterService manages character definitions and immutable version log.

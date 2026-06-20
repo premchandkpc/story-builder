@@ -21,7 +21,10 @@ type Scene struct {
 	FlowType         string                 `bson:"flowType,omitempty" json:"flowType,omitempty"`
 	MaxTurns         int                    `bson:"maxTurns,omitempty" json:"maxTurns,omitempty"`
 	TimelinePosition int                    `bson:"timelinePosition,omitempty" json:"timelinePosition,omitempty"`
+	PositionX        *float64               `bson:"positionX,omitempty" json:"positionX,omitempty"`
+	PositionY        *float64               `bson:"positionY,omitempty" json:"positionY,omitempty"`
 	Status           string                 `bson:"status" json:"status"`
+	AcceptedGenerationID string             `bson:"acceptedGenerationId,omitempty" json:"acceptedGenerationId,omitempty"`
 	SceneStructure   map[string]any         `bson:"sceneStructure,omitempty" json:"sceneStructure,omitempty"`
 	Metadata         map[string]any         `bson:"metadata,omitempty" json:"metadata,omitempty"`
 	CreatedAt        time.Time              `bson:"createdAt" json:"createdAt"`

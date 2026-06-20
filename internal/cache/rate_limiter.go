@@ -92,5 +92,8 @@ func (rl *SlidingWindowRateLimiter) check(ctx context.Context, redisKey string, 
 }
 
 var DefaultRateLimits = []RateLimitConfig{
-	{Key: "http:api", Limit: 1000, Window: time.Minute},
+	{Key: "POST:/api/v1/stories/generate", Limit: 10, Window: time.Minute},
+	{Key: "POST:/api/v1/stories", Limit: 100, Window: time.Minute},
+	{Key: "GET:", Limit: 1000, Window: time.Minute},
+	{Key: "", Limit: 500, Window: time.Minute},
 }

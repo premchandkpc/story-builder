@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/repository"
@@ -28,7 +29,38 @@ func (s *LocationService) ListByStory(ctx context.Context, storyID string) ([]*d
 }
 
 func (s *LocationService) Update(ctx context.Context, loc *domain.Location) error {
-	return s.repo.Update(ctx, loc)
+	existing, err := s.repo.Get(ctx, loc.ID)
+	if err != nil {
+		return err
+	}
+	if existing == nil {
+		return fmt.Errorf("location not found")
+	}
+	if loc.Name != "" {
+		existing.Name = loc.Name
+	}
+	if loc.Description != "" {
+		existing.Description = loc.Description
+	}
+	if loc.LocType != "" {
+		existing.LocType = loc.LocType
+	}
+	if loc.ParentID != "" {
+		existing.ParentID = loc.ParentID
+	}
+	if loc.Props != nil {
+		existing.Props = loc.Props
+	}
+	if loc.Features != nil {
+		existing.Features = loc.Features
+	}
+	if loc.Atmosphere != "" {
+		existing.Atmosphere = loc.Atmosphere
+	}
+	if loc.Children != nil {
+		existing.Children = loc.Children
+	}
+	return s.repo.Update(ctx, existing)
 }
 
 func (s *LocationService) DeleteByStory(ctx context.Context, storyID string) error {

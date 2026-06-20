@@ -26,12 +26,15 @@ type graphNode struct {
 	TargetWords    int            `json:"target_words"`
 	Status         string         `json:"status"`
 	SceneStructure map[string]any `json:"scene_structure"`
+	PositionX      *float64       `json:"position_x"`
+	PositionY      *float64       `json:"position_y"`
 	CreatedAt      time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
 }
 
 // graphEdge is the V2 transport representation of a directed edge.
 type graphEdge struct {
+	ID       string `json:"id"`
 	StoryID  string `json:"story_id"`
 	FromNode string `json:"from_node"`
 	ToNode   string `json:"to_node"`
@@ -59,6 +62,8 @@ func sceneToNode(s *domain.Scene) graphNode {
 		TargetWords:    s.TargetWords,
 		Status:         s.Status,
 		SceneStructure: s.SceneStructure,
+		PositionX:      s.PositionX,
+		PositionY:      s.PositionY,
 		CreatedAt:      s.CreatedAt,
 		UpdatedAt:      s.UpdatedAt,
 	}
@@ -67,6 +72,7 @@ func sceneToNode(s *domain.Scene) graphNode {
 // edgeToGraphEdge converts a domain.SceneEdge into the V2 graphEdge shape.
 func edgeToGraphEdge(e *domain.SceneEdge) graphEdge {
 	return graphEdge{
+		ID:       e.ID,
 		StoryID:  e.StoryID,
 		FromNode: e.FromSceneID,
 		ToNode:   e.ToSceneID,
@@ -127,6 +133,8 @@ func (h *Handlers) CreateNode(w http.ResponseWriter, r *http.Request) {
 		Tone           string         `json:"tone"`
 		TargetWords    int            `json:"target_words"`
 		SceneStructure map[string]any `json:"scene_structure"`
+		PositionX      float64        `json:"position_x"`
+		PositionY      float64        `json:"position_y"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -136,6 +144,8 @@ func (h *Handlers) CreateNode(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "beat_intent is required")
 		return
 	}
+	px := body.PositionX
+	py := body.PositionY
 	scene := &domain.Scene{
 		StoryID:        storyID,
 		BeatIntent:     body.BeatIntent,
@@ -146,6 +156,8 @@ func (h *Handlers) CreateNode(w http.ResponseWriter, r *http.Request) {
 		Tone:           body.Tone,
 		TargetWords:    body.TargetWords,
 		SceneStructure: body.SceneStructure,
+		PositionX:      &px,
+		PositionY:      &py,
 	}
 	created, err := h.sceneSvc.Create(r.Context(), scene)
 	if err != nil {
@@ -167,6 +179,8 @@ func (h *Handlers) UpdateNode(w http.ResponseWriter, r *http.Request) {
 		Tone           string         `json:"tone"`
 		TargetWords    int            `json:"target_words"`
 		SceneStructure map[string]any `json:"scene_structure"`
+		PositionX      *float64       `json:"position_x,omitempty"`
+		PositionY      *float64       `json:"position_y,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -183,6 +197,8 @@ func (h *Handlers) UpdateNode(w http.ResponseWriter, r *http.Request) {
 		TargetWords:    body.TargetWords,
 		SceneStructure: body.SceneStructure,
 	}
+	scene.PositionX = body.PositionX
+	scene.PositionY = body.PositionY
 	updated, err := h.sceneSvc.Update(r.Context(), scene)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())

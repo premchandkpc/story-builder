@@ -57,6 +57,20 @@ func (h *Handlers) V2CreateEdge(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, edgeToGraphEdge(created))
 }
 
+// DeleteEdgeByID handles DELETE /stories/{storyID}/edges/{edgeID}.
+func (h *Handlers) DeleteEdgeByID(w http.ResponseWriter, r *http.Request) {
+	edgeID := chi.URLParam(r, "edgeID")
+	if edgeID == "" {
+		writeError(w, http.StatusBadRequest, "edgeID is required")
+		return
+	}
+	if err := h.edgeSvc.DeleteByID(r.Context(), edgeID); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // V2ListEdges handles GET /stories/{storyID}/edges.
 func (h *Handlers) V2ListEdges(w http.ResponseWriter, r *http.Request) {
 	storyID := chi.URLParam(r, "storyID")

@@ -232,6 +232,8 @@ export interface GraphNode {
   target_words: number              // word count target
   status: NodeStatus                // generation lifecycle status
   scene_structure?: SceneStructure  // optional structure for interactive flow
+  position_x?: number               // persisted X coordinate in graph layout
+  position_y?: number               // persisted Y coordinate in graph layout
   created_at: string                // ISO timestamp
   updated_at: string                // ISO timestamp of last update
 }
@@ -239,6 +241,7 @@ export interface GraphNode {
 // ---- Interface: GraphEdge ----
 // Directed edge connecting two GraphNodes in the DAG.
 export interface GraphEdge {
+  id: string            // unique identifier (MongoDB ObjectID hex)
   story_id: string      // parent story
   from_node: string     // source node ID
   to_node: string       // target node ID
@@ -329,12 +332,26 @@ export interface CreateNodePayload {
   tone: string
   target_words: number
   scene_structure?: SceneStructure
+  position_x?: number
+  position_y?: number
 }
 
 export interface CreateEdgePayload {
   from_node: string
   to_node: string
   edge_type: EdgeType
+}
+
+export interface UpdateNodePayload {
+  beat_intent?: string
+  character_refs?: string[]
+  location_ref?: string | null
+  pov?: string
+  tone?: string
+  target_words?: number
+  scene_structure?: SceneStructure
+  position_x?: number
+  position_y?: number
 }
 
 export interface StorySummary {

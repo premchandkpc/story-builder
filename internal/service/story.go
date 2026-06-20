@@ -180,17 +180,63 @@ func (s *SceneService) Update(ctx context.Context, scene *domain.Scene) (*domain
 	if existing == nil {
 		return nil, fmt.Errorf("scene not found")
 	}
-	if scene.Status != "" && scene.Status != existing.Status {
-		if err := existing.CanTransitionTo(scene.Status); err != nil {
-			return nil, err
-		}
-	} else {
-		scene.Status = existing.Status
+	if scene.Title != "" {
+		existing.Title = scene.Title
 	}
-	if err := s.sceneRepo.Update(ctx, scene); err != nil {
+	if scene.BeatIntent != "" {
+		existing.BeatIntent = scene.BeatIntent
+	}
+	if scene.Summary != "" {
+		existing.Summary = scene.Summary
+	}
+	if scene.GeneratedContent != "" {
+		existing.GeneratedContent = scene.GeneratedContent
+	}
+	if scene.Participants != nil {
+		existing.Participants = scene.Participants
+	}
+	if scene.LocationRef != "" {
+		existing.LocationRef = scene.LocationRef
+	}
+	if scene.ChapterID != "" {
+		existing.ChapterID = scene.ChapterID
+	}
+	if scene.POV != "" {
+		existing.POV = scene.POV
+	}
+	if scene.Tone != "" {
+		existing.Tone = scene.Tone
+	}
+	if scene.FlowType != "" {
+		existing.FlowType = scene.FlowType
+	}
+	if scene.SceneStructure != nil {
+		existing.SceneStructure = scene.SceneStructure
+	}
+	if scene.Metadata != nil {
+		existing.Metadata = scene.Metadata
+	}
+	if scene.TargetWords != 0 {
+		existing.TargetWords = scene.TargetWords
+	}
+	if scene.Status != "" {
+		if scene.Status != existing.Status {
+			if err := existing.CanTransitionTo(scene.Status); err != nil {
+				return nil, err
+			}
+		}
+		existing.Status = scene.Status
+	}
+	if scene.PositionX != nil {
+		existing.PositionX = scene.PositionX
+	}
+	if scene.PositionY != nil {
+		existing.PositionY = scene.PositionY
+	}
+	if err := s.sceneRepo.Update(ctx, existing); err != nil {
 		return nil, err
 	}
-	return scene, nil
+	return existing, nil
 }
 
 func (s *SceneService) List(ctx context.Context, storyID string) ([]*domain.Scene, error) {
@@ -258,6 +304,10 @@ func (s *EdgeService) Delete(ctx context.Context, storyID, from, to string) erro
 	return s.repo.Delete(ctx, storyID, from, to)
 }
 
+func (s *EdgeService) DeleteByID(ctx context.Context, edgeID string) error {
+	return s.repo.DeleteByID(ctx, edgeID)
+}
+
 type CharacterService struct {
 	charRepo repository.CharacterRepository
 }
@@ -282,10 +332,62 @@ func (s *CharacterService) GetLatest(ctx context.Context, charID string) (*domai
 }
 
 func (s *CharacterService) Update(ctx context.Context, c *domain.Character) (*domain.Character, error) {
-	if err := s.charRepo.Update(ctx, c); err != nil {
+	existing, err := s.charRepo.GetLatest(ctx, c.CharID)
+	if err != nil {
+		return nil, fmt.Errorf("get latest character: %w", err)
+	}
+	if existing == nil {
+		return nil, fmt.Errorf("character not found")
+	}
+	if c.Name != "" {
+		existing.Name = c.Name
+	}
+	if c.Persona != "" {
+		existing.Persona = c.Persona
+	}
+	if c.Backstory != "" {
+		existing.Backstory = c.Backstory
+	}
+	if c.Personality != nil {
+		existing.Personality = c.Personality
+	}
+	if c.MoralAlignment != "" {
+		existing.MoralAlignment = c.MoralAlignment
+	}
+	if c.Goals != nil {
+		existing.Goals = c.Goals
+	}
+	if c.Flaws != nil {
+		existing.Flaws = c.Flaws
+	}
+	if c.Traits != nil {
+		existing.Traits = c.Traits
+	}
+	if c.VoiceSamples != nil {
+		existing.VoiceSamples = c.VoiceSamples
+	}
+	if c.Relationships != nil {
+		existing.Relationships = c.Relationships
+	}
+	if c.Want != "" {
+		existing.Want = c.Want
+	}
+	if c.Need != "" {
+		existing.Need = c.Need
+	}
+	if c.FalseBelief != "" {
+		existing.FalseBelief = c.FalseBelief
+	}
+	if c.Fear != "" {
+		existing.Fear = c.Fear
+	}
+	if c.ArcType != "" {
+		existing.ArcType = c.ArcType
+	}
+	if err := s.charRepo.Update(ctx, existing); err != nil {
 		return nil, fmt.Errorf("update character: %w", err)
 	}
-	return c, nil
+	return existing, nil
 }
 
 func (s *CharacterService) List(ctx context.Context, storyID string) ([]*domain.Character, error) {

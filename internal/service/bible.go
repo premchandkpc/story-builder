@@ -74,8 +74,46 @@ func (s *BibleService) Generate(ctx context.Context, storyID string) (*domain.St
 }
 
 func (s *BibleService) Update(ctx context.Context, bible *domain.StoryBible) error {
-	bible.UpdatedAt = time.Now()
-	return s.bibleRepo.Update(ctx, bible)
+	existing, err := s.bibleRepo.GetByStory(ctx, bible.StoryID)
+	if err != nil {
+		return fmt.Errorf("get bible for update: %w", err)
+	}
+	if existing == nil {
+		bible.UpdatedAt = time.Now()
+		return s.bibleRepo.Update(ctx, bible)
+	}
+	if bible.Title != "" {
+		existing.Title = bible.Title
+	}
+	if bible.World != "" {
+		existing.World = bible.World
+	}
+	if bible.Dimensions != nil {
+		existing.Dimensions = bible.Dimensions
+	}
+	if bible.WorldRules != nil {
+		existing.WorldRules = bible.WorldRules
+	}
+	if bible.MagicSystems != nil {
+		existing.MagicSystems = bible.MagicSystems
+	}
+	if bible.Factions != nil {
+		existing.Factions = bible.Factions
+	}
+	if bible.Cultures != nil {
+		existing.Cultures = bible.Cultures
+	}
+	if bible.Tone != "" {
+		existing.Tone = bible.Tone
+	}
+	if bible.CentralTheme != "" {
+		existing.CentralTheme = bible.CentralTheme
+	}
+	if bible.NarrativeVoice != "" {
+		existing.NarrativeVoice = bible.NarrativeVoice
+	}
+	existing.UpdatedAt = time.Now()
+	return s.bibleRepo.Update(ctx, existing)
 }
 
 func (s *BibleService) DeleteByStory(ctx context.Context, storyID string) error {

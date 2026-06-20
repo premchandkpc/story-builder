@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/premchand/story-builder/internal/domain"
 )
@@ -30,6 +31,7 @@ type SceneEdgeRepository interface {
 	ListTo(ctx context.Context, sceneID string) ([]*domain.SceneEdge, error)
 	Delete(ctx context.Context, storyID, fromSceneID, toSceneID string) error
 	DeleteByStory(ctx context.Context, storyID string) error
+	DeleteByID(ctx context.Context, edgeID string) error
 }
 
 type CharacterRepository interface {
@@ -96,6 +98,15 @@ type BibleRepository interface {
 	GetByStory(ctx context.Context, storyID string) (*domain.StoryBible, error)
 	Update(ctx context.Context, b *domain.StoryBible) error
 	DeleteByStory(ctx context.Context, storyID string) error
+}
+
+type JobRepository interface {
+	Create(ctx context.Context, j *domain.Job) error
+	Get(ctx context.Context, id string) (*domain.Job, error)
+	Update(ctx context.Context, j *domain.Job) error
+	PickPending(ctx context.Context, jobType string, leaseTime time.Duration) (*domain.Job, error)
+	ListPending(ctx context.Context) ([]*domain.Job, error)
+	ListStuck(ctx context.Context, threshold time.Duration) ([]*domain.Job, error)
 }
 
 type ChapterRepository interface {
