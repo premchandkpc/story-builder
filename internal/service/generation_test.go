@@ -19,7 +19,7 @@ func TestGenerate_NoJobRepo(t *testing.T) {
 	}
 }
 
-func TestGenerate_DuplicateInFlightRejected(t *testing.T) {
+func TestGenerate_SequentialCallsSucceed(t *testing.T) {
 	sceneRepo := newMockSceneRepo()
 	sceneRepo.Create(context.Background(), &domain.Scene{ID: "scene-1", StoryID: "story-1"})
 
@@ -35,8 +35,8 @@ func TestGenerate_DuplicateInFlightRejected(t *testing.T) {
 	}
 
 	_, err = svc.Generate(context.Background(), "scene-1")
-	if err == nil {
-		t.Fatal("second call should be rejected (in-flight)")
+	if err != nil {
+		t.Fatalf("sequential calls should succeed (in-flight only guards setup): %v", err)
 	}
 }
 

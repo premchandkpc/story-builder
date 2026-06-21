@@ -175,8 +175,11 @@ func (w *GenerationJobWorker) processNext() {
 		w.runPipeline(pCtx, gen, scene, job)
 
 		elapsed := time.Since(start)
-		gen.DurationMs = elapsed.Milliseconds()
-		_ = w.cfg.GenRepo.Update(pCtx, gen)
+		if fresh, err := w.cfg.GenRepo.Get(pCtx, gen.ID); err == nil && fresh != nil {
+			fresh.DurationMs = elapsed.Milliseconds()
+			fresh.UpdatedAt = time.Now()
+			_ = w.cfg.GenRepo.Update(pCtx, fresh)
+		}
 
 		job.Status = domain.JobStatusDone
 		_ = w.cfg.JobRepo.Update(pCtx, job)

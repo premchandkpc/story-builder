@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/repository"
@@ -33,6 +34,7 @@ func (m *mockChapterRepo) Create(ctx context.Context, c *domain.Chapter) error {
 	if c.ID == "" {
 		c.ID = "ch-" + c.Title
 	}
+	c.CreatedAt = time.Now()
 	m.chapters[c.ID] = c
 	m.byStory[c.StoryID] = append(m.byStory[c.StoryID], c)
 	actKey := c.StoryID + ":" + string(rune('0'+c.ActNumber))

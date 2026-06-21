@@ -91,7 +91,7 @@ package "Services (Modular Monolith)" {
 
 rectangle "LLM Providers" as LLM {
   frame "Anthropic"
-  frame "Ollama"
+  frame "OpenCode"
   frame "OpenAI"
 }
 

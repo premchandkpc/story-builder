@@ -8,7 +8,7 @@ Accepted. Supersedes ADR 0002 (Narrative OS direction) for infrastructure decisi
 
 ADR 0002 charted a 12-phase evolution toward a Narrative OS with PostgreSQL, MongoDB, Neo4j, Qdrant, Kafka, and gRPC. That vision is ambitious but has led to:
 
-- 7 infrastructure services (Postgres + pgvector + Redis + Mongo + Qdrant + Kafka + Ollama)
+- 7 infrastructure services (Postgres + pgvector + Redis + Mongo + Qdrant + Kafka + OpenCode)
 - SQL schema management (migrations, sqlc, 9+ migration files)
 - Dual-mode code paths (DB vs in-memory) for every service
 - River job queue (wraps Postgres as a queue, adds migration complexity)
@@ -42,7 +42,7 @@ React Flow → Go API (chi) → Service Layer → Repository Interfaces
 - Go + Chi — works well, no reason to change
 - React Flow — same
 - Redis — cache, rate limits, distributed locks only (never a source of truth)
-- Ollama / Anthropic — LLM providers
+- OpenCode / Anthropic — LLM providers
 
 **Changed:**
 - Workers from River jobs → goroutine-based workers in `internal/worker/`
@@ -54,7 +54,7 @@ React Flow → Go API (chi) → Service Layer → Repository Interfaces
 ## Consequences
 
 ### Positive
-- 4 infrastructure services instead of 7 (MongoDB, Redis, Ollama, server)
+- 4 infrastructure services instead of 7 (MongoDB, Redis, OpenCode, server)
 - No migration system to maintain
 - No dual-mode code paths (no in-memory fallback needed)
 - No River schema management

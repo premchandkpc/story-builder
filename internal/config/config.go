@@ -9,8 +9,8 @@ type Config struct {
 	RedisAddr    string
 	RedisPass    string
 	AnthropicKey string
-	OllamaURL    string
-	OllamaModel  string
+	OpenCodeURL   string
+	OpenCodeModel string
 	HeadroomURL  string
 	HeadroomKey  string
 	LogLevel     string
@@ -24,8 +24,8 @@ func FromEnv() Config {
 		RedisAddr:    env("REDIS_ADDR", "localhost:6379"),
 		RedisPass:    env("REDIS_PASSWORD", ""),
 		AnthropicKey: env("ANTHROPIC_API_KEY", ""),
-		OllamaURL:    env("OLLAMA_URL", "http://localhost:11434"),
-		OllamaModel:  env("OLLAMA_MODEL", "llama3.2:3b"),
+		OpenCodeURL:   env("OPENCODE_URL", "http://localhost:11434"),
+		OpenCodeModel: env("OPENCODE_MODEL", "llama3.2:3b"),
 		HeadroomURL:  env("HEADROOM_BASE_URL", ""),
 		HeadroomKey:  env("HEADROOM_API_KEY", ""),
 		LogLevel:     env("LOG_LEVEL", "info"),

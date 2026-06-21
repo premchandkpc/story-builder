@@ -30,7 +30,7 @@ graph TB
 
     subgraph External["External Services"]
         AN[Anthropic API]
-        OL[Ollama Local]
+        OL[OpenCode Local]
     end
 
     RF --> SP

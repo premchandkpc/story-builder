@@ -12,11 +12,11 @@ System_Boundary(storybuilder, "Story Builder") {
   Container(db, "PostgreSQL + pgvector", "Postgres 16", "Persistent storage with vector search")
   Container(redis, "Redis", "Cache + rate limiter + dist lock", "Optional prompt/context caching")
   Container(river, "River Job Queue", "River (Go)", "Async LLM job processing")
-  Container(llm, "LLM Service", "Anthropic Sonnet/Haiku + Ollama", "AI prose generation + validation")
+  Container(llm, "LLM Service", "Anthropic Sonnet/Haiku + OpenCode", "AI prose generation + validation")
 }
 
 System_Ext(anthropic, "Anthropic API", "External LLM API (Sonnet, Haiku)")
-System_Ext(ollama, "Ollama (local)", "Local LLM (7B models)")
+System_Ext(opencode, "OpenCode (local)", "Local LLM (7B models)")
 
 Rel(user, web, "Edits story graph")
 Rel(web, api, "/api/v1/*", "HTTP JSON")
@@ -27,6 +27,6 @@ Rel(river, db, "SQL queries")
 Rel(river, llm, "Go method calls")
 Rel(river, redis, "go-redis", "Job coordination")
 Rel(llm, anthropic, "HTTPS", "Anthropic Messages API")
-Rel(llm, ollama, "HTTP", "Ollama chat API")
+Rel(llm, opencode, "HTTP", "OpenCode chat API")
 
 @enduml

@@ -66,21 +66,24 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 		anthropic = llm.NewCircuitBreakerClient(llm.NewAnthropicClient(cfg.AnthropicKey))
 		slog.Info("anthropic client created")
 	} else {
-		slog.Warn("no ANTHROPIC_API_KEY set, using Ollama for all tiers")
-		anthropic = llm.NewCircuitBreakerClient(llm.NewOllamaClient(cfg.OllamaURL, cfg.OllamaModel))
+		slog.Warn("no ANTHROPIC_API_KEY set, using OpenCode for all tiers")
+		anthropic = llm.NewCircuitBreakerClient(llm.NewOpenCodeClient(cfg.OpenCodeURL, cfg.OpenCodeModel))
 	}
-	var ollama llm.LLMClient
-	ollama = llm.NewCircuitBreakerClient(llm.NewOllamaClient(cfg.OllamaURL, cfg.OllamaModel))
+	var opencode llm.LLMClient
+	opencode = llm.NewCircuitBreakerClient(llm.NewOpenCodeClient(cfg.OpenCodeURL, cfg.OpenCodeModel))
+
+	llm.SetDefaultConfig(cfg.OpenCodeURL, cfg.OpenCodeModel)
+	llm.SetDefaultEmbedModel("nomic-embed-text")
 
 	if cfg.HeadroomURL != "" {
 		anthropic = llm.NewCompressClient(anthropic, cfg.HeadroomURL, cfg.HeadroomKey)
-		ollama = llm.NewCompressClient(ollama, cfg.HeadroomURL, cfg.HeadroomKey)
+		opencode = llm.NewCompressClient(opencode, cfg.HeadroomURL, cfg.HeadroomKey)
 		slog.Info("headroom compression enabled", "url", cfg.HeadroomURL)
 	} else {
 		slog.Info("no HEADROOM_BASE_URL set, compression disabled")
 	}
 
-	router := llm.NewRouter(anthropic, ollama)
+	router := llm.NewRouter(anthropic, opencode)
 
 	// Prompt compiler
 	promptStore := prompt.NewMemoryStore()
@@ -115,7 +118,7 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 		} else {
 			rateLimiter = cache.NewSlidingWindowRateLimiter(redisClient, cache.DefaultRateLimits)
 			anthropic = llm.NewCachedLLMClient(anthropic, redisClient, 1*time.Hour)
-			ollama = llm.NewCachedLLMClient(ollama, redisClient, 1*time.Hour)
+			opencode = llm.NewCachedLLMClient(opencode, redisClient, 1*time.Hour)
 			slog.Info("redis cache enabled with prompt caching")
 		}
 	} else {
@@ -139,7 +142,7 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 	chapterSvc := service.NewChapterSvc(chapterRepo)
 
 	eventBus := events.NewInMemoryBus()
-	embedSvc := llm.NewOllamaEmbeddingService(cfg.OllamaURL, "nomic-embed-text")
+	embedSvc := llm.NewOpenCodeEmbeddingService(cfg.OpenCodeURL, "nomic-embed-text")
 	sceneValidator := validation.NewSceneValidator(charRepo, locRepo)
 
 	agentRegistry := agents.NewAgentRegistry()

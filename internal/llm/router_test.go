@@ -36,8 +36,8 @@ func (c *failingThenOKClient) Complete(ctx context.Context, req CompletionReques
 
 func TestRouterRoutesByModelTier(t *testing.T) {
 	anthropic := &stubClient{name: "anthropic", resp: &CompletionResponse{Content: "claude", Model: "claude-sonnet-4-20250514"}}
-	ollama := &stubClient{name: "ollama", resp: &CompletionResponse{Content: "llama", Model: "llama3.2:3b"}}
-	router := NewRouter(anthropic, ollama)
+	local := &stubClient{name: "local", resp: &CompletionResponse{Content: "llama", Model: "llama3.2:3b"}}
+	router := NewRouter(anthropic, local)
 
 	resp, err := router.Complete(context.Background(), CompletionRequest{Model: ModelSonnet, UserMessage: "hello"})
 	if err != nil {
@@ -52,7 +52,7 @@ func TestRouterRoutesByModelTier(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if resp.Content != "llama" {
-		t.Fatalf("expected ollama response, got %q", resp.Content)
+		t.Fatalf("expected local response, got %q", resp.Content)
 	}
 }
 

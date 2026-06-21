@@ -30,7 +30,7 @@ GENWORKER -> DB : Load state (GetStatesForScene)
 GENWORKER -> DB : Load scene summary
 GENWORKER -> LLM : GenerateScene(params)
 LLM -> LLM : Build system prompt + user message
-LLM -> LLM : Call Anthropic/Ollama API
+LLM -> LLM : Call Anthropic/OpenCode API
 LLM -> GENWORKER : Return prose
 GENWORKER -> DB : UpdateGenerationOutput(id, output, model)
 GENWORKER -> RIVER : Done

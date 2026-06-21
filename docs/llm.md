@@ -13,21 +13,21 @@ const (
 **Default model mappings:**
 - `sonnet` → `claude-sonnet-4-20250514` (Anthropic)
 - `haiku` → `claude-haiku-3-5-20250224` (Anthropic)
-- `local-7b` → `llama3.2:3b` (Ollama)
+- `local-7b` → `llama3.2:3b` (OpenCode)
 
 ## LLM Router
 
 `internal/llm/router.go` — Dispatches requests to the correct provider based on model tier:
 
 - `claude-sonnet` / `claude-haiku` → AnthropicClient
-- `local-7b` → OllamaClient
+- `local-7b` → OpenCodeClient
 
 Both clients are always created at startup and wrapped in a `CircuitBreakerClient`. Router retries on failure (attempt + 2 retries = 3 total) with exponential backoff + jitter:
 
 | Tier | Initial | Max | Factor |
 |------|---------|-----|--------|
 | Anthropic (sonnet/haiku) | 1s | 15s | 2× (±25% jitter) |
-| Local (ollama) | 200ms | 5s | 2× (±25% jitter) |
+| Local (opencode) | 200ms | 5s | 2× (±25% jitter) |
 
 JSON output validation is enabled on requests from services that expect JSON (Extraction, Merge, Validation, Outline). If the response is not valid JSON, the router retries the request.
 
@@ -136,7 +136,7 @@ GenerateScene (Sonnet, 0.8 via Anthropic)
     │  PromptSnapshot = system + user prompt (for observability)
     │  Stores in generation document
     ▼
-ExtractState (local-7b, 0 via Ollama)
+ExtractState (local-7b, 0 via OpenCode)
     │  Extracts state deltas
     │  Appends to character_state collection in Mongo
     ▼
@@ -147,7 +147,7 @@ MemoryUpdate (local-7b)
 TimelineUpdate
     │  Records timeline event
     ▼
-SummaryUpdate (local-7b, 0.2 via Ollama)
+SummaryUpdate (local-7b, 0.2 via OpenCode)
     │  Updates scene-level summary
     ▼
 ValidateScene (Haiku, 0 via Anthropic)
@@ -225,7 +225,7 @@ type BuiltContext struct {
 - Timeout: 120s
 - Reads `content[].text` from response
 
-### OllamaClient
+### OpenCodeClient
 - Endpoint: `POST {baseURL}/v1/chat/completions` (OpenAI-compatible)
 - Default baseURL: `http://localhost:11434`
 - Timeout: 120s

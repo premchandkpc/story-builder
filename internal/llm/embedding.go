@@ -15,20 +15,20 @@ type EmbeddingService interface {
 	Model() string
 }
 
-type OllamaEmbeddingService struct {
+type OpenCodeEmbeddingService struct {
 	baseURL string
 	model   string
 	http    *http.Client
 }
 
-func NewOllamaEmbeddingService(baseURL, model string) *OllamaEmbeddingService {
+func NewOpenCodeEmbeddingService(baseURL, model string) *OpenCodeEmbeddingService {
 	if baseURL == "" {
-		baseURL = "http://localhost:11434"
+		baseURL = defaultURL
 	}
 	if model == "" {
-		model = "nomic-embed-text"
+		model = defaultEmbedModel
 	}
-	return &OllamaEmbeddingService{
+	return &OpenCodeEmbeddingService{
 		baseURL: baseURL,
 		model:   model,
 		http: &http.Client{
@@ -41,11 +41,11 @@ func NewOllamaEmbeddingService(baseURL, model string) *OllamaEmbeddingService {
 	}
 }
 
-func (s *OllamaEmbeddingService) Model() string {
+func (s *OpenCodeEmbeddingService) Model() string {
 	return s.model
 }
 
-func (s *OllamaEmbeddingService) GenerateEmbedding(ctx context.Context, text string) ([]float64, error) {
+func (s *OpenCodeEmbeddingService) GenerateEmbedding(ctx context.Context, text string) ([]float64, error) {
 	body := map[string]any{
 		"model":  s.model,
 		"prompt": truncateText(text, 8000),

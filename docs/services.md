@@ -230,7 +230,7 @@ GenerationJobWorker (goroutine, polls for jobs):
             → stores generation in Mongo
 
         step 2: ExtractState (critical, 3× retry)
-            → ExtractStateWorker (local-7b via Ollama, temp 0)
+            → ExtractStateWorker (local-7b via OpenCode, temp 0)
             → extracts state deltas from generated scene text
             → appends to character_state collection
 

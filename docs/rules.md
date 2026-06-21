@@ -113,4 +113,4 @@ internal/
 1. **Update docs first** (or in the same PR). Every structural change updates the relevant `.md` files.
 2. **Cascade delete story.** `StoryService.Delete` calls `StoryCascadeDeleter.cascade()` which deletes child collections (bibles, chapters, character_state, memories, generations, summaries, timeline, edges, scenes, characters) in order before deleting the story document.
 3. **Tests live as Go unit tests.** Run `go test ./...` to verify. No test runners beyond the standard toolchain.
-4. **Docker Compose for local dev.** `docker compose up -d mongo redis ollama` for minimal infra.
+4. **Docker Compose for local dev.** `docker compose up -d mongo redis opencode` for minimal infra.

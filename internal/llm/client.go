@@ -104,14 +104,14 @@ func (c *AnthropicClient) Complete(ctx context.Context, req CompletionRequest) (
 	}, nil
 }
 
-func NewOllamaClient(baseURL, defaultModel string) *OllamaClient {
+func NewOpenCodeClient(baseURL, model string) *OpenCodeClient {
 	if baseURL == "" {
-		baseURL = "http://localhost:11434"
+		baseURL = defaultURL
 	}
-	if defaultModel == "" {
-		defaultModel = "llama3.2:3b"
+	if model == "" {
+		model = defaultModel
 	}
-	return &OllamaClient{baseURL: baseURL, defaultModel: defaultModel, http: &http.Client{
+	return &OpenCodeClient{baseURL: baseURL, defaultModel: model, http: &http.Client{
 		Timeout: 300 * time.Second,
 		Transport: &http.Transport{
 			ResponseHeaderTimeout: 120 * time.Second,
@@ -120,13 +120,13 @@ func NewOllamaClient(baseURL, defaultModel string) *OllamaClient {
 	}}
 }
 
-type OllamaClient struct {
+type OpenCodeClient struct {
 	baseURL      string
 	defaultModel string
 	http         *http.Client
 }
 
-func (c *OllamaClient) Complete(ctx context.Context, req CompletionRequest) (*CompletionResponse, error) {
+func (c *OpenCodeClient) Complete(ctx context.Context, req CompletionRequest) (*CompletionResponse, error) {
 	model := string(req.Model)
 	if model == "" || model == "local-7b" {
 		model = c.defaultModel
@@ -149,16 +149,16 @@ func (c *OllamaClient) Complete(ctx context.Context, req CompletionRequest) (*Co
 
 	b, err := json.Marshal(body)
 	if err != nil {
-		return nil, fmt.Errorf("ollama marshal: %w", err)
+		return nil, fmt.Errorf("opencode marshal: %w", err)
 	}
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/v1/chat/completions", bytes.NewReader(b))
 	if err != nil {
-		return nil, fmt.Errorf("ollama new request: %w", err)
+		return nil, fmt.Errorf("opencode new request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	res, err := c.http.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("ollama: %w", err)
+		return nil, fmt.Errorf("opencode: %w", err)
 	}
 	defer func() {
 		_ = res.Body.Close()
@@ -166,10 +166,10 @@ func (c *OllamaClient) Complete(ctx context.Context, req CompletionRequest) (*Co
 
 	raw, err := io.ReadAll(res.Body)
 	if err != nil {
-		return nil, fmt.Errorf("ollama read: %w", err)
+		return nil, fmt.Errorf("opencode read: %w", err)
 	}
 	if res.StatusCode != 200 {
-		return nil, fmt.Errorf("ollama: %d %s", res.StatusCode, string(raw))
+		return nil, fmt.Errorf("opencode: %d %s", res.StatusCode, string(raw))
 	}
 
 	var reply struct {
@@ -185,10 +185,10 @@ func (c *OllamaClient) Complete(ctx context.Context, req CompletionRequest) (*Co
 		} `json:"usage"`
 	}
 	if err := json.Unmarshal(raw, &reply); err != nil {
-		return nil, fmt.Errorf("ollama decode: %w", err)
+		return nil, fmt.Errorf("opencode decode: %w", err)
 	}
 	if len(reply.Choices) == 0 {
-		return nil, fmt.Errorf("ollama: empty response")
+		return nil, fmt.Errorf("opencode: empty response")
 	}
 	usage := Usage{}
 	if reply.Usage != nil {

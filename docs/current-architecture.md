@@ -10,7 +10,7 @@
 | HTTP server    | Go 1.26, chi v5       | Production |
 | Primary DB     | MongoDB               | Production |
 | Cache/ratelimit| Redis (optional)      | Optional   |
-| LLM providers  | Anthropic Claude, Ollama | Production |
+| LLM providers  | Anthropic Claude, OpenCode | Production |
 | Background jobs| In-process goroutines | **Known gap – see below** |
 | Event bus      | In-memory             | Development |
 

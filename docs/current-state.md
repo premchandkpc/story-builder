@@ -6,7 +6,7 @@
 |-----------|--------|-------|
 | **Storage** | MongoDB (primary SSOT) | All domain aggregates stored in Mongo |
 | **Cache** | Redis (optional) | Rate limiting, in-memory fallback |
-| **LLM** | claude-sonnet, claude-haiku, local-7b (Ollama) | Provider/router abstraction |
+| **LLM** | claude-sonnet, claude-haiku, local-7b (OpenCode) | Provider/router abstraction |
 | **Graph editor** | Nodes + edges CRUD via REST | V2 graph node model is primary |
 | **Generation** | Enqueued as durable Job documents | Worker goroutine runs pipeline |
 | **Destkop** | Scene memory, timeline, summaries | Generated pipeline output |

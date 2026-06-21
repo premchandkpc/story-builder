@@ -10,7 +10,7 @@ MongoDB + Redis backend. Go (chi) API server. React Flow frontend. No Postgres, 
 ## Quick start
 
 ```bash
-docker compose up -d mongo redis       # minimal infra (Ollama runs locally on host)
+docker compose up -d mongo redis       # minimal infra (OpenCode runs locally on host)
 docker compose up -d --build             # everything
 ```
 
@@ -69,7 +69,7 @@ Pipeline workers in `internal/worker/` run as goroutines (no River, no message q
 | Step | Model | Temp |
 |------|-------|------|
 | GenerateScene | claude-sonnet | 0.8 |
-| ExtractState | local-7b (Ollama) | 0.0 |
+| ExtractState | local-7b (OpenCode) | 0.0 |
 | SummaryUpdate | local-7b | 0.2 |
 | ValidateCanon | claude-haiku | 0.0 |
 | OutlineStory | local-7b | 0.7 |

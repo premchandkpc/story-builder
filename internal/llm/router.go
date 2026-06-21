@@ -14,11 +14,11 @@ import (
 // Router dispatches completion requests to the appropriate provider based on model tier.
 type Router struct {
 	anthropic LLMClient
-	ollama    LLMClient
+	local     LLMClient
 }
 
-func NewRouter(anthropic, ollama LLMClient) *Router {
-	return &Router{anthropic: anthropic, ollama: ollama}
+func NewRouter(anthropic, local LLMClient) *Router {
+	return &Router{anthropic: anthropic, local: local}
 }
 
 func (r *Router) Complete(ctx context.Context, req CompletionRequest) (*CompletionResponse, error) {
@@ -116,8 +116,8 @@ func (r *Router) clientForModel(model ModelTier) (LLMClient, bool) {
 			return r.anthropic, true
 		}
 	case ModelLocal:
-		if r.ollama != nil {
-			return r.ollama, true
+		if r.local != nil {
+			return r.local, true
 		}
 	}
 	return nil, false

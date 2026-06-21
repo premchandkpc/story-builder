@@ -149,7 +149,7 @@ cmd/server/
     ├── internal/llm           ─── LLM clients + router
     │   ├── types.go           ─── ModelTier, service interfaces
     │   ├── router.go          ─── Dispatches by model tier, JSON validation, retry with backoff
-    │   ├── client.go          ─── AnthropicClient + OllamaClient
+    │   ├── client.go          ─── AnthropicClient + OpenCodeClient
     │   ├── circuitbreaker.go  ─── CircuitBreakerClient wrapper
     │   ├── services.go        ─── Prose, Extract, Summary, Merge, Validation, Outline, Title
     │   ├── bible.go            ─── BibleGenerationService
@@ -176,7 +176,7 @@ cmd/server/
     ├── internal/test           ─── Test helpers
     │   └── integration/
     │
-    ├── internal/config        ─── Environment-based config (Port, MongoURI, RedisAddr, AnthropicKey, OllamaURL, LogLevel, etc.)
+    ├── internal/config        ─── Environment-based config (Port, MongoURI, RedisAddr, AnthropicKey, OpenCodeURL, LogLevel, etc.)
     │
     └── internal/log           ─── Structured logging
 ```
@@ -340,7 +340,7 @@ service.generation_job_worker.runPipeline()
     │  └────────────────────────────────────────────
     │
     │ 1. generate (critical — retries 3×)
-    │    → ProseService.GenerateScene → Anthropic/Ollama
+    │    → ProseService.GenerateScene → Anthropic/OpenCode
     │    → Stores output in Mongo
     │
     │ 2. extract state (critical — retries 3×)
@@ -376,7 +376,7 @@ Pipeline uses context.Background() so it survives HTTP request timeout or client
 |---|---|---|
 | `claude-sonnet` | Anthropic | High-quality prose generation, Bible generation |
 | `claude-haiku` | Anthropic | Fast validation |
-| `local-7b` | Ollama | Extraction, summarization, outline, title |
+| `local-7b` | OpenCode | Extraction, summarization, outline, title |
 
 Retries: 1 initial + 2 retries = 3 attempts total, exponential backoff + jitter.
 - Anthropic: 1s base, 15s max, 2× (±25% jitter)

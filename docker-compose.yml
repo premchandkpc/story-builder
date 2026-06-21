@@ -54,7 +54,7 @@ services:
       REDIS_ADDR: redis:6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-storybuilder}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      OLLAMA_URL: http://host.docker.internal:11434
+      OPENCODE_URL: http://host.docker.internal:11434
       HEADROOM_BASE_URL: ${HEADROOM_BASE_URL:-}
       HEADROOM_API_KEY: ${HEADROOM_API_KEY:-}
     depends_on:

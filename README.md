@@ -6,15 +6,15 @@ Full-stack story graph editor with DAG-based plot structure and LLM-generated pr
 ## Quick start
 
 ```bash
-docker compose up -d          # postgres + pgvector + redis + mongo + qdrant + kafka + ollama + server + web
+docker compose up -d          # postgres + pgvector + redis + mongo + qdrant + kafka + opencode + server + web
 # Or just the essential infra:
-docker compose up -d db redis ollama
+docker compose up -d db redis opencode
 # Server + web are also containerized:
 # Start all services (backend, frontend, db, cache, llm)
 docker compose up -d --build
 
 # Or just the essential infrastructure:
-docker compose up -d mongo redis ollama
+docker compose up -d mongo redis opencode
 docker compose up -d --build  # builds and starts everything
 ```
 
@@ -55,7 +55,7 @@ internal/
 ## Key architecture decisions
 
 - **Dual mode** — DB-backed (Postgres via sqlc) or in-memory (for dev without Docker)
-- **LLM Router** — Dispatches `claude-sonnet`/`claude-haiku` to Anthropic, `local-7b` to Ollama
+- **LLM Router** — Dispatches `claude-sonnet`/`claude-haiku` to Anthropic, `local-7b` to OpenCode
 - **Redis cache** — Optional prompt caching + rate limiting + distributed locks
 - **River async jobs** — 5 job types for the generation pipeline (generate → extract → summarize → merge → validate)
 - **Canon versioning** — Characters and locations are append-only (id, version) PK
