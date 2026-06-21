@@ -117,6 +117,13 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 				})
 
 				r.Get("/metrics/llm", h.GetLlmMetrics)
+				r.Get("/critic-scores", h.ListCriticScores)
+				r.Get("/bibles/referencing", h.ListReferencingBibles)
+				r.Post("/bibles/link", h.LinkBibleToStory)
+				r.Post("/bibles/unlink", h.UnlinkBibleFromStory)
+				r.Post("/timeline/cross-story", h.CreateCrossStoryEvent)
+				r.Get("/timeline/cross-story", h.ListCrossStoryEvents)
+				r.Post("/characters/{charID}/migrate", h.MigrateCharacter)
 			})
 		})
 
@@ -199,6 +206,19 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 			r.Get("/stories/{storyID}/casting", h.EmptyArray)
 			r.Get("/casting/actor/{actorID}", h.NotImplemented)
 			r.Get("/casting/character/{characterID}", h.NotImplemented)
+		})
+
+		// Agent configs — community features
+		r.Route("/agent-configs", func(r chi.Router) {
+			r.Get("/", h.ListAgentConfigs)
+			r.Post("/", h.CreateAgentConfig)
+			r.Get("/marketplace", h.ListMarketplaceAgentConfigs)
+			r.Route("/{name}", func(r chi.Router) {
+				r.Get("/", h.GetAgentConfig)
+				r.Delete("/", h.DeleteAgentConfig)
+				r.Get("/export", h.ExportAgentConfig)
+				r.Post("/import", h.ImportAgentConfig)
+			})
 		})
 	})
 

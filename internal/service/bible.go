@@ -119,3 +119,44 @@ func (s *BibleService) Update(ctx context.Context, bible *domain.StoryBible) err
 func (s *BibleService) DeleteByStory(ctx context.Context, storyID string) error {
 	return s.bibleRepo.DeleteByStory(ctx, storyID)
 }
+
+func (s *BibleService) LinkBibleToStory(ctx context.Context, bibleID, targetStoryID string) error {
+	bible, err := s.bibleRepo.Get(ctx, bibleID)
+	if err != nil {
+		return fmt.Errorf("get bible: %w", err)
+	}
+	if bible == nil {
+		return fmt.Errorf("bible %s not found", bibleID)
+	}
+	for _, sid := range bible.ReferenceStories {
+		if sid == targetStoryID {
+			return nil
+		}
+	}
+	bible.ReferenceStories = append(bible.ReferenceStories, targetStoryID)
+	bible.UpdatedAt = time.Now()
+	return s.bibleRepo.Update(ctx, bible)
+}
+
+func (s *BibleService) UnlinkBibleFromStory(ctx context.Context, bibleID, targetStoryID string) error {
+	bible, err := s.bibleRepo.Get(ctx, bibleID)
+	if err != nil {
+		return fmt.Errorf("get bible: %w", err)
+	}
+	if bible == nil {
+		return fmt.Errorf("bible %s not found", bibleID)
+	}
+	filtered := bible.ReferenceStories[:0]
+	for _, sid := range bible.ReferenceStories {
+		if sid != targetStoryID {
+			filtered = append(filtered, sid)
+		}
+	}
+	bible.ReferenceStories = filtered
+	bible.UpdatedAt = time.Now()
+	return s.bibleRepo.Update(ctx, bible)
+}
+
+func (s *BibleService) ListReferencingBibles(ctx context.Context, storyID string) ([]*domain.StoryBible, error) {
+	return s.bibleRepo.ListByReferencingStory(ctx, storyID)
+}

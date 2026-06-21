@@ -37,6 +37,7 @@ type GenerationJobWorkerConfig struct {
 	EmbeddingSvc   llm.EmbeddingService
 	SceneValidator *validation.SceneValidator
 	Progress       ProgressPublisher
+	AgentSvc       *AgentService
 	PollInterval   time.Duration
 	LeaseTime      time.Duration
 }
@@ -340,7 +341,22 @@ func (w *GenerationJobWorker) runPipeline(ctx context.Context, gen *domain.Gener
 		}
 	}
 
-	if !w.runStep(ctx, gen.ID, domain.StepGenerate, func(sCtx context.Context) error {
+	if w.cfg.AgentSvc != nil && w.cfg.AgentSvc.IsAgentScene(scene) {
+		slog.Info("hybrid pipeline: using agent orchestrator for generation", "sceneId", scene.ID)
+		if !w.runStep(ctx, gen.ID, domain.StepGenerate, func(sCtx context.Context) error {
+			output, err := w.cfg.AgentSvc.GenerateSceneHybrid(sCtx, scene, gen)
+			if err != nil {
+				return err
+			}
+			scene.GeneratedContent = output
+			_ = w.cfg.SceneRepo.Update(sCtx, scene)
+			gen.Output = output
+			return w.cfg.GenRepo.Update(sCtx, gen)
+		}) {
+			criticalFailed = true
+			anyFailed = true
+		}
+	} else if !w.runStep(ctx, gen.ID, domain.StepGenerate, func(sCtx context.Context) error {
 		_, err := genWorker.Work(sCtx, worker.GenerateSceneArgs{
 			SceneID: scene.ID,
 			GenID:   gen.ID,

@@ -45,3 +45,15 @@ func (r *TimelineRepo) ListByStory(ctx context.Context, storyID string) ([]*doma
 	}
 	return events, nil
 }
+
+func (r *TimelineRepo) ListByRelatedStories(ctx context.Context, storyID string) ([]*domain.TimelineEvent, error) {
+	cursor, err := r.coll.Find(ctx, bson.M{"relatedStoryIds": storyID}, options.Find().SetSort(bson.D{{Key: "order", Value: 1}, {Key: "createdAt", Value: 1}}))
+	if err != nil {
+		return nil, err
+	}
+	var events []*domain.TimelineEvent
+	if err := cursor.All(ctx, &events); err != nil {
+		return nil, err
+	}
+	return events, nil
+}

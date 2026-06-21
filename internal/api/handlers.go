@@ -49,6 +49,7 @@ type CharacterService interface {
 	GetLatest(ctx context.Context, charID string) (*domain.Character, error)
 	Update(ctx context.Context, c *domain.Character) (*domain.Character, error)
 	List(ctx context.Context, storyID string) ([]*domain.Character, error)
+	MigrateCharacter(ctx context.Context, charID, targetStoryID string) (*domain.Character, error)
 }
 
 // GenerationWriteService triggers LLM generation and accepts results.
@@ -61,12 +62,15 @@ type GenerationWriteService interface {
 type GenerationReadService interface {
 	GetGeneration(ctx context.Context, genID string) (*domain.Generation, error)
 	ListGenerations(ctx context.Context, sceneID string) ([]*domain.Generation, error)
+	ListGenerationsByStory(ctx context.Context, storyID string) ([]*domain.Generation, error)
 }
 
 // TimelineService records and queries ordered story events.
 type TimelineService interface {
 	Create(ctx context.Context, e *domain.TimelineEvent) (*domain.TimelineEvent, error)
 	List(ctx context.Context, storyID string) ([]*domain.TimelineEvent, error)
+	CreateCrossStory(ctx context.Context, e *domain.TimelineEvent) (*domain.TimelineEvent, error)
+	ListCrossStory(ctx context.Context, storyID string) ([]*domain.TimelineEvent, error)
 }
 
 // SummaryService retrieves cached summaries at various granularity levels.
@@ -87,6 +91,9 @@ type BibleService interface {
 	Generate(ctx context.Context, storyID string) (*domain.StoryBible, error)
 	Update(ctx context.Context, bible *domain.StoryBible) error
 	DeleteByStory(ctx context.Context, storyID string) error
+	LinkBibleToStory(ctx context.Context, bibleID, targetStoryID string) error
+	UnlinkBibleFromStory(ctx context.Context, bibleID, targetStoryID string) error
+	ListReferencingBibles(ctx context.Context, storyID string) ([]*domain.StoryBible, error)
 }
 
 // ChapterService manages chapter groupings within acts.
@@ -122,6 +129,22 @@ type MetricsService interface {
 	GetLlmMetrics(ctx context.Context, storyID string) (*domain.LlmMetrics, error)
 }
 
+// CriticScoresService provides access to critic evaluation scores for generations.
+type CriticScoresService interface {
+	ListByStory(ctx context.Context, storyID string) ([]domain.CriticScoreEntry, error)
+}
+
+// AgentConfigService manages user-defined agent configurations.
+type AgentConfigService interface {
+	Create(ctx context.Context, cfg *domain.AgentConfig) error
+	Get(ctx context.Context, name string) (*domain.AgentConfig, error)
+	List(ctx context.Context) ([]*domain.AgentConfig, error)
+	Export(ctx context.Context, name string) (*domain.AgentConfig, error)
+	Import(ctx context.Context, cfg *domain.AgentConfig) error
+	Delete(ctx context.Context, name string) error
+	ListShared(ctx context.Context) ([]*domain.AgentConfig, error)
+}
+
 // Handlers groups all HTTP handler methods and their injected service dependencies.
 type Handlers struct {
 	storySvc     StoryService
@@ -139,6 +162,8 @@ type Handlers struct {
 	outlineSvc   llm.OutlineService
 	titleSvc     llm.TitleService
 	metricsSvc   MetricsService
+	criticSvc    CriticScoresService
+	agentCfgSvc  AgentConfigService
 	progress     *ProgressHub
 	eventBus     events.Bus
 	agentSvc     AgentService
@@ -161,6 +186,8 @@ func NewHandlers(
 	outlineSvc llm.OutlineService,
 	titleSvc llm.TitleService,
 	metricsSvc MetricsService,
+	criticSvc CriticScoresService,
+	agentCfgSvc AgentConfigService,
 	progress *ProgressHub,
 	eventBus events.Bus,
 	agentSvc AgentService,
@@ -171,6 +198,7 @@ func NewHandlers(
 		sumSvc: sumSvc, memSvc: memSvc, locSvc: locSvc,
 		bibleSvc: bibleSvc, chapterSvc: chapterSvc,
 		outlineSvc: outlineSvc, titleSvc: titleSvc, metricsSvc: metricsSvc,
+		criticSvc: criticSvc, agentCfgSvc: agentCfgSvc,
 		progress: progress, eventBus: eventBus, agentSvc: agentSvc,
 	}
 }

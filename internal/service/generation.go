@@ -18,6 +18,7 @@ type GenerationServiceConfig struct {
 	JobRepo   repository.JobRepository
 	EventBus  events.Bus
 	AgentSvc  *AgentService
+	BudgetSvc *TokenBudgetService
 }
 
 type GenerationService struct {
@@ -25,6 +26,7 @@ type GenerationService struct {
 	sceneRepo     repository.SceneRepository
 	jobRepo       repository.JobRepository
 	agentSvc      *AgentService
+	budgetSvc     *TokenBudgetService
 
 	genInFlight    sync.Map
 	acceptInFlight sync.Map
@@ -38,6 +40,7 @@ func NewGenerationService(cfg GenerationServiceConfig) *GenerationService {
 		sceneRepo: cfg.SceneRepo,
 		jobRepo:   cfg.JobRepo,
 		agentSvc:  cfg.AgentSvc,
+		budgetSvc: cfg.BudgetSvc,
 		eventBus:  cfg.EventBus,
 	}
 }
@@ -63,6 +66,14 @@ func (s *GenerationService) Generate(ctx context.Context, sceneID string) (*doma
 	if scene == nil {
 		s.genInFlight.Delete(sceneID)
 		return nil, fmt.Errorf("scene not found")
+	}
+
+	if s.budgetSvc != nil {
+		model := string(llm.ModelSonnet)
+		if err := s.budgetSvc.CheckAndConsume(ctx, scene.StoryID, model, "generation", 1000); err != nil {
+			s.genInFlight.Delete(sceneID)
+			return nil, fmt.Errorf("budget check: %w", err)
+		}
 	}
 
 	if s.agentSvc != nil && s.agentSvc.IsAgentScene(scene) {
@@ -150,6 +161,10 @@ func (s *GenerationService) GetGeneration(ctx context.Context, genID string) (*d
 
 func (s *GenerationService) ListGenerations(ctx context.Context, sceneID string) ([]*domain.Generation, error) {
 	return s.genRepo.ListByScene(ctx, sceneID)
+}
+
+func (s *GenerationService) ListGenerationsByStory(ctx context.Context, storyID string) ([]*domain.Generation, error) {
+	return s.genRepo.ListByStory(ctx, storyID)
 }
 
 func (s *GenerationService) publishEvent(ctx context.Context, evt events.Event) {

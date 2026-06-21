@@ -120,7 +120,17 @@ export interface Generation {
   output: string          // the generated prose
   model: string           // model used (e.g. "claude-sonnet")
   accepted: boolean       // whether user accepted this generation
+  critic_score?: number   // critic agent score (0.0-1.0)
+  critic_summary?: string // critic agent verdict
   created_at: string      // ISO timestamp
+}
+
+export interface CriticScoreData {
+  generation_id: string
+  scene_id: string
+  score: number
+  summary: string
+  created_at: string
 }
 
 // ---- Interface: Topology ----

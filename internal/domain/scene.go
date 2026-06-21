@@ -58,6 +58,8 @@ type Generation struct {
 	CompletionTokens int               `bson:"completionTokens,omitempty" json:"completionTokens,omitempty"`
 	TotalTokens      int               `bson:"totalTokens,omitempty" json:"totalTokens,omitempty"`
 	DurationMs       int64             `bson:"durationMs,omitempty" json:"durationMs,omitempty"`
+	CriticScore      float64           `bson:"criticScore,omitempty" json:"criticScore,omitempty"`
+	CriticSummary    string            `bson:"criticSummary,omitempty" json:"criticSummary,omitempty"`
 	CreatedAt        time.Time         `bson:"createdAt" json:"createdAt"`
 	UpdatedAt        time.Time         `bson:"updatedAt,omitempty" json:"updatedAt,omitempty"`
 }
@@ -69,6 +71,14 @@ const (
 	GenStatusSuccess        = "success"
 	GenStatusFailed         = "failed"
 )
+
+type CriticScoreEntry struct {
+	GenerationID string  `json:"generation_id"`
+	SceneID      string  `json:"scene_id"`
+	Score        float64 `json:"score"`
+	Summary      string  `json:"summary"`
+	CreatedAt    string  `json:"created_at"`
+}
 
 const (
 	StepPending = "pending"

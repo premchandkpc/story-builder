@@ -73,7 +73,15 @@ type MemoryRepository interface {
 type TimelineRepository interface {
 	Create(ctx context.Context, e *domain.TimelineEvent) error
 	ListByStory(ctx context.Context, storyID string) ([]*domain.TimelineEvent, error)
+	ListByRelatedStories(ctx context.Context, storyID string) ([]*domain.TimelineEvent, error)
 	DeleteByStory(ctx context.Context, storyID string) error
+}
+
+type AgentConfigRepository interface {
+	Create(ctx context.Context, a *domain.AgentConfig) error
+	Get(ctx context.Context, name string) (*domain.AgentConfig, error)
+	List(ctx context.Context) ([]*domain.AgentConfig, error)
+	Delete(ctx context.Context, name string) error
 }
 
 type LocationRepository interface {
@@ -97,6 +105,7 @@ type BibleRepository interface {
 	Create(ctx context.Context, b *domain.StoryBible) error
 	Get(ctx context.Context, id string) (*domain.StoryBible, error)
 	GetByStory(ctx context.Context, storyID string) (*domain.StoryBible, error)
+	ListByReferencingStory(ctx context.Context, storyID string) ([]*domain.StoryBible, error)
 	Update(ctx context.Context, b *domain.StoryBible) error
 	DeleteByStory(ctx context.Context, storyID string) error
 }
@@ -108,6 +117,12 @@ type JobRepository interface {
 	PickPending(ctx context.Context, jobType string, leaseTime time.Duration) (*domain.Job, error)
 	ListPending(ctx context.Context) ([]*domain.Job, error)
 	ListStuck(ctx context.Context, threshold time.Duration) ([]*domain.Job, error)
+}
+
+type TokenBudgetRepository interface {
+	Get(ctx context.Context, storyID string) (*domain.TokenBudget, error)
+	Upsert(ctx context.Context, tb *domain.TokenBudget) error
+	DeleteByStory(ctx context.Context, storyID string) error
 }
 
 type ChapterRepository interface {

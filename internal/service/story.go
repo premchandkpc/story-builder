@@ -394,6 +394,44 @@ func (s *CharacterService) List(ctx context.Context, storyID string) ([]*domain.
 	return s.charRepo.ListByStory(ctx, storyID)
 }
 
+func (s *CharacterService) MigrateCharacter(ctx context.Context, charID, targetStoryID string) (*domain.Character, error) {
+	char, err := s.charRepo.Get(ctx, charID)
+	if err != nil {
+		return nil, fmt.Errorf("get character: %w", err)
+	}
+	if char == nil {
+		return nil, fmt.Errorf("character not found")
+	}
+	now := time.Now()
+	migrated := &domain.Character{
+		CharID:         char.CharID,
+		StoryID:        targetStoryID,
+		Name:           char.Name,
+		Persona:        char.Persona,
+		Backstory:      char.Backstory,
+		Personality:    char.Personality,
+		MoralAlignment: char.MoralAlignment,
+		Goals:          char.Goals,
+		Flaws:          char.Flaws,
+		Traits:         char.Traits,
+		VoiceSamples:   char.VoiceSamples,
+		Relationships:  char.Relationships,
+		RelData:        char.RelData,
+		Want:           char.Want,
+		Need:           char.Need,
+		FalseBelief:    char.FalseBelief,
+		Fear:           char.Fear,
+		ArcType:        char.ArcType,
+		MigratedFrom:   char.StoryID,
+		MigratedAt:     &now,
+		CreatedAt:      time.Now(),
+	}
+	if err := s.charRepo.Create(ctx, migrated); err != nil {
+		return nil, fmt.Errorf("migrate character: %w", err)
+	}
+	return migrated, nil
+}
+
 type TimelineService struct {
 	repo repository.TimelineRepository
 }
@@ -411,6 +449,17 @@ func (s *TimelineService) Create(ctx context.Context, e *domain.TimelineEvent) (
 
 func (s *TimelineService) List(ctx context.Context, storyID string) ([]*domain.TimelineEvent, error) {
 	return s.repo.ListByStory(ctx, storyID)
+}
+
+func (s *TimelineService) CreateCrossStory(ctx context.Context, e *domain.TimelineEvent) (*domain.TimelineEvent, error) {
+	if err := s.repo.Create(ctx, e); err != nil {
+		return nil, fmt.Errorf("create cross-story event: %w", err)
+	}
+	return e, nil
+}
+
+func (s *TimelineService) ListCrossStory(ctx context.Context, storyID string) ([]*domain.TimelineEvent, error) {
+	return s.repo.ListByRelatedStories(ctx, storyID)
 }
 
 type SummaryService struct {

@@ -23,6 +23,8 @@ type Character struct {
 	FalseBelief     string           `bson:"falseBelief,omitempty" json:"falseBelief,omitempty"`
 	Fear            string           `bson:"fear,omitempty" json:"fear,omitempty"`
 	ArcType         string           `bson:"arcType,omitempty" json:"arcType,omitempty"`
+	MigratedFrom    string           `bson:"migratedFrom,omitempty" json:"migratedFrom,omitempty"`
+	MigratedAt      *time.Time       `bson:"migratedAt,omitempty" json:"migratedAt,omitempty"`
 	CreatedAt       time.Time        `bson:"createdAt" json:"createdAt"`
 }
 

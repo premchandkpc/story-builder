@@ -4,7 +4,7 @@
 import type {
   Character, CreateCharacterPayload, CreateLocationPayload,
   CreateNodePayload, CreateStoryPayload, CreateEdgePayload,
-  Generation, GraphEdge, GraphNode, Location,
+  CriticScoreData, Generation, GraphEdge, GraphNode, Location,
   SceneTurn, AgentRun, LlmMetrics,
   Story, StoryGenerateResult, StorySummary, Topology, UpdateNodePayload,
 } from "./types"
@@ -187,5 +187,13 @@ export const api = {
   metrics: {
     llm: (storyId: string) =>
       request<LlmMetrics>(`/stories/${storyId}/metrics/llm`),
+  },
+
+  // ==========================================
+  // Critic Scores — agent quality evaluation
+  // ==========================================
+  critic: {
+    list: (storyId: string) =>
+      request<CriticScoreData[]>(`/stories/${storyId}/critic-scores`),
   },
 }

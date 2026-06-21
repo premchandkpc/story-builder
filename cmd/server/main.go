@@ -46,7 +46,7 @@ func main() {
 		deps.tlSvc, deps.sumSvc, deps.memSvc, deps.locSvc,
 		deps.bibleSvc, deps.chapterSvc,
 		deps.outlineSvc, deps.titleSvc,
-		deps.metricsSvc,
+		deps.metricsSvc, deps.criticSvc, deps.agentCfgSvc,
 		deps.progressHub, deps.eventBus,
 		deps.agentSvc,
 	)

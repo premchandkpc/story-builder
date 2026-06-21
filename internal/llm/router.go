@@ -7,6 +7,8 @@ import (
 	"math/rand"
 	"strings"
 	"time"
+
+	"github.com/premchand/story-builder/internal/trace"
 )
 
 // Router dispatches completion requests to the appropriate provider based on model tier.
@@ -24,16 +26,28 @@ func (r *Router) Complete(ctx context.Context, req CompletionRequest) (*Completi
 		req.MaxRetries = 2
 	}
 
+	ctx, span := trace.StartSpan(ctx, "llm.Complete")
+	if span != nil {
+		trace.SetAttribute(span, "model", string(req.Model))
+		trace.SetAttribute(span, "system_len", len(req.System))
+		trace.SetAttribute(span, "user_len", len(req.UserMessage))
+	}
+	defer trace.End(span)
+
 	client, ok := r.clientForModel(req.Model)
 	if !ok {
-		return nil, fmt.Errorf("unsupported model tier: %s", req.Model)
+		err := fmt.Errorf("unsupported model tier: %s", req.Model)
+		trace.SetError(span, err)
+		return nil, err
 	}
 
 	var lastErr error
 	for attempt := 0; attempt <= req.MaxRetries; attempt++ {
 		if err := ctx.Err(); err != nil {
+			trace.SetError(span, err)
 			return nil, err
 		}
+
 		resp, err := client.Complete(ctx, req)
 		if err == nil {
 			if resp != nil && resp.Model == "" {
@@ -68,6 +82,7 @@ func (r *Router) Complete(ctx context.Context, req CompletionRequest) (*Completi
 			}
 		}
 	}
+	trace.SetError(span, lastErr)
 	return nil, lastErr
 }
 

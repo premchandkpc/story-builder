@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
+	"time"
 
 	"github.com/premchand/story-builder/internal/agents"
 	"github.com/premchand/story-builder/internal/domain"
@@ -27,6 +29,7 @@ type AgentServiceConfig struct {
 	MemRepo      repository.MemoryRepository
 	TlRepo       repository.TimelineRepository
 	SumRepo      repository.SummaryRepository
+	BudgetSvc    *TokenBudgetService
 }
 
 type AgentService struct {
@@ -45,6 +48,7 @@ type AgentService struct {
 	memRepo      repository.MemoryRepository
 	tlRepo       repository.TimelineRepository
 	sumRepo      repository.SummaryRepository
+	budgetSvc    *TokenBudgetService
 }
 
 func NewAgentService(cfg AgentServiceConfig) *AgentService {
@@ -54,6 +58,7 @@ func NewAgentService(cfg AgentServiceConfig) *AgentService {
 		genRepo: cfg.GenRepo, storyRepo: cfg.StoryRepo, sceneRepo: cfg.SceneRepo,
 		charRepo: cfg.CharRepo, stateRepo: cfg.StateRepo, bibleRepo: cfg.BibleRepo,
 		edgeRepo: cfg.EdgeRepo, memRepo: cfg.MemRepo, tlRepo: cfg.TlRepo, sumRepo: cfg.SumRepo,
+		budgetSvc: cfg.BudgetSvc,
 	}
 }
 
@@ -64,6 +69,12 @@ func (s *AgentService) GenerateScene(ctx context.Context, sceneID string) (*doma
 	}
 	if scene == nil {
 		return nil, fmt.Errorf("scene %s not found", sceneID)
+	}
+
+	if s.budgetSvc != nil {
+		if err := s.budgetSvc.CheckAndConsume(ctx, scene.StoryID, "agent-orchestrator", "agent", 5000); err != nil {
+			return nil, fmt.Errorf("budget check: %w", err)
+		}
 	}
 
 	gen := &domain.Generation{
@@ -104,6 +115,9 @@ func (s *AgentService) GenerateScene(ctx context.Context, sceneID string) (*doma
 
 	if len(result.Turns) > 0 {
 		gen.Output = result.Turns[len(result.Turns)-1].Output
+	}
+	if result.CriticScore > 0 {
+		gen.CriticScore = result.CriticScore
 	}
 	gen.Status = domain.GenStatusSuccess
 	if err := s.genRepo.Update(ctx, gen); err != nil {
@@ -198,8 +212,67 @@ func (s *AgentService) RecordStateDelta(ctx context.Context, d *domain.CanonDelt
 	return s.canonRepo.Create(ctx, d)
 }
 
+func (s *AgentService) GenerateSceneHybrid(ctx context.Context, scene *domain.Scene, gen *domain.Generation) (string, error) {
+	agentCtx, err := s.buildContext(ctx, scene)
+	if err != nil {
+		return "", fmt.Errorf("build context: %w", err)
+	}
+
+	plan, err := s.orchestrator.Plan(ctx, scene)
+	if err != nil {
+		return "", fmt.Errorf("plan: %w", err)
+	}
+
+	result, err := s.orchestrator.Execute(ctx, plan, agentCtx, s.turnRepo)
+	if err != nil {
+		return "", fmt.Errorf("execute: %w", err)
+	}
+
+	if len(result.Turns) == 0 {
+		return "", fmt.Errorf("no turns produced")
+	}
+
+	lastTurn := result.Turns[len(result.Turns)-1]
+	gen.Output = lastTurn.Output
+	for _, t := range result.Turns {
+		gen.PromptTokens += t.PromptTokens
+		gen.CompletionTokens += t.CompletionTokens
+		gen.TotalTokens += t.PromptTokens + t.CompletionTokens
+	}
+	gen.Model = "agent-orchestrator"
+
+	var b strings.Builder
+	for i, t := range result.Turns {
+		if i > 0 {
+			b.WriteString("\n\n")
+		}
+		b.WriteString(t.Output)
+	}
+	content := b.String()
+
+	return content, nil
+}
+
 func (s *AgentService) IsAgentScene(scene *domain.Scene) bool {
 	return scene.SceneStructure != nil || scene.FlowType != "" && scene.FlowType != domain.FlowTypeCustom
 }
 
-
+func (s *AgentService) RegisterCustomAgent(ctx context.Context, cfg *domain.AgentConfig) error {
+	timeout := time.Duration(cfg.TimeoutMs) * time.Millisecond
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	spec := agents.AgentSpec{
+		Name:         cfg.Name,
+		Role:         cfg.Role,
+		Model:        cfg.Model,
+		MaxTurns:     cfg.MaxTurns,
+		Timeout:      timeout,
+		SystemPrompt: cfg.SystemPrompt,
+		Runner: func(ctx context.Context, input agents.AgentInput) (*agents.AgentOutput, error) {
+			return nil, fmt.Errorf("custom agent %s has no runtime runner; register via agent registry", cfg.Name)
+		},
+	}
+	s.registry.Register(spec)
+	return nil
+}

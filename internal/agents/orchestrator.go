@@ -10,6 +10,7 @@ import (
 	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/events"
 	"github.com/premchand/story-builder/internal/llm"
+	"github.com/premchand/story-builder/internal/trace"
 )
 
 type AgentRegistry struct {
@@ -86,6 +87,12 @@ func NewOrchestrator(cfg OrchestratorConfig) *Orchestrator {
 
 func (o *Orchestrator) Plan(ctx context.Context, scene *domain.Scene) (*OrchestrationPlan, error) {
 	slog.Info("orchestrator: planning scene turns", "sceneId", scene.ID, "flowType", scene.FlowType)
+	_, planSpan := trace.StartSpan(ctx, "orchestrator.Plan")
+	if planSpan != nil {
+		trace.SetAttribute(planSpan, "sceneId", scene.ID)
+		trace.SetAttribute(planSpan, "flowType", scene.FlowType)
+	}
+	defer trace.End(planSpan)
 
 	plan := &OrchestrationPlan{
 		SceneID:  scene.ID,
@@ -144,12 +151,21 @@ func (o *Orchestrator) Plan(ctx context.Context, scene *domain.Scene) (*Orchestr
 func (o *Orchestrator) Execute(ctx context.Context, plan *OrchestrationPlan, agentCtx *AgentContext, turnRepo SceneTurnRepository) (*OrchestrationResult, error) {
 	result := &OrchestrationResult{SceneID: plan.SceneID}
 
+	execCtx, execSpan := trace.StartSpan(ctx, "orchestrator.Execute")
+	if execSpan != nil {
+		trace.SetAttribute(execSpan, "sceneId", plan.SceneID)
+		trace.SetAttribute(execSpan, "maxTurns", plan.MaxTurns)
+	}
+	defer trace.End(execSpan)
+
 	for i, step := range plan.TurnOrder {
 		spec, ok := o.registry.Get(step.AgentType)
 		if !ok {
 			slog.Warn("orchestrator: agent not registered, skipping", "agentType", step.AgentType)
 			if step.Required {
-				return nil, fmt.Errorf("required agent %s not registered", step.AgentType)
+				err := fmt.Errorf("required agent %s not registered", step.AgentType)
+				trace.SetError(execSpan, err)
+				return nil, err
 			}
 			continue
 		}
@@ -159,7 +175,8 @@ func (o *Orchestrator) Execute(ctx context.Context, plan *OrchestrationPlan, age
 			timeout = 30 * time.Second
 		}
 
-		turnCtx, cancel := context.WithTimeout(ctx, timeout)
+		turnCtx, turnSpan := trace.StartSpan(execCtx, "turn."+step.AgentType+"."+step.Phase)
+		turnCtx, cancel := context.WithTimeout(turnCtx, timeout)
 
 		turn := &domain.SceneTurn{
 			SceneID:   plan.SceneID,
@@ -172,8 +189,15 @@ func (o *Orchestrator) Execute(ctx context.Context, plan *OrchestrationPlan, age
 		if turnRepo != nil {
 			if err := turnRepo.Create(turnCtx, turn); err != nil {
 				cancel()
+				trace.SetError(execSpan, err)
 				return nil, fmt.Errorf("create turn: %w", err)
 			}
+		}
+		if turnSpan != nil {
+			trace.SetAttribute(turnSpan, "agentType", step.AgentType)
+			trace.SetAttribute(turnSpan, "phase", step.Phase)
+			trace.SetAttribute(turnSpan, "turnNumber", i+1)
+			trace.SetAttribute(turnSpan, "turnId", turn.ID)
 		}
 		agentCtx.TurnID = turn.ID
 
@@ -195,17 +219,19 @@ func (o *Orchestrator) Execute(ctx context.Context, plan *OrchestrationPlan, age
 		if err != nil {
 			turn.Status = domain.TurnStatusFailed
 			turn.Error = err.Error()
-					errMsg := fmt.Errorf("required step %s failed: %w", step.AgentType, err)
+			trace.SetError(turnSpan, err)
+			errMsg := fmt.Errorf("required step %s failed: %w", step.AgentType, err)
 			result.Error = errMsg.Error()
 			if turnRepo != nil {
 				_ = turnRepo.Update(ctx, turn)
 			}
+			trace.End(turnSpan)
 			return result, errMsg
 		} else {
 			turn.Status = domain.TurnStatusDone
 			turn.Output = output.Content
 		}
-
+		trace.End(turnSpan)
 		if turnRepo != nil {
 			_ = turnRepo.Update(ctx, turn)
 		}
@@ -243,6 +269,12 @@ func (o *Orchestrator) Execute(ctx context.Context, plan *OrchestrationPlan, age
 func (o *Orchestrator) RunFinish(ctx context.Context, sceneID string, agentCtx *AgentContext, turnRepo SceneTurnRepository) error {
 	slog.Info("orchestrator: scene finish phase", "sceneId", sceneID)
 
+	fCtx, finishSpan := trace.StartSpan(ctx, "orchestrator.RunFinish")
+	if finishSpan != nil {
+		trace.SetAttribute(finishSpan, "sceneId", sceneID)
+	}
+	defer trace.End(finishSpan)
+
 	finishOrder := []TurnStep{
 		{AgentType: domain.AgentTypeStateExtract, Phase: "extract", Required: false, Blocking: true},
 		{AgentType: domain.AgentTypeWorld, Phase: "world-check", Required: false, Blocking: false},
@@ -256,6 +288,8 @@ func (o *Orchestrator) RunFinish(ctx context.Context, sceneID string, agentCtx *
 		if !ok {
 			continue
 		}
+		stepCtx, stepSpan := trace.StartSpan(fCtx, "finish."+step.AgentType+"."+step.Phase)
+
 		turn := &domain.SceneTurn{
 			SceneID: sceneID,
 			StoryID: agentCtx.StoryID,
@@ -267,11 +301,16 @@ func (o *Orchestrator) RunFinish(ctx context.Context, sceneID string, agentCtx *
 			_ = turnRepo.Create(ctx, turn)
 		}
 
+		if stepSpan != nil {
+			trace.SetAttribute(stepSpan, "agentType", step.AgentType)
+			trace.SetAttribute(stepSpan, "phase", step.Phase)
+		}
+
 		timeout := o.timeouts[step.AgentType]
 		if timeout == 0 {
 			timeout = 30 * time.Second
 		}
-		sCtx, cancel := context.WithTimeout(ctx, timeout)
+		sCtx, cancel := context.WithTimeout(stepCtx, timeout)
 		output, err := spec.Runner(sCtx, AgentInput{
 			Ctx: agentCtx, Directive: step.Phase,
 		})
@@ -281,12 +320,14 @@ func (o *Orchestrator) RunFinish(ctx context.Context, sceneID string, agentCtx *
 		if err != nil {
 			turn.Status = domain.TurnStatusFailed
 			turn.Error = err.Error()
+			trace.SetError(stepSpan, err)
 		} else {
 			turn.Output = output.Content
 		}
 		if turnRepo != nil {
 			_ = turnRepo.Update(ctx, turn)
 		}
+		trace.End(stepSpan)
 	}
 	return nil
 }

@@ -40,18 +40,19 @@ type Dimension struct {
 }
 
 type StoryBible struct {
-	ID             string       `bson:"_id" json:"id"`
-	StoryID        string       `bson:"storyId" json:"storyId"`
-	Title          string       `bson:"title" json:"title"`
-	World          string       `bson:"world" json:"world"`
-	Dimensions     []Dimension  `bson:"dimensions,omitempty" json:"dimensions,omitempty"`
-	WorldRules     []WorldRule  `bson:"worldRules,omitempty" json:"worldRules,omitempty"`
-	MagicSystems   []MagicSystem `bson:"magicSystems,omitempty" json:"magicSystems,omitempty"`
-	Factions       []Faction    `bson:"factions,omitempty" json:"factions,omitempty"`
-	Cultures       []Culture    `bson:"cultures,omitempty" json:"cultures,omitempty"`
-	Tone           string       `bson:"tone,omitempty" json:"tone,omitempty"`
-	CentralTheme   string       `bson:"centralTheme,omitempty" json:"centralTheme,omitempty"`
-	NarrativeVoice string       `bson:"narrativeVoice,omitempty" json:"narrativeVoice,omitempty"`
-	CreatedAt      time.Time    `bson:"createdAt" json:"createdAt"`
-	UpdatedAt      time.Time    `bson:"updatedAt" json:"updatedAt"`
+	ID               string       `bson:"_id" json:"id"`
+	StoryID          string       `bson:"storyId" json:"storyId"`
+	Title            string       `bson:"title" json:"title"`
+	World            string       `bson:"world" json:"world"`
+	Dimensions       []Dimension  `bson:"dimensions,omitempty" json:"dimensions,omitempty"`
+	WorldRules       []WorldRule  `bson:"worldRules,omitempty" json:"worldRules,omitempty"`
+	MagicSystems     []MagicSystem `bson:"magicSystems,omitempty" json:"magicSystems,omitempty"`
+	Factions         []Faction    `bson:"factions,omitempty" json:"factions,omitempty"`
+	Cultures         []Culture    `bson:"cultures,omitempty" json:"cultures,omitempty"`
+	Tone             string       `bson:"tone,omitempty" json:"tone,omitempty"`
+	CentralTheme     string       `bson:"centralTheme,omitempty" json:"centralTheme,omitempty"`
+	NarrativeVoice   string       `bson:"narrativeVoice,omitempty" json:"narrativeVoice,omitempty"`
+	ReferenceStories []string     `bson:"referenceStories,omitempty" json:"referenceStories,omitempty"`
+	CreatedAt        time.Time    `bson:"createdAt" json:"createdAt"`
+	UpdatedAt        time.Time    `bson:"updatedAt" json:"updatedAt"`
 }

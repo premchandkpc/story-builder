@@ -16,7 +16,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 // useNavigate: React Router hook to programmatically navigate between pages
 import { useNavigate } from "react-router-dom"
 import { api } from "./client"
-import type { Story, StoryStats, SceneTurn, AgentRun, LlmMetrics } from "./types"
+import type { CriticScoreData, Story, StoryStats, SceneTurn, AgentRun, LlmMetrics } from "./types"
 
 // ---- useStories() ----
 // Custom hook that fetches the list of all stories.
@@ -159,6 +159,17 @@ export function useLlmMetrics(storyId: string) {
   return useQuery<LlmMetrics>({
     queryKey: ["llmMetrics", storyId],
     queryFn: () => api.metrics.llm(storyId),
+    enabled: !!storyId,
+    refetchInterval: 30_000,
+  })
+}
+
+// ---- useCriticScores(storyId) ----
+// Fetches critic evaluation scores for all agent-generated scenes in a story.
+export function useCriticScores(storyId: string) {
+  return useQuery<CriticScoreData[]>({
+    queryKey: ["criticScores", storyId],
+    queryFn: () => api.critic.list(storyId),
     enabled: !!storyId,
     refetchInterval: 30_000,
   })

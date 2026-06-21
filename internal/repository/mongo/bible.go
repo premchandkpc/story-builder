@@ -54,3 +54,15 @@ func (r *BibleRepo) DeleteByStory(ctx context.Context, storyID string) error {
 	_, err := r.coll.DeleteMany(ctx, bson.M{"storyId": storyID})
 	return err
 }
+
+func (r *BibleRepo) ListByReferencingStory(ctx context.Context, storyID string) ([]*domain.StoryBible, error) {
+	cursor, err := r.coll.Find(ctx, bson.M{"referenceStories": storyID})
+	if err != nil {
+		return nil, err
+	}
+	var bibles []*domain.StoryBible
+	if err := cursor.All(ctx, &bibles); err != nil {
+		return nil, err
+	}
+	return bibles, nil
+}

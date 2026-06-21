@@ -2,6 +2,7 @@ package main
 
 import (
 	"log/slog"
+	"time"
 
 	"github.com/premchand/story-builder/internal/agents"
 	"github.com/premchand/story-builder/internal/api"
@@ -17,20 +18,22 @@ import (
 )
 
 type appDependencies struct {
-	storySvc   *service.StoryService
-	sceneSvc   *service.SceneService
-	edgeSvc    *service.EdgeService
-	charSvc    *service.CharacterService
-	locSvc     *service.LocationService
-	genSvc     *service.GenerationService
-	metricsSvc *service.MetricsService
-	tlSvc      *service.TimelineService
-	sumSvc     *service.SummaryService
-	memSvc     *service.MemoryService
-	bibleSvc   *service.BibleService
-	chapterSvc *service.ChapterSvc
-	outlineSvc llm.OutlineService
-	titleSvc   llm.TitleService
+	storySvc    *service.StoryService
+	sceneSvc    *service.SceneService
+	edgeSvc     *service.EdgeService
+	charSvc     *service.CharacterService
+	locSvc      *service.LocationService
+	genSvc      *service.GenerationService
+	metricsSvc  *service.MetricsService
+	criticSvc   *service.CriticScoresService
+	agentCfgSvc *service.AgentConfigService
+	tlSvc       *service.TimelineService
+	sumSvc      *service.SummaryService
+	memSvc      *service.MemoryService
+	bibleSvc    *service.BibleService
+	chapterSvc  *service.ChapterSvc
+	outlineSvc  llm.OutlineService
+	titleSvc    llm.TitleService
 	genJobWorker *service.GenerationJobWorker
 	rateLimiter  *cache.SlidingWindowRateLimiter
 	progressHub  *api.ProgressHub
@@ -103,13 +106,17 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 
 	// Rate limiter / cache
 	var rateLimiter *cache.SlidingWindowRateLimiter
+	var redisClient cache.RedisClient
 	if cfg.RedisAddr != "" {
-		redisClient, err := cache.NewGoRedisClient(cfg.RedisAddr, cfg.RedisPass, 0)
+		var err error
+		redisClient, err = cache.NewGoRedisClient(cfg.RedisAddr, cfg.RedisPass, 0)
 		if err != nil {
 			slog.Warn("redis unavailable, running without cache", "error", err)
 		} else {
 			rateLimiter = cache.NewSlidingWindowRateLimiter(redisClient, cache.DefaultRateLimits)
-			slog.Info("redis cache enabled")
+			anthropic = llm.NewCachedLLMClient(anthropic, redisClient, 1*time.Hour)
+			ollama = llm.NewCachedLLMClient(ollama, redisClient, 1*time.Hour)
+			slog.Info("redis cache enabled with prompt caching")
 		}
 	} else {
 		slog.Info("no REDIS_ADDR set, running without cache")
@@ -139,6 +146,9 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 	agents.RegisterAll(agentRegistry, router, proseSvc, extractSvc, validateSvc)
 	slog.Info("agent registry initialized", "count", len(agentRegistry.List()))
 
+	budgetRepo := mgorepo.NewTokenBudgetRepo(db)
+	budgetSvc := service.NewTokenBudgetService(budgetRepo)
+
 	agentOrchestrator := agents.NewOrchestrator(agents.OrchestratorConfig{
 		Registry:  agentRegistry,
 		LLMClient: router,
@@ -151,12 +161,12 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 		GenRepo: genRepo, StoryRepo: storyRepo, SceneRepo: sceneRepo,
 		CharRepo: charRepo, StateRepo: stateRepo,
 		BibleRepo: bibleRepo, EdgeRepo: edgeRepo, MemRepo: memRepo,
-		TlRepo: tlRepo, SumRepo: sumRepo,
+		TlRepo: tlRepo, SumRepo: sumRepo, BudgetSvc: budgetSvc,
 	})
 
 	genSvc := service.NewGenerationService(service.GenerationServiceConfig{
 		GenRepo: genRepo, SceneRepo: sceneRepo, JobRepo: jobRepo,
-		EventBus: eventBus, AgentSvc: agentSvc,
+		EventBus: eventBus, AgentSvc: agentSvc, BudgetSvc: budgetSvc,
 	})
 
 	progressHub := api.NewProgressHub()
@@ -169,18 +179,21 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 		SummarySvc: summarySvc, ValidateSvc: validateSvc,
 		ContextBldr: contextBldr, EventBus: eventBus,
 		EmbeddingSvc: embedSvc, SceneValidator: sceneValidator,
-		Progress: progressHub,
+		Progress: progressHub, AgentSvc: agentSvc,
 	})
 
 	tlSvc := service.NewTimelineService(tlRepo)
 	sumSvc := service.NewSummaryService(sumRepo)
 	memSvc := service.NewMemoryService(memRepo, embedSvc)
 	metricsSvc := service.NewMetricsService(genRepo)
+	criticSvc := service.NewCriticScoresService(genRepo, sceneRepo)
+	agentCfgRepo := mgorepo.NewAgentConfigRepo(db)
+	agentCfgSvc := service.NewAgentConfigService(agentCfgRepo)
 
 	return appDependencies{
 		storySvc: storySvc, sceneSvc: sceneSvc, edgeSvc: edgeSvc,
 		charSvc: charSvc, locSvc: locSvc, genSvc: genSvc,
-		metricsSvc: metricsSvc,
+		metricsSvc: metricsSvc, criticSvc: criticSvc, agentCfgSvc: agentCfgSvc,
 		tlSvc: tlSvc, sumSvc: sumSvc, memSvc: memSvc,
 		bibleSvc: bibleSvc, chapterSvc: chapterSvc,
 		outlineSvc: outlineSvc, titleSvc: titleSvc,
