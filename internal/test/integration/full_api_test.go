@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/premchand/story-builder/internal/domain"
 	mgorepo "github.com/premchand/story-builder/internal/repository/mongo"
@@ -758,7 +759,7 @@ func TestAPI_LLMMetrics(t *testing.T) {
 		PromptTokens:     500,
 		CompletionTokens: 200,
 		TotalTokens:      700,
-		CreatedAt:        ctx.Value("now").(int64),
+		CreatedAt:        time.Now().Unix(),
 	})
 
 	t.Run("get llm metrics returns stats", func(t *testing.T) {

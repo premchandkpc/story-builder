@@ -36,6 +36,7 @@ func buildServer(t *testing.T) (*api.Server, *mgorepo.StoryRepo) {
 	bibleRepo := mgorepo.NewBibleRepo(testDB)
 	chapterRepo := mgorepo.NewChapterRepo(testDB)
 	jobRepo := mgorepo.NewJobRepo(testDB)
+	agentCfgRepo := mgorepo.NewAgentConfigRepo(testDB)
 
 	deleter := &service.StoryCascadeDeleter{
 		SceneRepo: sceneRepo, EdgeRepo: edgeRepo, CharRepo: charRepo,
@@ -63,6 +64,7 @@ func buildServer(t *testing.T) (*api.Server, *mgorepo.StoryRepo) {
 		JobRepo: jobRepo, EventBus: events.NewInMemoryBus(),
 	})
 	genSvc.SetProgressPublisher(progressHub)
+	agentCfgSvc := service.NewAgentConfigService(agentCfgRepo)
 
 	h := api.NewHandlers(
 		service.NewStoryService(storyRepo, deleter),
@@ -80,7 +82,7 @@ func buildServer(t *testing.T) (*api.Server, *mgorepo.StoryRepo) {
 		titleSvc,
 		nil,
 		nil,
-		nil,
+		agentCfgSvc,
 		progressHub,
 		nil,
 		nil,
