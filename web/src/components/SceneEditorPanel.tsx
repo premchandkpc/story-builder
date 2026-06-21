@@ -31,7 +31,7 @@ const panelInputStyle: React.CSSProperties = {
   fontFamily: "var(--font-body)",
   boxSizing: "border-box",
   boxShadow: "var(--shadow-inner)",
-  transition: "border-color 0.15s, box-shadow 0.15s",
+  transition: "border-color var(--transition-fast), box-shadow var(--transition-fast)",
 }
 
 const panelBtnStyle: React.CSSProperties = {
@@ -46,7 +46,7 @@ const panelBtnStyle: React.CSSProperties = {
   fontSize: 12,
   letterSpacing: "0.02em",
   boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
-  transition: "background 0.15s, box-shadow 0.15s",
+  transition: "background var(--transition-base), box-shadow var(--transition-base), transform var(--transition-fast)",
 }
 
 const closeSvg = (
@@ -123,6 +123,7 @@ export default function SceneEditorPanel({
       }}>
         <button
           onClick={onSave}
+          className="btn-press"
           style={{ ...panelBtnStyle, flex: 2 }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = "#7ba06c"
@@ -139,6 +140,7 @@ export default function SceneEditorPanel({
           <div style={{ display: "flex", gap: 4, flex: 3 }}>
             <button
               onClick={onGenerate}
+              className="btn-press"
               style={{ ...panelBtnStyle, background: "var(--error)", flex: 1 }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = "#c06c60"
@@ -153,6 +155,7 @@ export default function SceneEditorPanel({
             </button>
             <button
               onClick={() => setConfirmingGenerate(false)}
+              className="btn-press"
               style={{ ...panelBtnStyle, background: "var(--surface)", color: "var(--text-dim)", flex: 1 }}
               onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-hover)"}
               onMouseLeave={(e) => e.currentTarget.style.background = "var(--surface)"}
@@ -163,6 +166,7 @@ export default function SceneEditorPanel({
         ) : (
           <button
             onClick={() => setConfirmingGenerate(true)}
+            className="btn-press"
             style={{ ...panelBtnStyle, background: "var(--warn)", flex: 3 }}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = "#d9865f"
@@ -181,6 +185,7 @@ export default function SceneEditorPanel({
       <div style={{ display: "flex", gap: 6, marginTop: 2 }}>
         <button
           onClick={onClose}
+          className="btn-press"
           style={{
             ...ghostBtnStyle, flex: 1, justifyContent: "center",
             border: "1px solid var(--border)", fontSize: 11,
@@ -191,6 +196,7 @@ export default function SceneEditorPanel({
         </button>
         <button
           onClick={onDelete}
+          className="btn-press"
           style={{ ...destructiveBtnStyle, flex: 1, justifyContent: "center", fontSize: 11 }}
           onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(212,103,103,0.12)" }}
           onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}

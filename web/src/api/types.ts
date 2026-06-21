@@ -44,6 +44,15 @@ export type EdgeType = "seq" | "fork" | "join" | "choice"
 
 export type FlowType = "monologue" | "dialogue" | "round_robin" | "parallel" | "custom"
 
+export interface SceneNodeData extends Record<string, unknown> {
+  label: string
+  status: string
+  beatIntent: string
+  pov: string
+  tone: string
+  targetWords: number
+}
+
 export interface SceneStructure {
   flow_type: FlowType
   character_order?: string[]

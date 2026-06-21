@@ -21,7 +21,7 @@ export default function NodeInfoPanel({ edges, selectedNodeId, status, beatInten
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 12 }}>
-      <div style={{
+      <div className="card-hover" style={{
         background: "var(--surface)",
         borderRadius: "var(--radius-md)",
         padding: "10px 12px",
@@ -41,7 +41,7 @@ export default function NodeInfoPanel({ edges, selectedNodeId, status, beatInten
         </div>
       </div>
 
-      <div style={{
+      <div className="card-hover" style={{
         background: "var(--surface)",
         borderRadius: "var(--radius-md)",
         padding: "10px 12px",
@@ -53,7 +53,7 @@ export default function NodeInfoPanel({ edges, selectedNodeId, status, beatInten
         </div>
       </div>
 
-      <div style={{
+      <div className="card-hover" style={{
         background: "var(--surface)",
         borderRadius: "var(--radius-md)",
         padding: "10px 12px",

@@ -30,6 +30,7 @@
 
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
   --radius-sm: 3px;
   --radius-md: 5px;
@@ -42,10 +43,12 @@
   --shadow-lg: 0 6px 20px rgba(0,0,0,0.35), 0 2px 6px rgba(0,0,0,0.2);
   --shadow-xl: 0 10px 40px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.25);
   --shadow-inner: inset 0 1px 2px rgba(0,0,0,0.15);
+  --shadow-glow: 0 0 12px rgba(212,168,83,0.15);
 
   --transition-fast: 0.12s var(--ease-out);
   --transition-base: 0.2s var(--ease-out);
   --transition-slow: 0.35s var(--ease-out);
+  --transition-spring: 0.35s var(--ease-spring);
 }
 
 @keyframes fadeIn {
@@ -68,6 +71,11 @@
   to   { opacity: 1; transform: translateX(0); }
 }
 
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.45; }
@@ -87,9 +95,39 @@
   to   { opacity: 1; transform: scale(1); }
 }
 
+@keyframes scaleOut {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.95); }
+}
+
 @keyframes inkDrop {
   from { width: 0; opacity: 0; }
   to   { width: 100%; opacity: 1; }
+}
+
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(212,168,83,0.1); }
+  50%      { box-shadow: 0 0 14px rgba(212,168,83,0.25); }
+}
+
+@keyframes cardLift {
+  from { transform: translateY(0); box-shadow: var(--shadow-sm); }
+  to   { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+}
+
+@keyframes expandIn {
+  from { opacity: 0; transform: scaleY(0.85); max-height: 0; }
+  to   { opacity: 1; transform: scaleY(1); max-height: 500px; }
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.04); }
+}
+
+@keyframes shimmerSlide {
+  0%   { mask-position: -200% 0; }
+  100% { mask-position: 200% 0; }
 }
 
 * {
@@ -168,4 +206,26 @@ code {
 ::placeholder {
   color: var(--text-faint);
   opacity: 1;
+}
+
+.stagger-fade-in {
+  animation: fadeIn 0.35s var(--ease-out) both;
+}
+
+.stagger-slide-up {
+  animation: slideUp 0.35s var(--ease-out) both;
+}
+
+.card-hover {
+  transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base);
+}
+
+.card-hover:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-light);
+}
+
+.btn-press:active {
+  transform: scale(0.97);
 }

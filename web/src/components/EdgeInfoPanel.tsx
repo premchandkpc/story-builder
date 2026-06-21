@@ -17,7 +17,7 @@ export default function EdgeInfoPanel({ selectedEdge, onDelete }: EdgeInfoPanelP
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12 }}>
-      <div style={{
+      <div className="card-hover" style={{
         background: "var(--surface)",
         borderRadius: "var(--radius-md)",
         padding: "10px 12px",
@@ -34,7 +34,7 @@ export default function EdgeInfoPanel({ selectedEdge, onDelete }: EdgeInfoPanelP
         </span>
       </div>
 
-      <div style={{
+      <div className="card-hover" style={{
         background: "var(--surface)",
         borderRadius: "var(--radius-md)",
         padding: "10px 12px",

@@ -1,5 +1,6 @@
 import { useCriticScores } from "../api/hooks"
 import { fadeInStyle, spinnerStyle } from "../api/types"
+import StatCard from "./StatCard"
 
 interface CriticScoreDashboardProps {
   storyId: string
@@ -9,31 +10,6 @@ const scoreColor = (score: number): string => {
   if (score >= 0.8) return "#22c55e"
   if (score >= 0.6) return "#eab308"
   return "#ef4444"
-}
-
-function StatCard({ label, value, color }: { label: string; value: string; color: string }) {
-  return (
-    <div style={{
-      background: "var(--surface)", border: "1px solid var(--border)",
-      borderRadius: "var(--radius-md)", padding: "12px 14px",
-      transition: "border-color 0.15s",
-    }}>
-      <div style={{
-        fontSize: 10, color: "var(--text-dim)",
-        textTransform: "uppercase", letterSpacing: "0.05em",
-        fontWeight: 500,
-      }}>
-        {label}
-      </div>
-      <div style={{
-        fontSize: 20, fontWeight: 700,
-        fontFamily: "var(--font-heading)", color,
-        marginTop: 4,
-      }}>
-        {value}
-      </div>
-    </div>
-  )
 }
 
 export default function CriticScoreDashboard({ storyId }: CriticScoreDashboardProps) {
@@ -74,16 +50,19 @@ export default function CriticScoreDashboard({ storyId }: CriticScoreDashboardPr
           label="Average Score"
           value={`${(avgScore * 100).toFixed(0)}%`}
           color={scoreColor(avgScore)}
+          delay={0.05}
         />
         <StatCard
           label="Best"
           value={`${(maxScore * 100).toFixed(0)}%`}
           color={scoreColor(maxScore)}
+          delay={0.1}
         />
         <StatCard
           label="Worst"
           value={`${(minScore * 100).toFixed(0)}%`}
           color={scoreColor(minScore)}
+          delay={0.15}
         />
       </div>
 
@@ -94,12 +73,13 @@ export default function CriticScoreDashboard({ storyId }: CriticScoreDashboardPr
         }}>
           Scene Scores
         </h4>
-        {scores.map((s) => (
-          <div key={s.generation_id} style={{
+        {scores.map((s, i) => (
+          <div key={s.generation_id} className="card-hover" style={{
             display: "flex", justifyContent: "space-between", alignItems: "center",
             padding: "8px 10px", background: "var(--surface)", borderRadius: "var(--radius-sm)",
             fontSize: 11,
             border: "1px solid var(--border)",
+            animation: `slideUp 0.25s var(--ease-out) ${i * 0.04}s both`,
           }}>
             <span style={{
               color: "var(--accent)", fontWeight: 600,

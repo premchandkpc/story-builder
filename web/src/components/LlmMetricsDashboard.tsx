@@ -1,33 +1,9 @@
 import { useLlmMetrics } from "../api/hooks"
 import { fadeInStyle, spinnerStyle } from "../api/types"
+import StatCard from "./StatCard"
 
 interface LlmMetricsDashboardProps {
   storyId: string
-}
-
-
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{
-      background: "var(--surface)", border: "1px solid var(--border)",
-      borderRadius: "var(--radius-md)", padding: "12px 14px",
-    }}>
-      <div style={{
-        fontSize: 10, color: "var(--text-dim)",
-        textTransform: "uppercase", letterSpacing: "0.05em",
-        fontWeight: 500,
-      }}>
-        {label}
-      </div>
-      <div style={{
-        fontSize: 18, fontWeight: 700,
-        fontFamily: "var(--font-heading)", color: "var(--accent)",
-        marginTop: 4,
-      }}>
-        {value}
-      </div>
-    </div>
-  )
 }
 
 export default function LlmMetricsDashboard({ storyId }: LlmMetricsDashboardProps) {
@@ -60,12 +36,12 @@ export default function LlmMetricsDashboard({ storyId }: LlmMetricsDashboardProp
       </h3>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-        <StatCard label="Total Tokens" value={metrics.total_tokens.toLocaleString()} />
-        <StatCard label="Est. Cost" value={`$${metrics.total_cost_estimate.toFixed(4)}`} />
-        <StatCard label="Prompt" value={metrics.total_prompt_tokens.toLocaleString()} />
-        <StatCard label="Completion" value={metrics.total_completion_tokens.toLocaleString()} />
-        <StatCard label="Turns" value={metrics.turn_count.toString()} />
-        <StatCard label="Generations" value={metrics.generation_count.toString()} />
+        <StatCard label="Total Tokens" value={metrics.total_tokens.toLocaleString()} delay={0.05} />
+        <StatCard label="Est. Cost" value={`$${metrics.total_cost_estimate.toFixed(4)}`} delay={0.1} />
+        <StatCard label="Prompt" value={metrics.total_prompt_tokens.toLocaleString()} delay={0.15} />
+        <StatCard label="Completion" value={metrics.total_completion_tokens.toLocaleString()} delay={0.2} />
+        <StatCard label="Turns" value={metrics.turn_count.toString()} delay={0.25} />
+        <StatCard label="Generations" value={metrics.generation_count.toString()} delay={0.3} />
       </div>
 
       <div>
@@ -76,11 +52,12 @@ export default function LlmMetricsDashboard({ storyId }: LlmMetricsDashboardProp
           By Model
         </h4>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {Object.entries(metrics.by_model).map(([model, data]) => (
-            <div key={model} style={{
+          {Object.entries(metrics.by_model).map(([model, data], i) => (
+            <div key={model} className="card-hover" style={{
               display: "flex", justifyContent: "space-between", alignItems: "center",
               padding: "6px 10px", background: "var(--surface)", borderRadius: "var(--radius-sm)",
               fontSize: 11, border: "1px solid var(--border)",
+              animation: `slideUp 0.25s var(--ease-out) ${i * 0.04}s both`,
             }}>
               <span style={{ color: "var(--accent)", fontWeight: 600 }}>{model}</span>
               <span style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
@@ -102,11 +79,12 @@ export default function LlmMetricsDashboard({ storyId }: LlmMetricsDashboardProp
           By Agent
         </h4>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {Object.entries(metrics.by_agent).map(([agent, data]) => (
-            <div key={agent} style={{
+          {Object.entries(metrics.by_agent).map(([agent, data], i) => (
+            <div key={agent} className="card-hover" style={{
               display: "flex", justifyContent: "space-between", alignItems: "center",
               padding: "6px 10px", background: "var(--surface)", borderRadius: 4,
               fontSize: 11, border: "1px solid var(--border)",
+              animation: `slideUp 0.25s var(--ease-out) ${i * 0.04}s both`,
             }}>
               <span style={{
                 color: "var(--text)", fontWeight: 500,

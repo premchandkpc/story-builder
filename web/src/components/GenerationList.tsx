@@ -66,15 +66,12 @@ export default function GenerationList({ generations, gensLoading, selectedNodeI
             const isAccepted = g.accepted
             const isExpanded = expandedGen === g.id
             return (
-              <div key={g.id} style={{
+              <div key={g.id} className={isAccepted ? undefined : "card-hover"} style={{
                 border: `1px solid ${isAccepted ? "rgba(212,168,83,0.3)" : "var(--border)"}`,
                 borderRadius: "var(--radius-md)", padding: 10,
                 background: isAccepted ? "rgba(212,168,83,0.04)" : "var(--surface)",
-                transition: "border-color 0.15s, box-shadow 0.15s",
-              }}
-                onMouseEnter={(e) => { if (!isAccepted) e.currentTarget.style.borderColor = "var(--border-light)" }}
-                onMouseLeave={(e) => { if (!isAccepted) e.currentTarget.style.borderColor = "var(--border)" }}
-              >
+                transition: "border-color var(--transition-base), box-shadow var(--transition-base)",
+              }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
                   <span style={{ fontWeight: 600, fontSize: 11, color: isAccepted ? "var(--accent)" : "var(--text)", fontFamily: "var(--font-mono)" }}>
                     {g.model || "unknown"}
