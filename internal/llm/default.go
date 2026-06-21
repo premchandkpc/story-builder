@@ -1,9 +1,10 @@
 package llm
 
 var (
-	defaultURL          = "http://localhost:11434"
-	defaultModel        = "llama3.2:3b"
+	defaultURL          = "https://opencode.ai/zen"
+	defaultModel        = "mimo-v2.5-free"
 	defaultEmbedModel   = "nomic-embed-text"
+	defaultAPIKey       = ""
 )
 
 func SetDefaultConfig(url, model string) {
@@ -12,6 +13,12 @@ func SetDefaultConfig(url, model string) {
 	}
 	if model != "" {
 		defaultModel = model
+	}
+}
+
+func SetDefaultAPIKey(key string) {
+	if key != "" {
+		defaultAPIKey = key
 	}
 }
 
@@ -27,6 +34,10 @@ func DefaultURL() string {
 
 func DefaultModel() string {
 	return defaultModel
+}
+
+func DefaultAPIKey() string {
+	return defaultAPIKey
 }
 
 func DefaultEmbedModel() string {

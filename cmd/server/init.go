@@ -67,12 +67,13 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 		slog.Info("anthropic client created")
 	} else {
 		slog.Warn("no ANTHROPIC_API_KEY set, using OpenCode for all tiers")
-		anthropic = llm.NewCircuitBreakerClient(llm.NewOpenCodeClient(cfg.OpenCodeURL, cfg.OpenCodeModel))
+		anthropic = llm.NewCircuitBreakerClient(llm.NewOpenCodeClient(cfg.OpenCodeURL, cfg.OpenCodeModel, cfg.OpenCodeKey))
 	}
 	var opencode llm.LLMClient
-	opencode = llm.NewCircuitBreakerClient(llm.NewOpenCodeClient(cfg.OpenCodeURL, cfg.OpenCodeModel))
+	opencode = llm.NewCircuitBreakerClient(llm.NewOpenCodeClient(cfg.OpenCodeURL, cfg.OpenCodeModel, cfg.OpenCodeKey))
 
 	llm.SetDefaultConfig(cfg.OpenCodeURL, cfg.OpenCodeModel)
+	llm.SetDefaultAPIKey(cfg.OpenCodeKey)
 	llm.SetDefaultEmbedModel("nomic-embed-text")
 
 	if cfg.HeadroomURL != "" {

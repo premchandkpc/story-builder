@@ -46,6 +46,7 @@ export type FlowType = "monologue" | "dialogue" | "round_robin" | "parallel" | "
 
 export interface SceneNodeData extends Record<string, unknown> {
   label: string
+  title: string
   status: string
   beatIntent: string
   pov: string
@@ -63,6 +64,7 @@ export interface SceneStructure {
 export interface GraphNode {
   id: string
   story_id: string
+  title: string
   beat_intent: string
   character_refs: string[]
   location_ref: string | null

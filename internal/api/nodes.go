@@ -18,6 +18,7 @@ type graphNode struct {
 	ID             string         `json:"id"`
 	StoryID        string         `json:"story_id"`
 	ChapterID      string         `json:"chapter_id"`
+	Title          string         `json:"title"`
 	BeatIntent     string         `json:"beat_intent"`
 	CharacterRefs  []string       `json:"character_refs"`
 	LocationRef    string         `json:"location_ref"`
@@ -54,6 +55,7 @@ func sceneToNode(s *domain.Scene) graphNode {
 		ID:             s.ID,
 		StoryID:        s.StoryID,
 		ChapterID:      s.ChapterID,
+		Title:          s.Title,
 		BeatIntent:     s.BeatIntent,
 		CharacterRefs:  s.Participants,
 		LocationRef:    s.LocationRef,

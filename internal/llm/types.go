@@ -177,13 +177,13 @@ var PromptRegistry = map[PromptTemplate]PromptConfig{
 	},
 	PromptOutlineStory: {
 		Template:    PromptOutlineStory,
-		Model:       ModelLocal,
+		Model:       ModelSonnet,
 		Temperature: 0.7,
 		SystemText:  "You are a master story architect. Given a synopsis, generate a structured story outline with characters, plot beats, and narrative flow.",
 	},
 	PromptGenerateTitle: {
 		Template:    PromptGenerateTitle,
-		Model:       ModelLocal,
+		Model:       ModelHaiku,
 		Temperature: 0.5,
 		SystemText:  "You are a creative title generator. Given a synopsis, generate a short, engaging story title (3-8 words). Return ONLY the title, no quotes or punctuation.",
 	},

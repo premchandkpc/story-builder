@@ -44,7 +44,8 @@ function toReactFlowNodes(
         type: "scene",
         position: existing,
         data: {
-          label: `Node ${n.id.slice(-4)}`,
+          label: n.title || n.beat_intent || `Node ${n.id.slice(-4)}`,
+          title: n.title || "",
           status: n.status,
           beatIntent: n.beat_intent || "",
           pov: n.pov || "",
@@ -63,7 +64,8 @@ function toReactFlowNodes(
       type: "scene",
       position: pos,
       data: {
-        label: `Node ${n.id.slice(-4)}`,
+        label: n.title || n.beat_intent || `Node ${n.id.slice(-4)}`,
+        title: n.title || "",
         status: n.status,
         beatIntent: n.beat_intent || "",
         pov: n.pov || "",

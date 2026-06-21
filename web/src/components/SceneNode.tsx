@@ -3,6 +3,7 @@ import { Handle, Position, type NodeProps, type Node } from "@xyflow/react"
 
 type SceneNodeData = {
   label: string
+  title: string
   status: "draft" | "generated" | "accepted" | "stale"
   beatIntent: string
   pov: string

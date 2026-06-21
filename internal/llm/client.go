@@ -104,14 +104,17 @@ func (c *AnthropicClient) Complete(ctx context.Context, req CompletionRequest) (
 	}, nil
 }
 
-func NewOpenCodeClient(baseURL, model string) *OpenCodeClient {
+func NewOpenCodeClient(baseURL, model, apiKey string) *OpenCodeClient {
 	if baseURL == "" {
 		baseURL = defaultURL
 	}
 	if model == "" {
 		model = defaultModel
 	}
-	return &OpenCodeClient{baseURL: baseURL, defaultModel: model, http: &http.Client{
+	if apiKey == "" {
+		apiKey = defaultAPIKey
+	}
+	return &OpenCodeClient{baseURL: baseURL, defaultModel: model, apiKey: apiKey, http: &http.Client{
 		Timeout: 300 * time.Second,
 		Transport: &http.Transport{
 			ResponseHeaderTimeout: 120 * time.Second,
@@ -123,6 +126,7 @@ func NewOpenCodeClient(baseURL, model string) *OpenCodeClient {
 type OpenCodeClient struct {
 	baseURL      string
 	defaultModel string
+	apiKey       string
 	http         *http.Client
 }
 
@@ -156,6 +160,9 @@ func (c *OpenCodeClient) Complete(ctx context.Context, req CompletionRequest) (*
 		return nil, fmt.Errorf("opencode new request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	if c.apiKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
 	res, err := c.http.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("opencode: %w", err)

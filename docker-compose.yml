@@ -54,7 +54,9 @@ services:
       REDIS_ADDR: redis:6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-storybuilder}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      OPENCODE_URL: http://host.docker.internal:11434
+      OPENCODE_URL: ${OPENCODE_URL:-https://opencode.ai/zen}
+      OPENCODE_MODEL: ${OPENCODE_MODEL:-mimo-v2.5-free}
+      OPENCODE_API_KEY: ${OPENCODE_API_KEY:-}
       HEADROOM_BASE_URL: ${HEADROOM_BASE_URL:-}
       HEADROOM_API_KEY: ${HEADROOM_API_KEY:-}
     depends_on:
