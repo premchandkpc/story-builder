@@ -1,5 +1,6 @@
 import { useState } from "react"
 import type { Generation } from "../api/types"
+import CompressionStats from "./CompressionStats"
 
 interface GenerationCompareProps {
   generations: Generation[]
@@ -82,6 +83,11 @@ export default function GenerationCompare({ generations }: GenerationCompareProp
           }}>
             {left.output}
           </div>
+          <CompressionStats
+            system={left.prompt_snapshot}
+            userMessage={left.prompt_snapshot}
+            model={left.model || "claude-sonnet"}
+          />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
@@ -99,6 +105,11 @@ export default function GenerationCompare({ generations }: GenerationCompareProp
           }}>
             {right.output}
           </div>
+          <CompressionStats
+            system={right.prompt_snapshot}
+            userMessage={right.prompt_snapshot}
+            model={right.model || "claude-sonnet"}
+          />
         </div>
       </div>
     </div>

@@ -66,7 +66,17 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 		slog.Warn("no ANTHROPIC_API_KEY set, using Ollama for all tiers")
 		anthropic = llm.NewCircuitBreakerClient(llm.NewOllamaClient(cfg.OllamaURL, cfg.OllamaModel))
 	}
-	ollama := llm.NewCircuitBreakerClient(llm.NewOllamaClient(cfg.OllamaURL, cfg.OllamaModel))
+	var ollama llm.LLMClient
+	ollama = llm.NewCircuitBreakerClient(llm.NewOllamaClient(cfg.OllamaURL, cfg.OllamaModel))
+
+	if cfg.HeadroomURL != "" {
+		anthropic = llm.NewCompressClient(anthropic, cfg.HeadroomURL, cfg.HeadroomKey)
+		ollama = llm.NewCompressClient(ollama, cfg.HeadroomURL, cfg.HeadroomKey)
+		slog.Info("headroom compression enabled", "url", cfg.HeadroomURL)
+	} else {
+		slog.Info("no HEADROOM_BASE_URL set, compression disabled")
+	}
+
 	router := llm.NewRouter(anthropic, ollama)
 
 	// Prompt compiler

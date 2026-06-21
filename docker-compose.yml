@@ -28,6 +28,19 @@ services:
       retries: 5
     restart: unless-stopped
 
+  headroom:
+    image: ghcr.io/chopratejas/headroom:latest
+    ports:
+      - "8787:8787"
+    environment:
+      HEADROOM_WORKSPACE_DIR: /data
+    volumes:
+      - headroomdata:/data
+    command: ["headroom", "proxy", "--port", "8787", "--host", "0.0.0.0"]
+    profiles:
+      - headroom
+    restart: unless-stopped
+
   server:
     build:
       context: .
@@ -42,6 +55,8 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-storybuilder}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OLLAMA_URL: http://host.docker.internal:11434
+      HEADROOM_BASE_URL: ${HEADROOM_BASE_URL:-}
+      HEADROOM_API_KEY: ${HEADROOM_API_KEY:-}
     depends_on:
       mongo:
         condition: service_healthy
@@ -57,9 +72,11 @@ services:
       - "5173:5173"
     environment:
       VITE_API_PROXY: http://server:8080
+      VITE_HEADROOM_BASE_URL: ${HEADROOM_BASE_URL:-}
     depends_on:
       - server
     restart: unless-stopped
 
 volumes:
   mongodata:
+  headroomdata:

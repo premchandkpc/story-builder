@@ -74,6 +74,15 @@ Pipeline workers in `internal/worker/` run as goroutines (no River, no message q
 | ValidateCanon | claude-haiku | 0.0 |
 | OutlineStory | local-7b | 0.7 |
 
+## headroom-ai
+
+Context compression for all LLM calls. Go backend wraps LLMClient with `CompressClient` (sends messages to headroom proxy before forwarding to provider). Set `HEADROOM_BASE_URL` to enable. Frontend also uses `headroom-ai` for compression stats in GenerationCompare UI.
+
+```bash
+# Start headroom proxy separately, then set:
+export HEADROOM_BASE_URL=http://localhost:8787
+```
+
 ## Building
 
 ```bash

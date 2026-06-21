@@ -11,6 +11,8 @@ type Config struct {
 	AnthropicKey string
 	OllamaURL    string
 	OllamaModel  string
+	HeadroomURL  string
+	HeadroomKey  string
 	LogLevel     string
 }
 
@@ -24,6 +26,8 @@ func FromEnv() Config {
 		AnthropicKey: env("ANTHROPIC_API_KEY", ""),
 		OllamaURL:    env("OLLAMA_URL", "http://localhost:11434"),
 		OllamaModel:  env("OLLAMA_MODEL", "llama3.2:3b"),
+		HeadroomURL:  env("HEADROOM_BASE_URL", ""),
+		HeadroomKey:  env("HEADROOM_API_KEY", ""),
 		LogLevel:     env("LOG_LEVEL", "info"),
 	}
 }
