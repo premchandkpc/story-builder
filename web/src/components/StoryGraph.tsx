@@ -17,13 +17,16 @@ import {
 import "@xyflow/react/dist/style.css"
 
 import SceneNode from "./SceneNode"
+import SceneEditorPanel from "./SceneEditorPanel"
+import NodeInfoPanel from "./NodeInfoPanel"
+import EdgeInfoPanel from "./EdgeInfoPanel"
+import GenerationList from "./GenerationList"
 import TurnTimeline from "./TurnTimeline"
 import AgentRunPanel from "./AgentRunPanel"
-import GenerationCompare from "./GenerationCompare"
 import LlmMetricsDashboard from "./LlmMetricsDashboard"
 import { api } from "../api/client"
 import type { GraphNode, GraphEdge, EdgeType, Generation } from "../api/types"
-import { spinnerStyle, slideUpStyle, labelStyle, ghostBtnStyle, destructiveBtnStyle } from "../api/types"
+import { spinnerStyle, slideUpStyle } from "../api/types"
 import { useToast } from "./Toast"
 
 interface SceneNodeData extends Record<string, unknown> {
@@ -115,46 +118,12 @@ const closeSvg = (
   </svg>
 )
 
-const trashSvg = (
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-    <path d="M2 4h12M5 4V2.5A.5.5 0 015.5 2h5a.5.5 0 01.5.5V4M13 4v9.5a1.5 1.5 0 01-1.5 1.5h-7A1.5 1.5 0 013 13.5V4" />
-  </svg>
-)
-
 const edgeTypes: { value: EdgeType; label: string; desc: string }[] = [
   { value: "seq", label: "Seq", desc: "Default progression" },
   { value: "fork", label: "Fork", desc: "Branch to multiple paths" },
   { value: "join", label: "Join", desc: "Converge branches" },
   { value: "choice", label: "Choice", desc: "Decision point" },
 ]
-
-const panelInputStyle: React.CSSProperties = {
-  display: "block",
-  width: "100%",
-  marginTop: 4,
-  padding: "7px 10px",
-  background: "var(--bg)",
-  border: "1px solid var(--border)",
-  borderRadius: 4,
-  color: "var(--text)",
-  fontSize: 12,
-  fontFamily: "var(--font-body)",
-  boxSizing: "border-box",
-  transition: "border-color 0.15s, box-shadow 0.15s",
-}
-
-const panelBtnStyle: React.CSSProperties = {
-  flex: 1,
-  padding: "8px 14px",
-  background: "var(--success)",
-  color: "#1a1a24",
-  border: "none",
-  borderRadius: 6,
-  cursor: "pointer",
-  fontWeight: 600,
-  fontSize: 12,
-  transition: "background 0.15s",
-}
 
 const tabBtnStyle = (active: boolean): React.CSSProperties => ({
   flex: 1,
@@ -181,8 +150,6 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
   const [activeTab, setActiveTab] = useState<"edit" | "info" | "generations" | "turns" | "agents">("edit")
   const [generations, setGenerations] = useState<Generation[]>([])
   const [gensLoading, setGensLoading] = useState(false)
-  const [expandedGen, setExpandedGen] = useState<string | null>(null)
-  const [showCompare, setShowCompare] = useState(false)
   const [pendingEdgeType, setPendingEdgeType] = useState<EdgeType>(
     () => (localStorage.getItem("edgeType") as EdgeType) || "seq",
   )
@@ -248,7 +215,6 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
         setSelectedNode(null)
         setSelectedEdge(null)
         setConfirmingGenerate(false)
-        setExpandedGen(null)
       }
       if ((e.key === "Delete" || e.key === "Backspace") && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
         deleteFnRef.current()
@@ -419,304 +385,39 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
   const renderPanelContent = () => {
     if (selectedNode && activeTab === "edit") {
       return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div>
-            <label style={labelStyle}>Beat Intent</label>
-            <input
-              value={form.beat_intent}
-              onChange={(e) => setForm({ ...form, beat_intent: e.target.value })}
-              style={panelInputStyle}
-              placeholder="Narrative purpose of this scene"
-            />
-          </div>
-
-          <div>
-            <label style={labelStyle}>POV</label>
-            <select
-              value={form.pov}
-              onChange={(e) => setForm({ ...form, pov: e.target.value })}
-              style={panelInputStyle}
-            >
-              <option value="first-person">First person</option>
-              <option value="third-person">Third person</option>
-              <option value="omniscient">Omniscient</option>
-            </select>
-          </div>
-
-          <div>
-            <label style={labelStyle}>Tone</label>
-            <select
-              value={form.tone}
-              onChange={(e) => setForm({ ...form, tone: e.target.value })}
-              style={panelInputStyle}
-            >
-              <option value="neutral">Neutral</option>
-              <option value="tense">Tense</option>
-              <option value="melancholy">Melancholy</option>
-              <option value="humorous">Humorous</option>
-              <option value="dramatic">Dramatic</option>
-            </select>
-          </div>
-
-          <div>
-            <label style={labelStyle}>Target Words</label>
-            <input
-              type="number"
-              value={form.target_words}
-              onChange={(e) => setForm({ ...form, target_words: +e.target.value })}
-              style={panelInputStyle}
-              min={50}
-              max={5000}
-            />
-          </div>
-
-          <div style={{
-            display: "flex", gap: 8, marginTop: 8,
-            paddingTop: 12, borderTop: "1px solid var(--border)",
-          }}>
-            <button
-              onClick={updateNode}
-              style={{ ...panelBtnStyle, flex: 2 }}
-              onMouseEnter={(e) => e.currentTarget.style.background = "#7ba06c"}
-              onMouseLeave={(e) => e.currentTarget.style.background = "var(--success)"}
-            >
-              Save
-            </button>
-            {confirmingGenerate ? (
-              <div style={{ display: "flex", gap: 4, flex: 3 }}>
-                <button
-                  onClick={generate}
-                  style={{ ...panelBtnStyle, background: "var(--error)", flex: 1 }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = "#c06c60"}
-                  onMouseLeave={(e) => e.currentTarget.style.background = "var(--error)"}
-                >
-                  Confirm
-                </button>
-                <button
-                  onClick={() => setConfirmingGenerate(false)}
-                  style={{ ...panelBtnStyle, background: "var(--text-muted)", flex: 1 }}
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setConfirmingGenerate(true)}
-                style={{ ...panelBtnStyle, background: "#c9734a", flex: 3 }}
-                onMouseEnter={(e) => e.currentTarget.style.background = "#d9865f"}
-                onMouseLeave={(e) => e.currentTarget.style.background = "#c9734a"}
-              >
-                Generate
-              </button>
-            )}
-          </div>
-
-          <div style={{
-            display: "flex", gap: 4, marginTop: 4,
-          }}>
-            <button
-              onClick={() => setSelectedNode(null)}
-              style={{
-                ...ghostBtnStyle, flex: 1, justifyContent: "center",
-                border: "1px solid var(--border)", fontSize: 12,
-              }}
-            >
-              {closeSvg} Close
-            </button>
-            <button
-              onClick={deleteSelectedNode}
-              style={{ ...destructiveBtnStyle, flex: 1, justifyContent: "center" }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(212,103,103,0.12)" }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
-              title="Delete scene (Delete key)"
-            >
-              {trashSvg} Delete
-            </button>
-          </div>
-        </div>
+        <SceneEditorPanel
+          form={form}
+          onFormChange={setForm}
+          onSave={updateNode}
+          onGenerate={generate}
+          onDelete={deleteSelectedNode}
+          onClose={() => setSelectedNode(null)}
+          confirmingGenerate={confirmingGenerate}
+          setConfirmingGenerate={setConfirmingGenerate}
+        />
       )
     }
 
     if (selectedNode && activeTab === "generations") {
       return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-            <div style={{ color: "var(--text-dim)", fontWeight: 500 }}>Generations</div>
-            {generations.filter(g => g.output).length >= 2 && (
-              <button
-                onClick={() => setShowCompare(!showCompare)}
-                style={{
-                  background: showCompare ? "var(--accent)" : "transparent",
-                  border: `1px solid ${showCompare ? "var(--accent)" : "var(--border)"}`,
-                  borderRadius: 4, padding: "3px 10px",
-                  color: showCompare ? "#1a1a24" : "var(--text-dim)",
-                  cursor: "pointer", fontSize: 10, fontWeight: 600,
-                  transition: "all 0.15s",
-                }}
-              >
-                {showCompare ? "List" : "Compare"}
-              </button>
-            )}
-          </div>
-
-          {showCompare ? (
-            <GenerationCompare generations={generations} />
-          ) : (
-            <>
-              {gensLoading && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-dim)", padding: 8 }}>
-                  <div style={spinnerStyle} />
-                  <span style={{ fontSize: 12 }}>Loading generations...</span>
-                </div>
-              )}
-              {!gensLoading && generations.length === 0 && (
-                <div style={{
-                  color: "var(--text-dim)", fontStyle: "italic",
-                  padding: 12, textAlign: "center", fontSize: 11,
-                }}>
-                  No generations yet. Click <strong style={{ color: "var(--accent)" }}>Generate</strong> to start.
-                </div>
-              )}
-              {!gensLoading && generations.map((g) => {
-                const isAccepted = g.accepted
-                const isExpanded = expandedGen === g.id
-                return (
-                  <div key={g.id} style={{
-                    border: `1px solid ${isAccepted ? "var(--accent)" : "var(--border)"}`,
-                    borderRadius: 6, padding: 10,
-                    background: isAccepted ? "rgba(212,168,83,0.06)" : "transparent",
-                    transition: "border-color 0.15s",
-                  }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                      <span style={{ fontWeight: 600, fontSize: 11, color: isAccepted ? "var(--accent)" : "var(--text)" }}>
-                        {g.model || "unknown"}
-                      </span>
-                      <span style={{ fontSize: 10, color: "var(--text-dim)" }}>
-                        {new Date(g.created_at).toLocaleString()}
-                      </span>
-                    </div>
-                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                      <span style={{
-                        fontSize: 10, padding: "2px 7px", borderRadius: 3,
-                        background: isAccepted ? "var(--accent)" : g.output ? "rgba(201,115,74,0.15)" : "rgba(140,126,112,0.15)",
-                        color: isAccepted ? "#1a1a24" : g.output ? "#c9734a" : "var(--text-dim)",
-                        fontWeight: 600,
-                      }}>
-                        {isAccepted ? "Accepted" : g.output ? "Generated" : "Pending"}
-                      </span>
-                      {g.output && (
-                        <button
-                          onClick={() => setExpandedGen(isExpanded ? null : g.id)}
-                          style={{
-                            background: "none", border: "none", color: "var(--accent)",
-                            cursor: "pointer", fontSize: 10, padding: 0,
-                          }}
-                        >
-                          {isExpanded ? "Collapse" : "Preview"}
-                        </button>
-                      )}
-                    </div>
-                    {isExpanded && g.output && (
-                      <div style={{
-                        marginTop: 8, padding: 10,
-                        background: "var(--bg)", borderRadius: 4,
-                        fontSize: 11, lineHeight: 1.6,
-                        maxHeight: 250, overflowY: "auto",
-                        whiteSpace: "pre-wrap", color: "var(--text)",
-                        border: "1px solid var(--border)",
-                      }}>
-                        {g.output}
-                      </div>
-                    )}
-                    {g.output && !isAccepted && (
-                      <button
-                        onClick={() => acceptGeneration(selectedNode.id, g.id)}
-                        style={{
-                          marginTop: 8, padding: "5px 10px",
-                          background: "var(--accent)", color: "#1a1a24",
-                          border: "none", borderRadius: 4,
-                          cursor: "pointer", fontWeight: 600, fontSize: 11,
-                          width: "100%", transition: "background 0.15s",
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = "var(--accent-hover)"}
-                        onMouseLeave={(e) => e.currentTarget.style.background = "var(--accent)"}
-                      >
-                        Accept
-                      </button>
-                    )}
-                  </div>
-                )
-              })}
-            </>
-          )}
-        </div>
+        <GenerationList
+          generations={generations}
+          gensLoading={gensLoading}
+          selectedNodeId={selectedNode.id}
+          onAccept={acceptGeneration}
+        />
       )
     }
 
     if (selectedNode && activeTab === "info") {
-      const inEdges = edges.filter((e) => e.target === selectedNode.id)
-      const outEdges = edges.filter((e) => e.source === selectedNode.id)
       return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12 }}>
-          <div>
-            <div style={{ color: "var(--text-dim)", fontSize: 11, marginBottom: 2 }}>Status</div>
-            <div style={{
-              fontWeight: 600, textTransform: "capitalize",
-              display: "inline-flex", alignItems: "center", gap: 6,
-              padding: "2px 8px", borderRadius: 4,
-              background: "rgba(212,168,83,0.08)",
-              color: "var(--accent)",
-              fontSize: 12,
-            }}>
-              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--accent)", flexShrink: 0 }} />
-              {selectedNodeData?.status || "Unknown"}
-            </div>
-          </div>
-
-          <div>
-            <div style={{ color: "var(--text-dim)", fontSize: 11, marginBottom: 2 }}>Beat Intent</div>
-            <div style={{ color: "var(--text)", lineHeight: 1.4 }}>
-              {selectedNodeData?.beatIntent || "—"}
-            </div>
-          </div>
-
-          <div>
-            <div style={{ color: "var(--text-dim)", fontSize: 11, marginBottom: 4 }}>Edges</div>
-            <div style={{
-              display: "flex", gap: 8, alignItems: "center",
-              padding: "6px 10px", background: "var(--bg)",
-              borderRadius: 4, fontSize: 12, color: "var(--text)",
-            }}>
-              <span>Incoming: {inEdges.length}</span>
-              {inEdges.length > 0 && (
-                <span style={{ fontSize: 10, color: "var(--text-dim)" }}>
-                  ({inEdges.map((e) => e.label || "seq").join(", ")})
-                </span>
-              )}
-            </div>
-            <div style={{
-              display: "flex", gap: 8, alignItems: "center",
-              padding: "6px 10px", background: "var(--bg)",
-              borderRadius: 4, fontSize: 12, color: "var(--text)", marginTop: 4,
-            }}>
-              <span>Outgoing: {outEdges.length}</span>
-              {outEdges.length > 0 && (
-                <span style={{ fontSize: 10, color: "var(--text-dim)" }}>
-                  ({outEdges.map((e) => e.label || "seq").join(", ")})
-                </span>
-              )}
-            </div>
-          </div>
-
-          <button
-            onClick={deleteSelectedNode}
-            style={{ ...destructiveBtnStyle, marginTop: 8, justifyContent: "center" }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(212,103,103,0.12)" }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
-          >
-            {trashSvg} Delete Scene
-          </button>
-        </div>
+        <NodeInfoPanel
+          edges={edges}
+          selectedNodeId={selectedNode.id}
+          status={selectedNodeData?.status || "Unknown"}
+          beatIntent={selectedNodeData?.beatIntent || ""}
+          onDelete={deleteSelectedNode}
+        />
       )
     }
 
@@ -739,49 +440,7 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
     }
 
     if (selectedEdge) {
-      const edgeLabel = selectedEdge.label || "seq"
-      return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12 }}>
-          <div>
-            <div style={{ color: "var(--text-dim)", fontSize: 11, marginBottom: 4 }}>Edge Details</div>
-            <div style={{
-              padding: "6px 10px", background: "var(--bg)",
-              borderRadius: 4, display: "flex", gap: 6, alignItems: "center",
-            }}>
-              <span style={{ color: "var(--text-dim)" }}>Type:</span>
-              <span style={{
-                color: "var(--accent)", fontWeight: 600, textTransform: "uppercase",
-                padding: "1px 6px", borderRadius: 3,
-                background: "rgba(212,168,83,0.1)", fontSize: 10,
-              }}>
-                {edgeLabel}
-              </span>
-            </div>
-          </div>
-
-          <div style={{
-            padding: "6px 10px", background: "var(--bg)", borderRadius: 4,
-            fontSize: 11, color: "var(--text)", wordBreak: "break-all",
-          }}>
-            <span style={{ color: "var(--text-dim)" }}>From:</span> Node {selectedEdge.source.slice(-4)}
-          </div>
-          <div style={{
-            padding: "6px 10px", background: "var(--bg)", borderRadius: 4,
-            fontSize: 11, color: "var(--text)", wordBreak: "break-all",
-          }}>
-            <span style={{ color: "var(--text-dim)" }}>To:</span> Node {selectedEdge.target.slice(-4)}
-          </div>
-
-          <button
-            onClick={deleteEdge}
-            style={{ ...destructiveBtnStyle, marginTop: 4, justifyContent: "center" }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(212,103,103,0.12)" }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
-          >
-            {trashSvg} Delete Edge
-          </button>
-        </div>
-      )
+      return <EdgeInfoPanel selectedEdge={selectedEdge} onDelete={deleteEdge} />
     }
 
     return (
@@ -963,7 +622,7 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
                 onClick={() => {
                   setActiveTab(tab)
                   if (tab === "generations") loadGenerations(selectedNode!.id)
-                  if (tab === "turns" || tab === "agents") setShowCompare(false)
+                  if (tab === "turns" || tab === "agents") {}
                 }}
                 style={tabBtnStyle(activeTab === tab)}
                 onMouseEnter={(e) => {
