@@ -1,5 +1,4 @@
 import { useState } from "react"
-import type { AgentRun } from "../api/types"
 import { useAgentRuns } from "../api/hooks"
 import { fadeInStyle } from "../api/types"
 
@@ -31,7 +30,7 @@ export default function AgentRunPanel({ storyId, nodeId }: AgentRunPanelProps) {
   }
 
   if (!runs || runs.length === 0) {
-    return <div style={{ color: "var(--text-muted)", fontSize: 12, fontStyle: "italic", padding: 8 }}>No agent runs recorded.</div>
+    return <div style={{ color: "var(--text-dim)", fontSize: 12, fontStyle: "italic", padding: 8 }}>No agent runs recorded.</div>
   }
 
   return (
@@ -45,7 +44,7 @@ export default function AgentRunPanel({ storyId, nodeId }: AgentRunPanelProps) {
           <div key={run.id} style={{
             border: `1px solid ${isFailed ? "var(--error)" : "var(--border)"}`,
             borderRadius: 6, padding: 10,
-            background: isFailed ? "rgba(212,103,103,0.05)" : "var(--surface)",
+            background: isFailed ? "rgba(212,103,103,0.04)" : "var(--surface)",
           }}>
             <div
               onClick={() => setExpanded(isExpanded ? null : run.id)}
@@ -53,10 +52,11 @@ export default function AgentRunPanel({ storyId, nodeId }: AgentRunPanelProps) {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{
-                  width: 8, height: 8, borderRadius: "50%",
+                  width: 7, height: 7, borderRadius: "50%",
                   background: isFailed ? "var(--error)" :
                     run.status === "done" ? "var(--success)" : "var(--accent)",
                   flexShrink: 0,
+                  boxShadow: isFailed ? "0 0 6px var(--error)" : run.status === "done" ? "0 0 6px var(--success)" : "none",
                 }} />
                 <span style={{
                   fontSize: 11, fontWeight: 600, color,
@@ -65,13 +65,17 @@ export default function AgentRunPanel({ storyId, nodeId }: AgentRunPanelProps) {
                   {run.agent_type}
                 </span>
                 {run.model && (
-                  <span style={{ fontSize: 9, color: "var(--text-muted)", padding: "1px 4px", background: "rgba(136,136,160,0.1)", borderRadius: 3 }}>
+                  <span style={{
+                    fontSize: 9, color: "var(--text-dim)",
+                    padding: "1px 5px", background: "rgba(136,136,160,0.08)",
+                    borderRadius: 3, fontFamily: "var(--font-mono)",
+                  }}>
                     {run.model}
                   </span>
                 )}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 10, color: "var(--text-muted)" }}>
+                <span style={{ fontSize: 10, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
                   {run.duration_ms > 0 ? `${(run.duration_ms / 1000).toFixed(1)}s` : run.status}
                 </span>
                 <span style={{ fontSize: 10, color: "var(--accent)" }}>
@@ -81,29 +85,33 @@ export default function AgentRunPanel({ storyId, nodeId }: AgentRunPanelProps) {
             </div>
 
             {isExpanded && (
-              <div style={{ marginTop: 8, fontSize: 11, fontFamily: "monospace" }}>
+              <div style={{ marginTop: 8, fontSize: 11 }}>
                 <div style={{ marginBottom: 6 }}>
-                  <div style={{ color: "var(--text-muted)", fontSize: 10, marginBottom: 2 }}>Input</div>
+                  <div style={{ color: "var(--text-dim)", fontSize: 10, marginBottom: 2 }}>Input</div>
                   <pre style={{
                     margin: 0, padding: 6, background: "var(--bg)", borderRadius: 4,
                     maxHeight: 150, overflowY: "auto", fontSize: 10, color: "var(--text)",
                     whiteSpace: "pre-wrap", wordBreak: "break-all",
+                    border: "1px solid var(--border)",
+                    fontFamily: "var(--font-mono)",
                   }}>
                     {JSON.stringify(run.input, null, 2)}
                   </pre>
                 </div>
                 <div>
-                  <div style={{ color: "var(--text-muted)", fontSize: 10, marginBottom: 2 }}>Output</div>
+                  <div style={{ color: "var(--text-dim)", fontSize: 10, marginBottom: 2 }}>Output</div>
                   <pre style={{
                     margin: 0, padding: 6, background: "var(--bg)", borderRadius: 4,
                     maxHeight: 200, overflowY: "auto", fontSize: 10, color: "var(--text)",
                     whiteSpace: "pre-wrap", wordBreak: "break-all",
+                    border: "1px solid var(--border)",
+                    fontFamily: "var(--font-mono)",
                   }}>
                     {JSON.stringify(run.output, null, 2)}
                   </pre>
                 </div>
                 {run.error && (
-                  <div style={{ color: "var(--error)", marginTop: 4, fontSize: 10 }}>
+                  <div style={{ color: "var(--error)", marginTop: 4, fontSize: 10, background: "var(--error-dim)", padding: "4px 6px", borderRadius: 4 }}>
                     {run.error}
                   </div>
                 )}

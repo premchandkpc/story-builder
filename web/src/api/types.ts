@@ -224,7 +224,12 @@ const inputStyle: Record<string, string | number> = {
   fontSize: 14,
   boxSizing: "border-box",
   outline: "none",
-  transition: "border-color 0.15s var(--ease-in-out)",
+  transition: "border-color 0.15s var(--ease-in-out), box-shadow 0.15s var(--ease-in-out)",
+}
+
+export const inputFocusStyle: Record<string, string | number> = {
+  borderColor: "var(--accent)",
+  boxShadow: "0 0 0 3px var(--accent-dim)",
 }
 
 export function btnStyle(bg: string, disabled = false): Record<string, string | number> {
@@ -237,7 +242,7 @@ export function btnStyle(bg: string, disabled = false): Record<string, string | 
     cursor: disabled ? "not-allowed" : "pointer",
     fontWeight: 600,
     fontSize: 14,
-    transition: "background 0.15s var(--ease-in-out), transform 0.1s var(--ease-out)",
+    transition: "background 0.15s var(--ease-in-out), transform 0.1s var(--ease-out), box-shadow 0.15s",
   }
 }
 
@@ -271,6 +276,64 @@ export const slideUpStyle: Record<string, string | number> = {
 
 export const scaleInStyle: Record<string, string | number> = {
   animation: "scaleIn 0.2s var(--ease-out)",
+}
+
+export const cardStyle: React.CSSProperties = {
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius-lg)",
+  boxShadow: "var(--shadow-sm)",
+}
+
+export const labelStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: "var(--text-muted)",
+  fontWeight: 500,
+  display: "block",
+  marginBottom: 4,
+}
+
+export const badgeStyle = (color: string, bg: string): React.CSSProperties => ({
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 4,
+  padding: "2px 8px",
+  borderRadius: "var(--radius-sm)",
+  fontSize: 10,
+  fontWeight: 600,
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+  color,
+  background: bg,
+})
+
+export const ghostBtnStyle: React.CSSProperties = {
+  background: "none",
+  border: "none",
+  color: "var(--text-muted)",
+  cursor: "pointer",
+  padding: "6px 8px",
+  borderRadius: "var(--radius-md)",
+  display: "flex",
+  alignItems: "center",
+  gap: 4,
+  fontSize: 12,
+  transition: "color var(--transition-fast), background var(--transition-fast)",
+}
+
+export const destructiveBtnStyle: React.CSSProperties = {
+  padding: "6px 12px",
+  background: "transparent",
+  border: "1px solid var(--error)",
+  borderRadius: "var(--radius-md)",
+  color: "var(--error)",
+  cursor: "pointer",
+  fontSize: 12,
+  display: "flex",
+  alignItems: "center",
+  gap: 4,
+  justifyContent: "center",
+  transition: "background var(--transition-fast)",
 }
 
 // ---- Interface: SceneTurn ----

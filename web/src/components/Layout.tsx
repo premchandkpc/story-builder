@@ -20,6 +20,15 @@ const plusSvg = (
   </svg>
 )
 
+const storyIconSvg = (
+  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" style={{ opacity: 0.35 }}>
+    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+    <path d="M14 2v6h6" />
+    <path d="M12 18v-6" />
+    <path d="M9 15h6" />
+  </svg>
+)
+
 export default function Layout() {
   const { error: showError } = useToast()
   const { storyId } = useParams<{ storyId: string }>()
@@ -82,7 +91,7 @@ export default function Layout() {
           transition: "width 0.2s var(--ease-out)",
         }}>
           <div style={{
-            padding: "12px 14px",
+            padding: "12px 16px",
             borderBottom: "1px solid var(--border)",
             display: "flex",
             gap: 6,
@@ -105,6 +114,19 @@ export default function Layout() {
             </button>
           </div>
 
+          <div style={{
+            fontSize: 10,
+            color: "var(--text-dim)",
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            fontWeight: 600,
+            padding: "10px 16px 6px",
+            borderBottom: "1px solid var(--border)",
+            minWidth: 280,
+          }}>
+            Stories {filteredStories.length > 0 && `(${filteredStories.length})`}
+          </div>
+
           <div style={{ flex: 1, overflowY: "auto", minWidth: 280 }}>
             {isLoading ? (
               <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
@@ -117,17 +139,12 @@ export default function Layout() {
               </div>
             ) : filteredStories.length === 0 ? (
               <div style={{
-                padding: 32, textAlign: "center", color: "var(--text-muted)", fontSize: 13,
-                display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+                padding: 40, textAlign: "center", color: "var(--text-dim)", fontSize: 13,
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
               }}>
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" style={{ opacity: 0.4 }}>
-                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                  <path d="M14 2v6h6" />
-                  <path d="M12 18v-6" />
-                  <path d="M9 15h6" />
-                </svg>
+                {storyIconSvg}
                 <span>{searchQuery ? "No matching stories" : "No stories yet"}</span>
-                <span style={{ fontSize: 11, opacity: 0.6 }}>Create one above</span>
+                <span style={{ fontSize: 11, opacity: 0.6 }}>{searchQuery ? "Try a different search" : "Create one above to get started"}</span>
               </div>
             ) : (
               filteredStories.map((s, i) => {
@@ -160,17 +177,23 @@ export default function Layout() {
             background: "var(--surface)",
             border: "1px solid var(--border)",
             borderLeft: "none",
-            borderRadius: "0 4px 4px 0",
-            padding: "8px 4px",
+            borderRadius: "0 6px 6px 0",
+            padding: "10px 4px",
             cursor: "pointer",
-            color: "var(--text-muted)",
+            color: "var(--text-dim)",
             zIndex: 10,
-            transition: "left 0.2s var(--ease-out), color 0.15s",
+            transition: "left 0.2s var(--ease-out), color 0.15s, background 0.15s",
             display: "flex",
             alignItems: "center",
           }}
-          onMouseEnter={(e) => e.currentTarget.style.color = "var(--accent)"}
-          onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-muted)"}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = "var(--accent)"
+            e.currentTarget.style.background = "var(--surface-hover)"
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = "var(--text-dim)"
+            e.currentTarget.style.background = "var(--surface)"
+          }}
           title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
         >
           <div style={{ transform: sidebarOpen ? "none" : "rotate(180deg)", transition: "transform 0.2s" }}>

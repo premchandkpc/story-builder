@@ -35,6 +35,13 @@ const severityColors: Record<string, string> = {
   low: "var(--text-muted)",
 }
 
+const severityBg: Record<string, string> = {
+  critical: "rgba(176, 92, 80, 0.1)",
+  high: "rgba(201, 115, 74, 0.1)",
+  medium: "rgba(212, 168, 83, 0.1)",
+  low: "rgba(140, 126, 112, 0.1)",
+}
+
 const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 }
 
 export default function AuditDashboard() {
@@ -61,7 +68,7 @@ export default function AuditDashboard() {
   const filters = ["all", "critical", "high", "medium", "low", "fixed", "wontfix"]
 
   return (
-    <div style={{ padding: 32, maxWidth: 900, margin: "0 auto" }}>
+    <div style={{ padding: 40, maxWidth: 900, margin: "0 auto" }}>
       <h1 style={{
         fontFamily: "var(--font-heading)",
         fontSize: 28,
@@ -70,41 +77,59 @@ export default function AuditDashboard() {
       }}>
         Code Audit
       </h1>
-      <p style={{ color: "var(--text-muted)", fontSize: 14, marginBottom: 28 }}>
+      <p style={{ color: "var(--text-dim)", fontSize: 14, marginBottom: 32 }}>
         Story Builder — internal code review · {findings.length} findings
       </p>
 
-      <div style={{ display: "flex", gap: 12, marginBottom: 28, flexWrap: "wrap" }}>
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(6, 1fr)",
+        gap: 12,
+        marginBottom: 28,
+      }}>
         {[
           { key: "critical", label: "Critical", n: counts.critical, c: "var(--error)" },
           { key: "high", label: "High", n: counts.high, c: "#c9734a" },
           { key: "medium", label: "Medium", n: counts.medium, c: "var(--accent)" },
           { key: "low", label: "Low", n: counts.low, c: "var(--text-muted)" },
           { key: "fixed", label: "Fixed", n: counts.fixed, c: "var(--success)" },
-          { key: "wontfix", label: "Won't Fix", n: counts.wontfix, c: "var(--text-muted)" },
+          { key: "wontfix", label: "Won't Fix", n: counts.wontfix, c: "var(--text-dim)" },
         ].map(s => (
           <div key={s.key} style={{
-            background: "var(--surface)", border: `1px solid var(--border)`, borderRadius: 8,
-            padding: "14px 18px", minWidth: 100, flex: 1,
+            background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8,
+            padding: "14px 18px",
           }}>
             <div style={{ fontSize: 26, fontWeight: 700, fontFamily: "var(--font-heading)", color: s.c }}>{s.n}</div>
-            <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.label}</div>
+            <div style={{ fontSize: 11, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.label}</div>
           </div>
         ))}
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
         {filters.map(f => (
           <button
             key={f}
             onClick={() => setFilter(f)}
             style={{
-              background: filter === f ? "rgba(212,168,83,0.12)" : "var(--surface)",
+              background: filter === f ? "var(--accent-dim)" : "var(--surface)",
               border: `1px solid ${filter === f ? "var(--accent)" : "var(--border)"}`,
               borderRadius: 6, padding: "6px 14px",
               color: filter === f ? "var(--accent)" : "var(--text)",
               cursor: "pointer", fontSize: 13,
               textTransform: "capitalize",
+              transition: "all 0.15s",
+            }}
+            onMouseEnter={(e) => {
+              if (filter !== f) {
+                e.currentTarget.style.background = "var(--surface-hover)"
+                e.currentTarget.style.borderColor = "var(--border-light)"
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (filter !== f) {
+                e.currentTarget.style.background = "var(--surface)"
+                e.currentTarget.style.borderColor = "var(--border)"
+              }
             }}
           >
             {f}
@@ -115,38 +140,48 @@ export default function AuditDashboard() {
       {filtered.map((f, i) => (
         <div key={f.id} style={{
           background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8,
-          padding: "14px 18px", marginBottom: 8, display: "flex", gap: 12,
+          padding: "16px 20px", marginBottom: 8, display: "flex", gap: 14,
           animation: `slideUp 0.25s var(--ease-out) ${i * 0.03}s both`,
         }}>
           <span style={{
-            width: 10, height: 10, borderRadius: "50%", flexShrink: 0, marginTop: 4,
-            background: f.status === "fixed" ? "var(--success)" : "var(--text-muted)",
+            width: 10, height: 10, borderRadius: "50%", flexShrink: 0, marginTop: 5,
+            background: f.status === "fixed" ? "var(--success)" : "var(--text-dim)",
             boxShadow: f.status === "fixed" ? "0 0 6px var(--success)" : "none",
           }} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
               <span style={{ fontWeight: 600, fontSize: 14 }}>{f.id}: {f.title}</span>
               <span style={{
                 fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em",
-                padding: "1px 7px", borderRadius: 4,
-                background: `${severityColors[f.severity]}18`,
-                color: severityColors[f.severity],
-                border: `1px solid ${severityColors[f.severity]}`,
+                padding: "2px 8px", borderRadius: 4,
+                background: severityBg[f.severity] || "transparent",
+                color: severityColors[f.severity] || "var(--text-muted)",
+                border: `1px solid ${severityColors[f.severity] || "var(--border)"}`,
               }}>
                 {f.severity}
               </span>
             </div>
-            <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.5, margin: 0 }}>{f.desc}</p>
+            <p style={{ fontSize: 13, color: "var(--text-dim)", lineHeight: 1.5, margin: "4px 0" }}>{f.desc}</p>
             <div style={{
-              marginTop: 6, fontSize: 12, color: "var(--text)",
-              background: "rgba(123,184,123,0.08)", borderLeft: "2px solid var(--success)",
-              padding: "5px 10px", borderRadius: "0 4px 4px 0",
+              marginTop: 8, fontSize: 12, color: "var(--text)",
+              background: "var(--success-dim)", borderLeft: "2px solid var(--success)",
+              padding: "6px 12px", borderRadius: "0 4px 4px 0",
             }}>
               {f.fix}
             </div>
-            <div style={{ marginTop: 6, fontSize: 11, color: "var(--text-muted)", display: "flex", gap: 12 }}>
-              <span>File: <code style={{ background: "var(--bg)", padding: "0 5px", borderRadius: 3, color: "var(--accent)" }}>{f.file}</code></span>
-              <span>Status: {f.status}</span>
+            <div style={{
+              marginTop: 8, fontSize: 11, color: "var(--text-dim)",
+              display: "flex", gap: 16, alignItems: "center",
+            }}>
+              <span>File: <code style={{ background: "var(--bg)", padding: "1px 6px", borderRadius: 3, color: "var(--accent)" }}>{f.file}</code></span>
+              <span style={{
+                padding: "1px 6px", borderRadius: 3,
+                background: f.status === "fixed" ? "var(--success-dim)" : "rgba(140,126,112,0.1)",
+                color: f.status === "fixed" ? "var(--success)" : "var(--text-dim)",
+                fontSize: 10, fontWeight: 600,
+              }}>
+                {f.status}
+              </span>
             </div>
           </div>
         </div>

@@ -1,5 +1,4 @@
 import { useState } from "react"
-import type { SceneTurn } from "../api/types"
 import { useTurns } from "../api/hooks"
 import { fadeInStyle, slideUpStyle } from "../api/types"
 
@@ -44,12 +43,12 @@ export default function TurnTimeline({ storyId, nodeId, compact }: TurnTimelineP
   }
 
   if (!turns || turns.length === 0) {
-    return <div style={{ color: "var(--text-muted)", fontSize: 12, fontStyle: "italic", padding: 8 }}>No turns yet. Generate to populate.</div>
+    return <div style={{ color: "var(--text-dim)", fontSize: 12, fontStyle: "italic", padding: 8 }}>No turns yet. Generate to populate.</div>
   }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 0, ...(compact ? {} : fadeInStyle) }}>
-      {turns.map((turn, i) => {
+      {turns.map((turn) => {
         const isExpanded = expandedTurn === turn.id
         const roleColor = roleColors[turn.role] || "var(--text-muted)"
         const isAccepted = turn.status === "done"
@@ -77,13 +76,14 @@ export default function TurnTimeline({ storyId, nodeId, compact }: TurnTimelineP
                 }}>
                   {turn.role}
                 </span>
-                <span style={{ fontSize: 10, color: "var(--text-muted)" }}>
+                <span style={{ fontSize: 10, color: "var(--text-dim)" }}>
                   #{turn.number}
                 </span>
                 {turn.model && (
                   <span style={{
-                    fontSize: 9, padding: "1px 4px", borderRadius: 3,
-                    background: "rgba(136,136,160,0.12)", color: "var(--text-muted)",
+                    fontSize: 9, padding: "1px 5px", borderRadius: 3,
+                    background: "rgba(136,136,160,0.1)", color: "var(--text-dim)",
+                    fontFamily: "var(--font-mono)",
                   }}>
                     {turn.model}
                   </span>
@@ -93,7 +93,8 @@ export default function TurnTimeline({ storyId, nodeId, compact }: TurnTimelineP
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{
                   fontSize: 10, color: turn.status === "done" ? "var(--success)" :
-                    turn.status === "failed" ? "var(--error)" : "var(--text-muted)",
+                    turn.status === "failed" ? "var(--error)" : "var(--text-dim)",
+                  fontFamily: "var(--font-mono)",
                 }}>
                   {turn.duration_ms > 0 ? formatDuration(turn.duration_ms) : turn.status}
                 </span>
@@ -115,11 +116,12 @@ export default function TurnTimeline({ storyId, nodeId, compact }: TurnTimelineP
               <div style={{ marginTop: 8, fontSize: 11, lineHeight: 1.5 }}>
                 {turn.input && (
                   <div style={{ marginBottom: 6 }}>
-                    <div style={{ color: "var(--text-muted)", fontSize: 10, marginBottom: 2 }}>Input</div>
+                    <div style={{ color: "var(--text-dim)", fontSize: 10, marginBottom: 2 }}>Input</div>
                     <div style={{
                       padding: 6, background: "var(--bg)", borderRadius: 4,
                       whiteSpace: "pre-wrap", maxHeight: 120, overflowY: "auto",
-                      color: "var(--text)", fontSize: 10, fontFamily: "monospace",
+                      color: "var(--text)", fontSize: 10, fontFamily: "var(--font-mono)",
+                      border: "1px solid var(--border)",
                     }}>
                       {turn.input.length > 500 ? turn.input.slice(0, 500) + "..." : turn.input}
                     </div>
@@ -127,31 +129,30 @@ export default function TurnTimeline({ storyId, nodeId, compact }: TurnTimelineP
                 )}
                 {turn.output && (
                   <div>
-                    <div style={{ color: "var(--text-muted)", fontSize: 10, marginBottom: 2 }}>Output</div>
+                    <div style={{ color: "var(--text-dim)", fontSize: 10, marginBottom: 2 }}>Output</div>
                     <div style={{
                       padding: 6, background: "var(--bg)", borderRadius: 4,
                       whiteSpace: "pre-wrap", maxHeight: 200, overflowY: "auto",
-                      color: "var(--text)", fontSize: 10, fontFamily: "monospace",
+                      color: "var(--text)", fontSize: 10, fontFamily: "var(--font-mono)",
+                      border: "1px solid var(--border)",
                     }}>
                       {turn.output.length > 1000 ? turn.output.slice(0, 1000) + "..." : turn.output}
                     </div>
                   </div>
                 )}
                 {turn.error && (
-                  <div style={{ color: "var(--error)", fontSize: 10, marginTop: 4 }}>
+                  <div style={{ color: "var(--error)", fontSize: 10, marginTop: 4, background: "var(--error-dim)", padding: "4px 6px", borderRadius: 4 }}>
                     Error: {turn.error}
                   </div>
                 )}
 
                 <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
                   {turn.prompt_tokens > 0 && (
-                    <span style={{ fontSize: 9, color: "var(--text-muted)" }}>
+                    <span style={{ fontSize: 9, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
                       P:{turn.prompt_tokens} C:{turn.completion_tokens} T:{turn.prompt_tokens + turn.completion_tokens}
                     </span>
                   )}
                 </div>
-
-
               </div>
             )}
           </div>

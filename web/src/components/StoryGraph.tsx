@@ -23,7 +23,7 @@ import GenerationCompare from "./GenerationCompare"
 import LlmMetricsDashboard from "./LlmMetricsDashboard"
 import { api } from "../api/client"
 import type { GraphNode, GraphEdge, EdgeType, Generation } from "../api/types"
-import { spinnerStyle, slideUpStyle } from "../api/types"
+import { spinnerStyle, slideUpStyle, labelStyle, ghostBtnStyle, destructiveBtnStyle } from "../api/types"
 import { useToast } from "./Toast"
 
 interface SceneNodeData extends Record<string, unknown> {
@@ -128,6 +128,48 @@ const edgeTypes: { value: EdgeType; label: string; desc: string }[] = [
   { value: "choice", label: "Choice", desc: "Decision point" },
 ]
 
+const panelInputStyle: React.CSSProperties = {
+  display: "block",
+  width: "100%",
+  marginTop: 4,
+  padding: "7px 10px",
+  background: "var(--bg)",
+  border: "1px solid var(--border)",
+  borderRadius: 4,
+  color: "var(--text)",
+  fontSize: 12,
+  fontFamily: "var(--font-body)",
+  boxSizing: "border-box",
+  transition: "border-color 0.15s, box-shadow 0.15s",
+}
+
+const panelBtnStyle: React.CSSProperties = {
+  flex: 1,
+  padding: "8px 14px",
+  background: "var(--success)",
+  color: "#1a1a24",
+  border: "none",
+  borderRadius: 6,
+  cursor: "pointer",
+  fontWeight: 600,
+  fontSize: 12,
+  transition: "background 0.15s",
+}
+
+const tabBtnStyle = (active: boolean): React.CSSProperties => ({
+  flex: 1,
+  padding: "8px 0",
+  background: "none",
+  border: "none",
+  borderBottom: active ? "2px solid var(--accent)" : "2px solid transparent",
+  color: active ? "var(--accent)" : "var(--text-dim)",
+  cursor: "pointer",
+  fontWeight: active ? 600 : 400,
+  fontSize: 11,
+  textTransform: "capitalize",
+  transition: "color 0.15s, border-color 0.15s",
+})
+
 export default function StoryGraph({ storyId }: StoryGraphProps) {
   const { toast, error: showError } = useToast()
 
@@ -136,7 +178,7 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
   const [selectedNode, setSelectedNode] = useState<Node<SceneNodeData> | null>(null)
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<"edit" | "info" | "generations">("edit")
+  const [activeTab, setActiveTab] = useState<"edit" | "info" | "generations" | "turns" | "agents">("edit")
   const [generations, setGenerations] = useState<Generation[]>([])
   const [gensLoading, setGensLoading] = useState(false)
   const [expandedGen, setExpandedGen] = useState<string | null>(null)
@@ -377,18 +419,19 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
   const renderPanelContent = () => {
     if (selectedNode && activeTab === "edit") {
       return (
-        <>
-          <label style={{ fontSize: 12, color: "var(--text-muted)" }}>
-            Beat Intent
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Beat Intent</label>
             <input
               value={form.beat_intent}
               onChange={(e) => setForm({ ...form, beat_intent: e.target.value })}
               style={panelInputStyle}
+              placeholder="Narrative purpose of this scene"
             />
-          </label>
+          </div>
 
-          <label style={{ fontSize: 12, color: "var(--text-muted)" }}>
-            POV
+          <div>
+            <label style={labelStyle}>POV</label>
             <select
               value={form.pov}
               onChange={(e) => setForm({ ...form, pov: e.target.value })}
@@ -398,10 +441,10 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
               <option value="third-person">Third person</option>
               <option value="omniscient">Omniscient</option>
             </select>
-          </label>
+          </div>
 
-          <label style={{ fontSize: 12, color: "var(--text-muted)" }}>
-            Tone
+          <div>
+            <label style={labelStyle}>Tone</label>
             <select
               value={form.tone}
               onChange={(e) => setForm({ ...form, tone: e.target.value })}
@@ -413,25 +456,39 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
               <option value="humorous">Humorous</option>
               <option value="dramatic">Dramatic</option>
             </select>
-          </label>
+          </div>
 
-          <label style={{ fontSize: 12, color: "var(--text-muted)" }}>
-            Target Words
+          <div>
+            <label style={labelStyle}>Target Words</label>
             <input
               type="number"
               value={form.target_words}
               onChange={(e) => setForm({ ...form, target_words: +e.target.value })}
               style={panelInputStyle}
+              min={50}
+              max={5000}
             />
-          </label>
+          </div>
 
-          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-            <button onClick={updateNode} style={panelBtnStyle}>Save</button>
+          <div style={{
+            display: "flex", gap: 8, marginTop: 8,
+            paddingTop: 12, borderTop: "1px solid var(--border)",
+          }}>
+            <button
+              onClick={updateNode}
+              style={{ ...panelBtnStyle, flex: 2 }}
+              onMouseEnter={(e) => e.currentTarget.style.background = "#7ba06c"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "var(--success)"}
+            >
+              Save
+            </button>
             {confirmingGenerate ? (
-              <div style={{ display: "flex", gap: 4, flex: 1 }}>
+              <div style={{ display: "flex", gap: 4, flex: 3 }}>
                 <button
                   onClick={generate}
                   style={{ ...panelBtnStyle, background: "var(--error)", flex: 1 }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = "#c06c60"}
+                  onMouseLeave={(e) => e.currentTarget.style.background = "var(--error)"}
                 >
                   Confirm
                 </button>
@@ -445,52 +502,38 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
             ) : (
               <button
                 onClick={() => setConfirmingGenerate(true)}
-                style={{ ...panelBtnStyle, background: "#c9734a" }}
+                style={{ ...panelBtnStyle, background: "#c9734a", flex: 3 }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "#d9865f"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "#c9734a"}
               >
                 Generate
               </button>
             )}
           </div>
 
-          <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
+          <div style={{
+            display: "flex", gap: 4, marginTop: 4,
+          }}>
             <button
               onClick={() => setSelectedNode(null)}
               style={{
-                flex: 1, padding: "6px 12px",
-                background: "transparent",
-                border: "1px solid var(--border)",
-                borderRadius: 6, color: "var(--text-muted)",
-                cursor: "pointer", fontSize: 12,
-                transition: "color 0.15s",
+                ...ghostBtnStyle, flex: 1, justifyContent: "center",
+                border: "1px solid var(--border)", fontSize: 12,
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text)" }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)" }}
             >
               {closeSvg} Close
             </button>
             <button
               onClick={deleteSelectedNode}
-              style={{
-                padding: "6px 12px",
-                background: "transparent",
-                border: "1px solid var(--error)",
-                borderRadius: 6,
-                color: "var(--error)",
-                cursor: "pointer",
-                fontSize: 12,
-                transition: "background 0.15s",
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(212,103,103,0.1)" }}
+              style={{ ...destructiveBtnStyle, flex: 1, justifyContent: "center" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(212,103,103,0.12)" }}
               onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
               title="Delete scene (Delete key)"
             >
               {trashSvg} Delete
             </button>
           </div>
-        </>
+        </div>
       )
     }
 
@@ -498,16 +541,17 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-            <div style={{ color: "var(--text-muted)" }}>Generations</div>
+            <div style={{ color: "var(--text-dim)", fontWeight: 500 }}>Generations</div>
             {generations.filter(g => g.output).length >= 2 && (
               <button
                 onClick={() => setShowCompare(!showCompare)}
                 style={{
                   background: showCompare ? "var(--accent)" : "transparent",
                   border: `1px solid ${showCompare ? "var(--accent)" : "var(--border)"}`,
-                  borderRadius: 4, padding: "3px 8px",
-                  color: showCompare ? "#1a1a24" : "var(--text-muted)",
-                  cursor: "pointer", fontSize: 10,
+                  borderRadius: 4, padding: "3px 10px",
+                  color: showCompare ? "#1a1a24" : "var(--text-dim)",
+                  cursor: "pointer", fontSize: 10, fontWeight: 600,
+                  transition: "all 0.15s",
                 }}
               >
                 {showCompare ? "List" : "Compare"}
@@ -519,9 +563,19 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
             <GenerationCompare generations={generations} />
           ) : (
             <>
-              {gensLoading && <div style={{ color: "var(--text-muted)" }}>Loading...</div>}
+              {gensLoading && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-dim)", padding: 8 }}>
+                  <div style={spinnerStyle} />
+                  <span style={{ fontSize: 12 }}>Loading generations...</span>
+                </div>
+              )}
               {!gensLoading && generations.length === 0 && (
-                <div style={{ color: "var(--text-muted)", fontStyle: "italic" }}>No generations yet. Click Generate to start.</div>
+                <div style={{
+                  color: "var(--text-dim)", fontStyle: "italic",
+                  padding: 12, textAlign: "center", fontSize: 11,
+                }}>
+                  No generations yet. Click <strong style={{ color: "var(--accent)" }}>Generate</strong> to start.
+                </div>
               )}
               {!gensLoading && generations.map((g) => {
                 const isAccepted = g.accepted
@@ -531,20 +585,22 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
                     border: `1px solid ${isAccepted ? "var(--accent)" : "var(--border)"}`,
                     borderRadius: 6, padding: 10,
                     background: isAccepted ? "rgba(212,168,83,0.06)" : "transparent",
+                    transition: "border-color 0.15s",
                   }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                       <span style={{ fontWeight: 600, fontSize: 11, color: isAccepted ? "var(--accent)" : "var(--text)" }}>
                         {g.model || "unknown"}
                       </span>
-                      <span style={{ fontSize: 10, color: "var(--text-muted)" }}>
+                      <span style={{ fontSize: 10, color: "var(--text-dim)" }}>
                         {new Date(g.created_at).toLocaleString()}
                       </span>
                     </div>
-                    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                       <span style={{
-                        fontSize: 10, padding: "1px 5px", borderRadius: 3,
-                        background: isAccepted ? "var(--accent)" : g.output ? "#5c4a2e" : "var(--text-muted)",
-                        color: isAccepted ? "#1a1a24" : "#f5f0e8",
+                        fontSize: 10, padding: "2px 7px", borderRadius: 3,
+                        background: isAccepted ? "var(--accent)" : g.output ? "rgba(201,115,74,0.15)" : "rgba(140,126,112,0.15)",
+                        color: isAccepted ? "#1a1a24" : g.output ? "#c9734a" : "var(--text-dim)",
+                        fontWeight: 600,
                       }}>
                         {isAccepted ? "Accepted" : g.output ? "Generated" : "Pending"}
                       </span>
@@ -562,11 +618,12 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
                     </div>
                     {isExpanded && g.output && (
                       <div style={{
-                        marginTop: 6, padding: 8,
+                        marginTop: 8, padding: 10,
                         background: "var(--bg)", borderRadius: 4,
-                        fontSize: 11, lineHeight: 1.5,
-                        maxHeight: 200, overflowY: "auto",
+                        fontSize: 11, lineHeight: 1.6,
+                        maxHeight: 250, overflowY: "auto",
                         whiteSpace: "pre-wrap", color: "var(--text)",
+                        border: "1px solid var(--border)",
                       }}>
                         {g.output}
                       </div>
@@ -575,12 +632,14 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
                       <button
                         onClick={() => acceptGeneration(selectedNode.id, g.id)}
                         style={{
-                          marginTop: 6, padding: "4px 10px",
+                          marginTop: 8, padding: "5px 10px",
                           background: "var(--accent)", color: "#1a1a24",
                           border: "none", borderRadius: 4,
                           cursor: "pointer", fontWeight: 600, fontSize: 11,
-                          width: "100%",
+                          width: "100%", transition: "background 0.15s",
                         }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = "var(--accent-hover)"}
+                        onMouseLeave={(e) => e.currentTarget.style.background = "var(--accent)"}
                       >
                         Accept
                       </button>
@@ -598,43 +657,61 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
       const inEdges = edges.filter((e) => e.target === selectedNode.id)
       const outEdges = edges.filter((e) => e.source === selectedNode.id)
       return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12 }}>
-          <div style={{ color: "var(--text-muted)" }}>Status</div>
-          <div style={{ fontWeight: 600, textTransform: "capitalize" }}>{selectedNodeData?.status || "Unknown"}</div>
-
-          <div style={{ color: "var(--text-muted)", marginTop: 8 }}>Beat Intent</div>
-          <div style={{ color: "var(--text)", lineHeight: 1.4 }}>{selectedNodeData?.beatIntent || "—"}</div>
-
-          <div style={{ color: "var(--text-muted)", marginTop: 8 }}>Edges</div>
-          <div style={{ fontSize: 12, color: "var(--text)" }}>
-            Incoming: {inEdges.length}
-            {inEdges.length > 0 && (
-              <span style={{ marginLeft: 6, fontSize: 10, color: "var(--text-muted)" }}>
-                ({inEdges.map((e) => e.label || "seq").join(", ")})
-              </span>
-            )}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12 }}>
+          <div>
+            <div style={{ color: "var(--text-dim)", fontSize: 11, marginBottom: 2 }}>Status</div>
+            <div style={{
+              fontWeight: 600, textTransform: "capitalize",
+              display: "inline-flex", alignItems: "center", gap: 6,
+              padding: "2px 8px", borderRadius: 4,
+              background: "rgba(212,168,83,0.08)",
+              color: "var(--accent)",
+              fontSize: 12,
+            }}>
+              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--accent)", flexShrink: 0 }} />
+              {selectedNodeData?.status || "Unknown"}
+            </div>
           </div>
-          <div style={{ fontSize: 12, color: "var(--text)" }}>
-            Outgoing: {outEdges.length}
-            {outEdges.length > 0 && (
-              <span style={{ marginLeft: 6, fontSize: 10, color: "var(--text-muted)" }}>
-                ({outEdges.map((e) => e.label || "seq").join(", ")})
-              </span>
-            )}
+
+          <div>
+            <div style={{ color: "var(--text-dim)", fontSize: 11, marginBottom: 2 }}>Beat Intent</div>
+            <div style={{ color: "var(--text)", lineHeight: 1.4 }}>
+              {selectedNodeData?.beatIntent || "—"}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ color: "var(--text-dim)", fontSize: 11, marginBottom: 4 }}>Edges</div>
+            <div style={{
+              display: "flex", gap: 8, alignItems: "center",
+              padding: "6px 10px", background: "var(--bg)",
+              borderRadius: 4, fontSize: 12, color: "var(--text)",
+            }}>
+              <span>Incoming: {inEdges.length}</span>
+              {inEdges.length > 0 && (
+                <span style={{ fontSize: 10, color: "var(--text-dim)" }}>
+                  ({inEdges.map((e) => e.label || "seq").join(", ")})
+                </span>
+              )}
+            </div>
+            <div style={{
+              display: "flex", gap: 8, alignItems: "center",
+              padding: "6px 10px", background: "var(--bg)",
+              borderRadius: 4, fontSize: 12, color: "var(--text)", marginTop: 4,
+            }}>
+              <span>Outgoing: {outEdges.length}</span>
+              {outEdges.length > 0 && (
+                <span style={{ fontSize: 10, color: "var(--text-dim)" }}>
+                  ({outEdges.map((e) => e.label || "seq").join(", ")})
+                </span>
+              )}
+            </div>
           </div>
 
           <button
             onClick={deleteSelectedNode}
-            style={{
-              marginTop: 12, padding: "6px 12px",
-              background: "transparent",
-              border: "1px solid var(--error)",
-              borderRadius: 6, color: "var(--error)",
-              cursor: "pointer", fontSize: 12,
-              display: "flex", alignItems: "center", gap: 4, justifyContent: "center",
-              transition: "background 0.15s",
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(212,103,103,0.1)" }}
+            style={{ ...destructiveBtnStyle, marginTop: 8, justifyContent: "center" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(212,103,103,0.12)" }}
             onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
           >
             {trashSvg} Delete Scene
@@ -646,7 +723,7 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
     if (selectedNode && activeTab === "turns") {
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div style={{ color: "var(--text-muted)", fontSize: 11, marginBottom: 4 }}>Turn Timeline</div>
+          <div style={{ color: "var(--text-dim)", fontSize: 11, marginBottom: 4 }}>Turn Timeline</div>
           <TurnTimeline storyId={storyId} nodeId={selectedNode.id} compact />
         </div>
       )
@@ -655,7 +732,7 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
     if (selectedNode && activeTab === "agents") {
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div style={{ color: "var(--text-muted)", fontSize: 11, marginBottom: 4 }}>Agent Runs</div>
+          <div style={{ color: "var(--text-dim)", fontSize: 11, marginBottom: 4 }}>Agent Runs</div>
           <AgentRunPanel storyId={storyId} nodeId={selectedNode.id} />
         </div>
       )
@@ -664,30 +741,41 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
     if (selectedEdge) {
       const edgeLabel = selectedEdge.label || "seq"
       return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12 }}>
-          <div style={{ color: "var(--text-muted)" }}>Edge</div>
-          <div style={{ fontWeight: 600 }}>
-            <span style={{ color: "var(--accent)" }}>Type:</span> {edgeLabel}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12 }}>
+          <div>
+            <div style={{ color: "var(--text-dim)", fontSize: 11, marginBottom: 4 }}>Edge Details</div>
+            <div style={{
+              padding: "6px 10px", background: "var(--bg)",
+              borderRadius: 4, display: "flex", gap: 6, alignItems: "center",
+            }}>
+              <span style={{ color: "var(--text-dim)" }}>Type:</span>
+              <span style={{
+                color: "var(--accent)", fontWeight: 600, textTransform: "uppercase",
+                padding: "1px 6px", borderRadius: 3,
+                background: "rgba(212,168,83,0.1)", fontSize: 10,
+              }}>
+                {edgeLabel}
+              </span>
+            </div>
           </div>
-          <div style={{ fontSize: 12, color: "var(--text)", wordBreak: "break-all" }}>
-            <span style={{ color: "var(--text-muted)" }}>From:</span> Node {selectedEdge.source.slice(-4)}
+
+          <div style={{
+            padding: "6px 10px", background: "var(--bg)", borderRadius: 4,
+            fontSize: 11, color: "var(--text)", wordBreak: "break-all",
+          }}>
+            <span style={{ color: "var(--text-dim)" }}>From:</span> Node {selectedEdge.source.slice(-4)}
           </div>
-          <div style={{ fontSize: 12, color: "var(--text)", wordBreak: "break-all" }}>
-            <span style={{ color: "var(--text-muted)" }}>To:</span> Node {selectedEdge.target.slice(-4)}
+          <div style={{
+            padding: "6px 10px", background: "var(--bg)", borderRadius: 4,
+            fontSize: 11, color: "var(--text)", wordBreak: "break-all",
+          }}>
+            <span style={{ color: "var(--text-dim)" }}>To:</span> Node {selectedEdge.target.slice(-4)}
           </div>
 
           <button
             onClick={deleteEdge}
-            style={{
-              marginTop: 8, padding: "6px 12px",
-              background: "transparent",
-              border: "1px solid var(--error)",
-              borderRadius: 6, color: "var(--error)",
-              cursor: "pointer", fontSize: 12,
-              display: "flex", alignItems: "center", gap: 4, justifyContent: "center",
-              transition: "background 0.15s",
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(212,103,103,0.1)" }}
+            style={{ ...destructiveBtnStyle, marginTop: 4, justifyContent: "center" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(212,103,103,0.12)" }}
             onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
           >
             {trashSvg} Delete Edge
@@ -697,23 +785,26 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
     }
 
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
         <div style={{ flex: 1, overflowY: "auto" }}>
           <LlmMetricsDashboard storyId={storyId} />
         </div>
         <div style={{
-          padding: "12px 16px", textAlign: "center", color: "var(--text-muted)", fontSize: 12,
+          padding: "12px 16px", textAlign: "center", color: "var(--text-dim)", fontSize: 12,
           borderTop: "1px solid var(--border)",
+          lineHeight: 1.6,
         }}>
           Click a node to edit<br />
-          <span style={{ fontSize: 11 }}>Esc to deselect · Delete to remove</span>
+          <span style={{ fontSize: 11, color: "var(--text-dim)" }}>
+            Esc to deselect · Delete to remove
+          </span>
         </div>
       </div>
     )
   }
 
   return (
-    <div style={{ display: "flex", height: "100vh", position: "relative" }}>
+    <div style={{ display: "flex", height: "calc(100vh - 49px)", position: "relative" }}>
       <div style={{ flex: 1, position: "relative" }}>
         {loading && (
           <div style={{
@@ -732,20 +823,23 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
             display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
             gap: 12, color: "#5c4a2e",
           }}>
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" style={{ opacity: 0.4 }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" style={{ opacity: 0.35 }}>
               <circle cx="12" cy="12" r="10" />
               <path d="M12 8v4M12 16h.01" />
             </svg>
-            <span style={{ fontSize: 15, fontWeight: 600, fontFamily: "var(--font-heading)" }}>No scenes yet</span>
+            <span style={{ fontSize: 16, fontWeight: 700, fontFamily: "var(--font-heading)" }}>No scenes yet</span>
             <span style={{ fontSize: 13, opacity: 0.6 }}>Add a scene to start building your story DAG</span>
             <button
               onClick={addNode}
               style={{
-                marginTop: 8, padding: "8px 20px",
+                marginTop: 8, padding: "10px 24px",
                 background: "#5c4a2e", color: "#f5f0e8",
                 border: "none", borderRadius: 6,
                 cursor: "pointer", fontWeight: 600, fontSize: 13,
+                transition: "background 0.15s",
               }}
+              onMouseEnter={(e) => e.currentTarget.style.background = "#6d5940"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "#5c4a2e"}
             >
               + Add First Scene
             </button>
@@ -768,9 +862,20 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
           style={{ background: "#c4a46c" }}
         >
           <Background color="#b89560" gap={30} size={2} />
-          <Controls style={{ background: "#24243a", color: "#e8e4d8", border: "1px solid #3a3a52" }} />
+          <Controls style={{
+            background: "#2c2521",
+            color: "#e8e4d8",
+            border: "1px solid #3a3a52",
+            borderRadius: 8,
+            overflow: "hidden",
+          }} />
           <MiniMap
-            style={{ background: "#24243a", border: "1px solid #3a3a52" }}
+            style={{
+              background: "#2c2521",
+              border: "1px solid #3a3a52",
+              borderRadius: 8,
+              overflow: "hidden",
+            }}
             nodeColor="#d4a853"
             maskColor="rgba(26,26,36,0.7)"
           />
@@ -799,18 +904,18 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
             fontFamily: "var(--font-heading)",
             color: "var(--accent)",
           }}>
-            Story Graph
+            {selectedNode ? "Scene Editor" : selectedEdge ? "Edge Details" : "Story Graph"}
           </h3>
           {(selectedNode || selectedEdge) && (
             <button
               onClick={() => { setSelectedNode(null); setSelectedEdge(null); setConfirmingGenerate(false) }}
               style={{
-                background: "none", border: "none", color: "var(--text-muted)",
+                background: "none", border: "none", color: "var(--text-dim)",
                 cursor: "pointer", padding: 4, display: "flex",
                 transition: "color 0.15s",
               }}
               onMouseEnter={(e) => e.currentTarget.style.color = "var(--text)"}
-              onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-muted)"}
+              onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-dim)"}
             >
               {closeSvg}
             </button>
@@ -829,15 +934,21 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
               cursor: "pointer",
               fontWeight: 600,
               fontSize: 13,
-              transition: "background 0.15s",
+              transition: "background 0.15s, box-shadow 0.15s",
               display: "flex",
               alignItems: "center",
               gap: 6,
               width: "100%",
               justifyContent: "center",
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--accent-hover)" }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "var(--accent)" }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "var(--accent-hover)"
+              e.currentTarget.style.boxShadow = "0 2px 8px rgba(212,168,83,0.3)"
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "var(--accent)"
+              e.currentTarget.style.boxShadow = "none"
+            }}
           >
             {addSvg}
             Add Scene
@@ -854,18 +965,12 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
                   if (tab === "generations") loadGenerations(selectedNode!.id)
                   if (tab === "turns" || tab === "agents") setShowCompare(false)
                 }}
-                style={{
-                  flex: 1,
-                  padding: "8px 0",
-                  background: "none",
-                  border: "none",
-                  borderBottom: activeTab === tab ? "2px solid var(--accent)" : "2px solid transparent",
-                  color: activeTab === tab ? "var(--accent)" : "var(--text-muted)",
-                  cursor: "pointer",
-                  fontWeight: activeTab === tab ? 600 : 400,
-                  fontSize: 11,
-                  textTransform: "capitalize",
-                  transition: "color 0.15s, border-color 0.15s",
+                style={tabBtnStyle(activeTab === tab)}
+                onMouseEnter={(e) => {
+                  if (activeTab !== tab) e.currentTarget.style.color = "var(--text)"
+                }}
+                onMouseLeave={(e) => {
+                  if (activeTab !== tab) e.currentTarget.style.color = "var(--text-dim)"
                 }}
               >
                 {tab === "edit" ? "Edit" : tab === "info" ? "Info" : tab === "generations" ? "Gen" : tab === "turns" ? "Turns" : "Agents"}
@@ -875,7 +980,7 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
         )}
 
         <div style={{
-          flex: 1, overflowY: "auto", padding: "12px 16px",
+          flex: 1, overflowY: "auto", padding: "14px 16px",
           display: "flex", flexDirection: "column", gap: 8,
         }}>
           {renderPanelContent()}
@@ -884,7 +989,7 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
         {nodes.length > 0 && (
           <div style={{
             borderTop: "1px solid var(--border)", padding: "10px 16px",
-            fontSize: 11, color: "var(--text-muted)",
+            fontSize: 11, color: "var(--text-dim)",
           }}>
             <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
               <span>{nodes.length} nodes · {edges.length} edges</span>
@@ -894,15 +999,17 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
                     key={et.value}
                     onClick={() => setPendingEdgeType(et.value)}
                     style={{
-                      padding: "2px 6px",
-                      background: pendingEdgeType === et.value ? "rgba(212,168,83,0.15)" : "transparent",
+                      padding: "3px 8px",
+                      background: pendingEdgeType === et.value ? "var(--accent-dim)" : "transparent",
                       border: `1px solid ${pendingEdgeType === et.value ? "var(--accent)" : "var(--border)"}`,
                       borderRadius: 4,
-                      color: pendingEdgeType === et.value ? "var(--accent)" : "var(--text-muted)",
+                      color: pendingEdgeType === et.value ? "var(--accent)" : "var(--text-dim)",
                       cursor: "pointer",
                       fontSize: 10,
                       fontWeight: pendingEdgeType === et.value ? 600 : 400,
                       transition: "all 0.1s",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.03em",
                     }}
                     title={et.desc}
                   >
@@ -916,30 +1023,4 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
       </div>
     </div>
   )
-}
-
-const panelInputStyle: React.CSSProperties = {
-  display: "block",
-  width: "100%",
-  marginTop: 4,
-  padding: "6px 8px",
-  background: "var(--bg)",
-  border: "1px solid var(--border)",
-  borderRadius: 4,
-  color: "var(--text)",
-  fontSize: 12,
-  fontFamily: "var(--font-body)",
-  boxSizing: "border-box",
-}
-
-const panelBtnStyle: React.CSSProperties = {
-  flex: 1,
-  padding: "8px 12px",
-  background: "var(--success)",
-  color: "#1a1a24",
-  border: "none",
-  borderRadius: 6,
-  cursor: "pointer",
-  fontWeight: 600,
-  fontSize: 12,
 }

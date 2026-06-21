@@ -25,10 +25,10 @@ export function useToast() {
   return useContext(ToastContext)
 }
 
-const toastColors: Record<ToastType, { bg: string; color: string }> = {
-  success: { bg: "var(--success)", color: "#fff" },
-  error: { bg: "var(--error)", color: "#fff" },
-  info: { bg: "var(--accent)", color: "#1a1a24" },
+const toastConfig: Record<ToastType, { bg: string; color: string; icon: string }> = {
+  success: { bg: "var(--success)", color: "#fff", icon: "✓" },
+  error: { bg: "var(--error)", color: "#fff", icon: "✕" },
+  info: { bg: "var(--accent)", color: "#1a1a24", icon: "●" },
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -54,8 +54,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div style={{
         position: "fixed",
-        bottom: 16,
-        right: 16,
+        bottom: 20,
+        right: 20,
         zIndex: 9999,
         display: "flex",
         flexDirection: "column",
@@ -63,7 +63,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         pointerEvents: "none",
       }}>
         {toasts.map((t) => {
-          const c = toastColors[t.type]
+          const c = toastConfig[t.type]
           return (
             <div
               key={t.id}
@@ -75,17 +75,26 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 color: c.color,
                 fontSize: 13,
                 fontWeight: 500,
-                boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
-                maxWidth: 360,
+                boxShadow: "0 4px 20px rgba(0,0,0,0.35)",
+                maxWidth: 380,
                 pointerEvents: "auto",
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
-                gap: 8,
+                gap: 10,
+                border: "1px solid rgba(255,255,255,0.08)",
               }}
               onClick={() => removeToast(t.id)}
               title="Dismiss"
             >
+              <span style={{
+                width: 18, height: 18, borderRadius: "50%",
+                background: "rgba(255,255,255,0.15)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 10, fontWeight: 700, flexShrink: 0,
+              }}>
+                {c.icon}
+              </span>
               {t.message}
             </div>
           )

@@ -11,6 +11,31 @@ const scoreColor = (score: number): string => {
   return "#ef4444"
 }
 
+function StatCard({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div style={{
+      background: "var(--surface)", border: "1px solid var(--border)",
+      borderRadius: 8, padding: "12px 14px",
+      transition: "border-color 0.15s",
+    }}>
+      <div style={{
+        fontSize: 10, color: "var(--text-dim)",
+        textTransform: "uppercase", letterSpacing: "0.05em",
+        fontWeight: 500,
+      }}>
+        {label}
+      </div>
+      <div style={{
+        fontSize: 20, fontWeight: 700,
+        fontFamily: "var(--font-heading)", color,
+        marginTop: 4,
+      }}>
+        {value}
+      </div>
+    </div>
+  )
+}
+
 export default function CriticScoreDashboard({ storyId }: CriticScoreDashboardProps) {
   const { data: scores, isLoading, error } = useCriticScores(storyId)
 
@@ -24,7 +49,7 @@ export default function CriticScoreDashboard({ storyId }: CriticScoreDashboardPr
 
   if (error || !scores || scores.length === 0) {
     return (
-      <div style={{ padding: 16, color: "var(--text-muted)", fontSize: 12 }}>
+      <div style={{ padding: 16, color: "var(--text-dim)", fontSize: 12 }}>
         No critic evaluations yet. Generate scenes with agent mode first.
       </div>
     )
@@ -62,50 +87,40 @@ export default function CriticScoreDashboard({ storyId }: CriticScoreDashboardPr
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <h4 style={{ margin: "8px 0", fontSize: 12, color: "var(--text)", fontFamily: "var(--font-heading)" }}>
+        <h4 style={{
+          margin: "8px 0 4px", fontSize: 12, color: "var(--text)",
+          fontFamily: "var(--font-heading)",
+        }}>
           Scene Scores
         </h4>
         {scores.map((s) => (
           <div key={s.generation_id} style={{
             display: "flex", justifyContent: "space-between", alignItems: "center",
-            padding: "6px 8px", background: "var(--surface)", borderRadius: 4,
+            padding: "8px 10px", background: "var(--surface)", borderRadius: 4,
             fontSize: 11,
+            border: "1px solid var(--border)",
           }}>
-            <span style={{ color: "var(--accent)", fontWeight: 600, fontFamily: "var(--font-mono)", fontSize: 10 }}>
+            <span style={{
+              color: "var(--accent)", fontWeight: 600,
+              fontFamily: "var(--font-mono)", fontSize: 10,
+            }}>
               {s.scene_id.slice(0, 8)}
             </span>
-            <span style={{ color: "var(--text-muted)", flex: 1, marginLeft: 8 }}>
+            <span style={{ color: "var(--text-dim)", flex: 1, marginLeft: 8 }}>
               {s.summary}
             </span>
             <span style={{
               color: scoreColor(s.score),
               fontWeight: 700,
               fontFamily: "var(--font-mono)",
+              padding: "2px 6px",
+              borderRadius: 4,
+              background: `${scoreColor(s.score)}15`,
             }}>
               {(s.score * 100).toFixed(0)}%
             </span>
           </div>
         ))}
-      </div>
-    </div>
-  )
-}
-
-function StatCard({ label, value, color }: { label: string; value: string; color: string }) {
-  return (
-    <div style={{
-      background: "var(--surface)", border: "1px solid var(--border)",
-      borderRadius: 8, padding: "10px 12px",
-    }}>
-      <div style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-        {label}
-      </div>
-      <div style={{
-        fontSize: 18, fontWeight: 700,
-        fontFamily: "var(--font-heading)", color,
-        marginTop: 2,
-      }}>
-        {value}
       </div>
     </div>
   )

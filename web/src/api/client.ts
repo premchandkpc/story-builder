@@ -171,13 +171,15 @@ export const api = {
   turns: {
     list: (storyId: string, nodeId: string) =>
       request<SceneTurn[]>(`/experimental/stories/${storyId}/nodes/${nodeId}/scene/turns`),
+    get: (storyId: string, nodeId: string, turnId: string) =>
+      request<SceneTurn>(`/experimental/stories/${storyId}/nodes/${nodeId}/scene/turns/${turnId}`),
   },
 
   // ==========================================
   // Agent Runs — agent execution logs
   // ==========================================
   agentRuns: {
-    list: (storyId: string, _nodeId: string) =>
+    list: (_storyId: string, _nodeId: string) =>
       request<AgentRun[]>(`/experimental/agent-runs`),
   },
 

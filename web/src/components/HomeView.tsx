@@ -64,14 +64,14 @@ export default function HomeView() {
       alignItems: "center",
       justifyContent: "center",
       minHeight: "100%",
-      gap: 24,
-      padding: 40,
+      gap: 32,
+      padding: 60,
       animation: "fadeIn 0.3s var(--ease-out)",
     }}>
       {(error || successMsg) && (
         <div style={{
           ...slideUpStyle,
-          background: error ? "rgba(212, 103, 103, 0.15)" : "rgba(123, 184, 123, 0.15)",
+          background: error ? "rgba(212, 103, 103, 0.12)" : "rgba(107, 143, 94, 0.12)",
           color: error ? "var(--error)" : "var(--success)",
           border: `1px solid ${error ? "var(--error)" : "var(--success)"}`,
           padding: "10px 18px",
@@ -81,11 +81,16 @@ export default function HomeView() {
           alignItems: "center",
           gap: 12,
         }}>
+          <span style={{
+            width: 6, height: 6, borderRadius: "50%",
+            background: error ? "var(--error)" : "var(--success)",
+            flexShrink: 0,
+          }} />
           {error || successMsg}
           <button onClick={() => { setError(null); setSuccessMsg("") }} style={{
             background: "none", border: "none",
             color: error ? "var(--error)" : "var(--success)",
-            cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 0,
+            cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 0, marginLeft: "auto",
           }}>×</button>
         </div>
       )}
@@ -93,7 +98,7 @@ export default function HomeView() {
       <div style={{ textAlign: "center", animation: "slideUp 0.4s var(--ease-out)" }}>
         <div style={{
           fontFamily: "var(--font-heading)",
-          fontSize: 32,
+          fontSize: 36,
           fontWeight: 700,
           color: "var(--accent)",
           letterSpacing: "-0.02em",
@@ -102,13 +107,23 @@ export default function HomeView() {
           Story Builder
         </div>
         <div style={{
-          width: 40,
+          width: 48,
           height: 3,
-          background: "var(--accent)",
+          background: "linear-gradient(90deg, transparent, var(--accent), transparent)",
           borderRadius: 2,
           margin: "0 auto",
-          opacity: 0.5,
+          opacity: 0.6,
         }} />
+        <p style={{
+          color: "var(--text-dim)",
+          fontSize: 14,
+          marginTop: 16,
+          marginBottom: 0,
+          lineHeight: 1.5,
+          maxWidth: 420,
+        }}>
+          Create branching narratives with AI-powered scene generation
+        </p>
       </div>
 
       <div style={{
@@ -116,18 +131,25 @@ export default function HomeView() {
         background: "var(--surface)",
         border: "1px solid var(--border)",
         borderRadius: 12,
-        padding: 28,
-        width: 480,
+        padding: 32,
+        width: 500,
         display: "flex",
         flexDirection: "column",
-        gap: 14,
-        transition: "border-color 0.2s",
+        gap: 16,
+        transition: "border-color 0.2s, box-shadow 0.2s",
+        boxShadow: "0 4px 24px rgba(0,0,0,0.2)",
       }}
-        onMouseEnter={(e) => e.currentTarget.style.borderColor = "var(--accent)"}
-        onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--border)"}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.boxShadow = "0 4px 32px rgba(0,0,0,0.3)" }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.boxShadow = "0 4px 24px rgba(0,0,0,0.2)" }}
       >
-        <div style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-          Create Story
+        <div style={{
+          fontSize: 11,
+          color: "var(--text-dim)",
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+        }}>
+          New Story
         </div>
 
         <div style={{ display: "flex", gap: 8 }}>
@@ -155,9 +177,9 @@ export default function HomeView() {
         <textarea
           value={synopsis}
           onChange={(e) => setSynopsis(e.target.value)}
-          placeholder="Describe the story you want to generate..."
-          rows={4}
-          style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
+          placeholder="Describe the story you want to generate...&#10;&#10;A detective in a rain-soaked city uncovers a conspiracy that connects a series of seemingly unrelated murders."
+          rows={5}
+          style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6, padding: "12px" }}
         />
 
         <div style={{ display: "flex", gap: 8 }}>
