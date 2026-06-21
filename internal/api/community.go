@@ -9,6 +9,10 @@ import (
 )
 
 func (h *Handlers) ListAgentConfigs(w http.ResponseWriter, r *http.Request) {
+	if h.agentCfgSvc == nil {
+		writeJSON(w, http.StatusOK, []any{})
+		return
+	}
 	configs, err := h.agentCfgSvc.List(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -18,6 +22,10 @@ func (h *Handlers) ListAgentConfigs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) GetAgentConfig(w http.ResponseWriter, r *http.Request) {
+	if h.agentCfgSvc == nil {
+		writeError(w, http.StatusNotFound, "agent config service not configured")
+		return
+	}
 	name := chi.URLParam(r, "name")
 	if name == "" {
 		writeError(w, http.StatusBadRequest, "name required")
@@ -36,6 +44,10 @@ func (h *Handlers) GetAgentConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) CreateAgentConfig(w http.ResponseWriter, r *http.Request) {
+	if h.agentCfgSvc == nil {
+		writeError(w, http.StatusInternalServerError, "agent config service not configured")
+		return
+	}
 	var cfg domain.AgentConfig
 	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid body")
@@ -53,6 +65,10 @@ func (h *Handlers) CreateAgentConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) DeleteAgentConfig(w http.ResponseWriter, r *http.Request) {
+	if h.agentCfgSvc == nil {
+		writeError(w, http.StatusInternalServerError, "agent config service not configured")
+		return
+	}
 	name := chi.URLParam(r, "name")
 	if err := h.agentCfgSvc.Delete(r.Context(), name); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -62,6 +78,10 @@ func (h *Handlers) DeleteAgentConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) ExportAgentConfig(w http.ResponseWriter, r *http.Request) {
+	if h.agentCfgSvc == nil {
+		writeError(w, http.StatusInternalServerError, "agent config service not configured")
+		return
+	}
 	name := chi.URLParam(r, "name")
 	cfg, err := h.agentCfgSvc.Export(r.Context(), name)
 	if err != nil {
@@ -72,6 +92,10 @@ func (h *Handlers) ExportAgentConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) ImportAgentConfig(w http.ResponseWriter, r *http.Request) {
+	if h.agentCfgSvc == nil {
+		writeError(w, http.StatusInternalServerError, "agent config service not configured")
+		return
+	}
 	var cfg domain.AgentConfig
 	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid body")
@@ -89,6 +113,10 @@ func (h *Handlers) ImportAgentConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) ListMarketplaceAgentConfigs(w http.ResponseWriter, r *http.Request) {
+	if h.agentCfgSvc == nil {
+		writeJSON(w, http.StatusOK, []any{})
+		return
+	}
 	configs, err := h.agentCfgSvc.ListShared(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())

@@ -759,7 +759,7 @@ func TestAPI_LLMMetrics(t *testing.T) {
 		PromptTokens:     500,
 		CompletionTokens: 200,
 		TotalTokens:      700,
-		CreatedAt:        time.Now().Unix(),
+		CreatedAt:        time.Now(),
 	})
 
 	t.Run("get llm metrics returns stats", func(t *testing.T) {
