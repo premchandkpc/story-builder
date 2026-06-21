@@ -99,6 +99,14 @@ type ChapterService interface {
 	Delete(ctx context.Context, id string) error
 }
 
+// AgentService provides agent-based scene generation and turn management.
+type AgentService interface {
+	GetTurns(ctx context.Context, sceneID string) ([]*domain.SceneTurn, error)
+	GetTurnsByRole(ctx context.Context, sceneID, role string) ([]*domain.SceneTurn, error)
+	GetCanonDeltas(ctx context.Context, sceneID string) ([]*domain.CanonDelta, error)
+	RecordStateDelta(ctx context.Context, d *domain.CanonDelta) error
+}
+
 // LocationService manages story locations (hierarchical, named places).
 type LocationService interface {
 	Create(ctx context.Context, loc *domain.Location) error
@@ -107,6 +115,11 @@ type LocationService interface {
 	Update(ctx context.Context, loc *domain.Location) error
 	DeleteByStory(ctx context.Context, storyID string) error
 	GetByName(ctx context.Context, storyID, name string) (*domain.Location, error)
+}
+
+// MetricsService aggregates LLM token usage and cost data for observability.
+type MetricsService interface {
+	GetLlmMetrics(ctx context.Context, storyID string) (*domain.LlmMetrics, error)
 }
 
 // Handlers groups all HTTP handler methods and their injected service dependencies.
@@ -125,8 +138,10 @@ type Handlers struct {
 	chapterSvc   ChapterService
 	outlineSvc   llm.OutlineService
 	titleSvc     llm.TitleService
+	metricsSvc   MetricsService
 	progress     *ProgressHub
 	eventBus     events.Bus
+	agentSvc     AgentService
 }
 
 // NewHandlers wires all service dependencies into a single Handlers struct.
@@ -145,16 +160,18 @@ func NewHandlers(
 	chapterSvc ChapterService,
 	outlineSvc llm.OutlineService,
 	titleSvc llm.TitleService,
+	metricsSvc MetricsService,
 	progress *ProgressHub,
 	eventBus events.Bus,
+	agentSvc AgentService,
 ) *Handlers {
 	return &Handlers{
 		storySvc: storySvc, sceneSvc: sceneSvc, edgeSvc: edgeSvc,
 		charSvc: charSvc, genWriteSvc: genSvc, genReadSvc: genReadSvc, tlSvc: tlSvc,
 		sumSvc: sumSvc, memSvc: memSvc, locSvc: locSvc,
 		bibleSvc: bibleSvc, chapterSvc: chapterSvc,
-		outlineSvc: outlineSvc, titleSvc: titleSvc, progress: progress,
-		eventBus: eventBus,
+		outlineSvc: outlineSvc, titleSvc: titleSvc, metricsSvc: metricsSvc,
+		progress: progress, eventBus: eventBus, agentSvc: agentSvc,
 	}
 }
 

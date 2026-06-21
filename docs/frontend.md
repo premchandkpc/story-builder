@@ -176,13 +176,12 @@ api.generations.generate()   // POST /api/v1/stories/:id/nodes/:nid/generate
 |---|---|
 | `Story` | DAG root |
 | `GraphNode` / `GraphEdge` | DAG elements for React Flow |
-| `Scene` / `SceneEdge` | Legacy chapter-based model |
+| `Scene` | Legacy chapter-based model |
 | `Generation` | LLM output record |
 | `Topology` | Full DAG snapshot |
-| `Character` / `Actor` / `Casting` | Character + casting models |
-| `Location` / `Lore` | Setting + world-building |
-| `Chapter` | Chapter grouping scenes |
-| `SceneStructure` / `SceneTurn` | Interactive generation flow |
+| `Character` | Character definition |
+| `Location` | Story settings |
+| `SceneStructure` | Interactive generation flow config |
 | `StorySummary` | Hierarchical summary |
 
 ### Union Types

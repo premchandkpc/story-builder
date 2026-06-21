@@ -45,6 +45,14 @@ func (m *mockValidationService) ValidateAgainstCanon(ctx context.Context, canonX
 	return map[string]any{"violations": []any{}}, nil
 }
 
+type mockEmbeddingService struct{}
+
+func (m *mockEmbeddingService) GenerateEmbedding(_ context.Context, _ string) ([]float64, error) {
+	return []float64{0.1, 0.2, 0.3}, nil
+}
+
+func (m *mockEmbeddingService) Model() string { return "mock-embed" }
+
 type mockOutlineService struct{}
 
 func (m *mockOutlineService) GenerateOutline(ctx context.Context, synopsis string) (*llm.StoryOutline, error) {

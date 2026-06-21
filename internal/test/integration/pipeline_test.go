@@ -9,10 +9,12 @@ import (
 	"time"
 
 	"github.com/premchand/story-builder/internal/domain"
+	"github.com/premchand/story-builder/internal/api"
 	"github.com/premchand/story-builder/internal/events"
 	"github.com/premchand/story-builder/internal/llm"
 	mgorepo "github.com/premchand/story-builder/internal/repository/mongo"
 	"github.com/premchand/story-builder/internal/service"
+	"github.com/premchand/story-builder/internal/validation"
 )
 
 func TestIntegration_GenerationPipeline(t *testing.T) {
@@ -56,14 +58,32 @@ func TestIntegration_GenerationPipeline(t *testing.T) {
 	validateSvc := &mockValidationService{}
 
 	locRepo := mgorepo.NewLocationRepo(testDB)
+	jobRepo := mgorepo.NewJobRepo(testDB)
+	eventBus := events.NewInMemoryBus()
+	progressHub := api.NewProgressHub()
 	genSvc := service.NewGenerationService(service.GenerationServiceConfig{
-		GenRepo: genRepo, SceneRepo: sceneRepo, StoryRepo: storyRepo,
-		CharRepo: charRepo, StateRepo: stateRepo, MemRepo: memRepo,
-		TlRepo: tlRepo, SumRepo: sumRepo, LocRepo: locRepo,
-		EdgeRepo: edgeRepo,
-		ProseSvc: llmSvc, ExtractSvc: extractSvc, SummarySvc: summarySvc, ValidateSvc: validateSvc,
-		EventBus: events.NewInMemoryBus(),
+		GenRepo: genRepo, SceneRepo: sceneRepo,
+		JobRepo: jobRepo, EventBus: eventBus,
 	})
+	contextBldr := service.NewContextBuilder(
+		mgorepo.NewBibleRepo(testDB), storyRepo, charRepo, stateRepo,
+		locRepo, memRepo, sumRepo, tlRepo,
+	)
+	worker := service.NewGenerationJobWorker(service.GenerationJobWorkerConfig{
+		JobRepo: jobRepo, GenRepo: genRepo, SceneRepo: sceneRepo,
+		StoryRepo: storyRepo, CharRepo: charRepo, StateRepo: stateRepo,
+		EdgeRepo: edgeRepo, MemRepo: memRepo, TlRepo: tlRepo,
+		SumRepo: sumRepo, LocRepo: locRepo,
+		ProseSvc: llmSvc, ExtractSvc: extractSvc,
+		SummarySvc: summarySvc, ValidateSvc: validateSvc,
+		ContextBldr: contextBldr, EventBus: eventBus,
+		EmbeddingSvc:   &mockEmbeddingService{},
+		SceneValidator: validation.NewSceneValidator(charRepo, locRepo),
+		Progress:       progressHub,
+		PollInterval:   100 * time.Millisecond,
+	})
+	worker.Start()
+	t.Cleanup(worker.Stop)
 
 	t.Run("generation creates record and runs pipeline", func(t *testing.T) {
 		gen, err := genSvc.Generate(ctx, scene.ID)
@@ -263,15 +283,31 @@ func TestIntegration_GenerationCustomProse(t *testing.T) {
 	}
 
 	locRepo := mgorepo.NewLocationRepo(testDB)
+	jobRepo := mgorepo.NewJobRepo(testDB)
+	eventBus := events.NewInMemoryBus()
 	genSvc := service.NewGenerationService(service.GenerationServiceConfig{
-		GenRepo: genRepo, SceneRepo: sceneRepo, StoryRepo: storyRepo,
-		CharRepo: charRepo, StateRepo: stateRepo, MemRepo: memRepo,
-		TlRepo: tlRepo, SumRepo: sumRepo, LocRepo: locRepo,
-		EdgeRepo: edgeRepo,
+		GenRepo: genRepo, SceneRepo: sceneRepo,
+		JobRepo: jobRepo, EventBus: eventBus,
+	})
+	contextBldr := service.NewContextBuilder(
+		mgorepo.NewBibleRepo(testDB), storyRepo, charRepo, stateRepo,
+		locRepo, memRepo, sumRepo, tlRepo,
+	)
+	worker := service.NewGenerationJobWorker(service.GenerationJobWorkerConfig{
+		JobRepo: jobRepo, GenRepo: genRepo, SceneRepo: sceneRepo,
+		StoryRepo: storyRepo, CharRepo: charRepo, StateRepo: stateRepo,
+		EdgeRepo: edgeRepo, MemRepo: memRepo, TlRepo: tlRepo,
+		SumRepo: sumRepo, LocRepo: locRepo,
 		ProseSvc: customProse, ExtractSvc: &mockExtractionService{},
 		SummarySvc: &mockSummaryService{}, ValidateSvc: &mockValidationService{},
-		EventBus: events.NewInMemoryBus(),
+		ContextBldr: contextBldr, EventBus: eventBus,
+		SceneValidator: validation.NewSceneValidator(charRepo, locRepo),
+		EmbeddingSvc: &mockEmbeddingService{},
+		Progress:     api.NewProgressHub(),
+		PollInterval: 100 * time.Millisecond,
 	})
+	worker.Start()
+	t.Cleanup(worker.Stop)
 
 	gen, err := genSvc.Generate(ctx, scene.ID)
 	if err != nil {

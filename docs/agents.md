@@ -32,23 +32,23 @@ type AgentSpec struct {
 
 ### P0 Agents (build first)
 
-| # | Agent | Role | Model | Temp | Purpose |
-|---|-------|------|-------|------|---------|
-| 1 | **Director** | scene_director | sonnet | 0.3 | Plan turns, set pressure, decide who acts next, signal scene end |
-| 2 | **Character** | character | sonnet | 0.8 | Role-play one character per instance (dialogue/action/internal) |
-| 3 | **Narrator** | narrator | sonnet | 0.5 | Stitch character actions into coherent narrative prose |
-| 4 | **CanonGuard** | canon_guard | haiku | 0.0 | Verify character/location/timeline/relationship consistency |
-| 5 | **StateExtractor** | state_extractor | local-7b | 0.0 | Extract structured deltas after scene completion |
+| # | Agent | Role | Model | Temp | Purpose | Status |
+|---|-------|------|-------|------|---------|--------|
+| 1 | **Director** | scene_director | sonnet | 0.3 | Plan turns, set pressure, decide who acts next, signal scene end | ✅ Real LLM call w/ JSON parse |
+| 2 | **Character** | character | sonnet | 0.8 | Role-play one character per instance (dialogue/action/internal) | ✅ Real LLM call, rich context prompt |
+| 3 | **Narrator** | narrator | sonnet | 0.5 | Stitch character actions into coherent narrative prose | ✅ Real LLM call |
+| 4 | **CanonGuard** | canon_guard | haiku | 0.0 | Verify character/location/timeline/relationship consistency | ✅ Rule-based + LLM hybrid |
+| 5 | **StateExtractor** | state_extractor | local-7b | 0.0 | Extract structured deltas after scene completion | ✅ Delegates to extractSvc.ExtractState() |
 
 ### P1 Agents (next wave)
 
-| # | Agent | Role | Model | Temp | Purpose |
-|---|-------|------|-------|------|---------|
-| 6 | **Editor** | editor | haiku | 0.2 | Trim repetition, fix pacing, improve clarity |
-| 7 | **Critic** | critic | haiku | 0.0 | Score scene usefulness (0.0-1.0), flag weak output |
-| 8 | **World** | world_keeper | sonnet | 0.3 | Faction politics, world rules, lore consistency |
-| 9 | **Arc** | arc_tracker | haiku | 0.2 | Track act progression, character arcs, plot threads |
-| 10 | **Memory** | memory_keeper | local-7b | 0.0 | Maintain layered memory (character/scene/world/narrative) |
+| # | Agent | Role | Model | Temp | Purpose | Status |
+|---|-------|------|-------|------|---------|--------|
+| 6 | **Editor** | editor | haiku | 0.2 | Trim repetition, fix pacing, improve clarity | ✅ Real LLM call, polished prose output |
+| 7 | **Critic** | critic | haiku | 0.0 | Score scene usefulness (0.0-1.0), flag weak output | ✅ Real LLM call w/ JSON parse, 5-dimension scoring |
+| 8 | **World** | world_keeper | sonnet | 0.3 | Faction politics, world rules, lore consistency | ✅ Full impl, wired into orchestrator RunFinish |
+| 9 | **Arc** | arc_tracker | haiku | 0.2 | Track act progression, character arcs, plot threads | ✅ Full impl, wired into orchestrator RunFinish |
+| 10 | **Memory** | memory_keeper | local-7b | 0.0 | Maintain layered memory (character/scene/world/narrative) | ✅ Full impl, wired into orchestrator RunFinish |
 
 ## Orchestration Flow
 
@@ -92,10 +92,19 @@ Orchestrator.RunFinish(scene)
   │   → character state, relationships, │
   │     timeline, canon deltas          │
   │                                     │
-  │  Turn N+2: Critic (score)           │
-  │   → scene usefulness score 0.0-1.0  │
+  │  Turn N+2: World (world-check)      │
+  │   → faction politics, lore,         │
+  │     setting consistency [non-block] │
   │                                     │
-  │  Turn N+3: Director (evaluate)      │
+  │  Turn N+3: Arc (arc-check)          │
+  │   → act progress, character arcs,   │
+  │     plot threads [non-block]        │
+  │                                     │
+  │  Turn N+4: Memory (memory-analysis) │
+  │   → layered memory updates          │
+  │     [non-block]                     │
+  │                                     │
+  │  Turn N+5: Director (evaluate)      │
   │   → scene complete? next steps      │
   └─────────────────────────────────────┘
 ```
@@ -123,8 +132,8 @@ Orchestrator.RunFinish(scene)
 | Critic | claude-haiku | 0.0 | low | 1 | 15s |
 | StateExtract | local-7b | 0.0 | low | 1 | 30s |
 | World | claude-sonnet | 0.3 | low | 1 | 30s |
-| Arc | claude-haiku | 0.2 | low | 1 | 15s |
-| Memory | local-7b | 0.0 | low | 1 | 15s |
+| Arc | claude-haiku | 0.2 | low | 1 | 20s |
+| Memory | local-7b | 0.0 | low | 1 | 30s |
 
 ## Required vs Optional
 
@@ -135,7 +144,7 @@ Orchestrator.RunFinish(scene)
 - **CanonGuard**: optional (skippable)
 - **Critic**: runs after all turns, non-blocking
 - **StateExtract**: runs on scene finish, non-blocking
-- **World/Arc/Memory**: P1, not part of default turn plan
+- **World/Arc/Memory**: run in RunFinish phase, non-blocking, non-required
 
 ## Agent Context
 

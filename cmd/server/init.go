@@ -3,6 +3,7 @@ package main
 import (
 	"log/slog"
 
+	"github.com/premchand/story-builder/internal/agents"
 	"github.com/premchand/story-builder/internal/api"
 	"github.com/premchand/story-builder/internal/cache"
 	"github.com/premchand/story-builder/internal/config"
@@ -22,6 +23,7 @@ type appDependencies struct {
 	charSvc    *service.CharacterService
 	locSvc     *service.LocationService
 	genSvc     *service.GenerationService
+	metricsSvc *service.MetricsService
 	tlSvc      *service.TimelineService
 	sumSvc     *service.SummaryService
 	memSvc     *service.MemoryService
@@ -33,6 +35,7 @@ type appDependencies struct {
 	rateLimiter  *cache.SlidingWindowRateLimiter
 	progressHub  *api.ProgressHub
 	eventBus     events.Bus
+	agentSvc     *service.AgentService
 }
 
 func initAll(cfg config.Config, db *mongo.Database) appDependencies {
@@ -50,6 +53,9 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 	chapterRepo := mgorepo.NewChapterRepo(db)
 	jobRepo := mgorepo.NewJobRepo(db)
 	locRepo := mgorepo.NewLocationRepo(db)
+	turnRepo := mgorepo.NewSceneTurnRepo(db)
+	agentRunRepo := mgorepo.NewAgentRunRepo(db)
+	canonDeltaRepo := mgorepo.NewCanonDeltaRepo(db)
 
 	// LLM clients and router
 	var anthropic llm.LLMClient
@@ -119,8 +125,28 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 	embedSvc := llm.NewOllamaEmbeddingService(cfg.OllamaURL, "nomic-embed-text")
 	sceneValidator := validation.NewSceneValidator(charRepo, locRepo)
 
+	agentRegistry := agents.NewAgentRegistry()
+	agents.RegisterAll(agentRegistry, router, proseSvc, extractSvc, validateSvc)
+	slog.Info("agent registry initialized", "count", len(agentRegistry.List()))
+
+	agentOrchestrator := agents.NewOrchestrator(agents.OrchestratorConfig{
+		Registry:  agentRegistry,
+		LLMClient: router,
+		EventBus:  eventBus,
+	})
+
+	agentSvc := service.NewAgentService(service.AgentServiceConfig{
+		Registry: agentRegistry, Orchestrator: agentOrchestrator,
+		TurnRepo: turnRepo, ActorRepo: agentRunRepo, CanonRepo: canonDeltaRepo,
+		GenRepo: genRepo, StoryRepo: storyRepo, SceneRepo: sceneRepo,
+		CharRepo: charRepo, StateRepo: stateRepo,
+		BibleRepo: bibleRepo, EdgeRepo: edgeRepo, MemRepo: memRepo,
+		TlRepo: tlRepo, SumRepo: sumRepo,
+	})
+
 	genSvc := service.NewGenerationService(service.GenerationServiceConfig{
-		GenRepo: genRepo, SceneRepo: sceneRepo, JobRepo: jobRepo, EventBus: eventBus,
+		GenRepo: genRepo, SceneRepo: sceneRepo, JobRepo: jobRepo,
+		EventBus: eventBus, AgentSvc: agentSvc,
 	})
 
 	progressHub := api.NewProgressHub()
@@ -139,10 +165,12 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 	tlSvc := service.NewTimelineService(tlRepo)
 	sumSvc := service.NewSummaryService(sumRepo)
 	memSvc := service.NewMemoryService(memRepo, embedSvc)
+	metricsSvc := service.NewMetricsService(genRepo)
 
 	return appDependencies{
 		storySvc: storySvc, sceneSvc: sceneSvc, edgeSvc: edgeSvc,
 		charSvc: charSvc, locSvc: locSvc, genSvc: genSvc,
+		metricsSvc: metricsSvc,
 		tlSvc: tlSvc, sumSvc: sumSvc, memSvc: memSvc,
 		bibleSvc: bibleSvc, chapterSvc: chapterSvc,
 		outlineSvc: outlineSvc, titleSvc: titleSvc,
@@ -150,5 +178,6 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 		rateLimiter:  rateLimiter,
 		progressHub:  progressHub,
 		eventBus:     eventBus,
+		agentSvc:     agentSvc,
 	}
 }

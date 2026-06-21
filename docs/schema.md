@@ -533,14 +533,12 @@ The frontend mirrors backend models as TypeScript interfaces in `web/src/api/typ
 | `GraphNode` | `scenes` (as graph nodes) | Primary DAG node type used by React Flow |
 | `GraphEdge` | `scene_edges` | Directed edges with type |
 | `Scene` | `scenes` | Legacy chapter-scoped scene |
-| `SceneEdge` | `scene_edges` | Legacy scene-scoped edge |
 | `Generation` | `generations` | LLM output records |
 | `Topology` | `scenes` + `scene_edges` | Full DAG snapshot |
 | `Character` | `characters` | Immutable character definition |
 | `Location` | (separate collection) | Story settings |
 | `StorySummary` | `summaries` | Hierarchical summaries |
 | `SceneStructure` | embedded in scene | Turn-based flow config |
-| `SceneTurn` | `scene_turns` | Agent turn during generation |
 | `AgentRun` | `agent_runs` | Agent execution log |
 | `CanonDelta` | `canon_deltas` | Append-only canon change log |
 

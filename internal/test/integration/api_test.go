@@ -35,6 +35,7 @@ func buildServer(t *testing.T) (*api.Server, *mgorepo.StoryRepo) {
 	locRepo := mgorepo.NewLocationRepo(testDB)
 	bibleRepo := mgorepo.NewBibleRepo(testDB)
 	chapterRepo := mgorepo.NewChapterRepo(testDB)
+	jobRepo := mgorepo.NewJobRepo(testDB)
 
 	deleter := &service.StoryCascadeDeleter{
 		SceneRepo: sceneRepo, EdgeRepo: edgeRepo, CharRepo: charRepo,
@@ -51,11 +52,6 @@ func buildServer(t *testing.T) (*api.Server, *mgorepo.StoryRepo) {
 	}
 	compiler := prompt.NewCompilerService(store)
 
-	prose := &mockProseService{}
-	extract := &mockExtractionService{}
-	summary := &mockSummaryService{}
-	validate := &mockValidationService{}
-
 	outlineSvc := llm.NewOutlineService(mockLLM, compiler)
 	titleSvc := llm.NewTitleService(mockLLM)
 	bibleGenSvc := llm.NewBibleService(mockLLM, compiler)
@@ -63,12 +59,8 @@ func buildServer(t *testing.T) (*api.Server, *mgorepo.StoryRepo) {
 	chapterSvc := service.NewChapterSvc(chapterRepo)
 	progressHub := api.NewProgressHub()
 	genSvc := service.NewGenerationService(service.GenerationServiceConfig{
-		GenRepo: genRepo, SceneRepo: sceneRepo, StoryRepo: storyRepo,
-		CharRepo: charRepo, StateRepo: stateRepo, MemRepo: memRepo,
-		TlRepo: tlRepo, SumRepo: sumRepo, LocRepo: locRepo,
-		EdgeRepo: edgeRepo,
-		ProseSvc: prose, ExtractSvc: extract, SummarySvc: summary, ValidateSvc: validate,
-		EventBus: events.NewInMemoryBus(),
+		GenRepo: genRepo, SceneRepo: sceneRepo,
+		JobRepo: jobRepo, EventBus: events.NewInMemoryBus(),
 	})
 	genSvc.SetProgressPublisher(progressHub)
 
@@ -87,6 +79,7 @@ func buildServer(t *testing.T) (*api.Server, *mgorepo.StoryRepo) {
 		outlineSvc,
 		titleSvc,
 		progressHub,
+		nil,
 		nil,
 	)
 

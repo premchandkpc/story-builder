@@ -7,10 +7,13 @@ Services live in `internal/service/`. Each service contains business logic and d
 ```
 internal/
   service/
+    agent.go        AgentService (orchestrator-based scene generation)
     bible.go        Story Bible CRUD + LLM generation
     chapter.go      Chapter CRUD (Acts→Chapters→Scenes)
     context.go      ContextBuilder (Bible + states + memories + timeline → prompt)
-    generation.go   Generation pipeline orchestration (durable, background goroutine)
+    generation.go   Generation pipeline (hybrid: agents for structured, workers for simple)
+    metrics.go      MetricsService (aggregated LLM token usage + cost estimation)
+    token_budget.go TokenBudget domain type (cumulative token tracking per model/agent)
     validation/     Canon/timeline/character validation
     graph/          DAG traversal + validation utilities
 ```
@@ -163,6 +166,19 @@ ContextBuilder.Build(ctx, storyID, scene)
 
 The output is approximately 20k tokens of structured context. Bible is included as system prompt layers (Culture→Story→World layers). Character states and memories go into the Character prompt layer.
 
+### Agent Service
+
+`internal/service/agent.go` — Wraps the agent orchestrator for scene generation:
+
+| Method | Description |
+|--------|-------------|
+| `GenerateScene(ctx, storyID, sceneID)` | Builds AgentContext, calls orchestrator Plan→Execute→RunFinish, persists turns/generation/deltas |
+| `GetTurns(ctx, storyID, sceneID)` | Lists SceneTurns for a scene |
+| `GetTurnsByRole(ctx, storyID, sceneID, role)` | Filters turns by agent role |
+| `GetCanonDeltas(ctx, storyID, sceneID)` | Lists CanonDeltas for a scene |
+| `RecordStateDelta(ctx, delta)` | Appends a CanonDelta |
+| `IsAgentScene(scene)` | Returns true if scene has SceneStructure or non-custom FlowType |
+
 ---
 
 ## Generation Service
@@ -183,11 +199,15 @@ type GenerationService struct {
 }
 ```
 
-### Pipeline
+### Hybrid Pipeline
+
+Two paths exist:
+- **Agent path**: used when `scene.SceneStructure != nil` or `scene.FlowType` is non-custom. Calls `AgentService.GenerateScene()` which runs the full orchestrator (Plan→Execute→RunFinish) and persists turns + deltas directly.
+- **Worker path**: used for simple scenes (no scene structure). Enqueues a job → 6 sequential goroutine workers.
 
 Uses `context.Background()` so pipeline completion is independent of HTTP request lifetime.
 
-### Generation flow
+### Generation flow (Worker Path)
 
 ```
 POST /stories/{id}/nodes/{id}/generate
@@ -289,7 +309,38 @@ type CharacterRepository interface {
 }
 ```
 
-All repositories depend on interfaces, not `*mongo.Collection` directly. MongoDB implementations live in `internal/repository/mongo/`.
+### Agent Repository Interfaces (Phase 1)
+
+Defined in `internal/scene/turn.go`:
+
+```go
+type SceneTurnRepository interface {
+    Create(ctx context.Context, turn *SceneTurn) error
+    Get(ctx context.Context, id string) (*SceneTurn, error)
+    Update(ctx context.Context, turn *SceneTurn) error
+    ListByScene(ctx context.Context, storyID, sceneID string) ([]*SceneTurn, error)
+    ListByRole(ctx context.Context, storyID, sceneID, role string) ([]*SceneTurn, error)
+    DeleteByScene(ctx context.Context, storyID, sceneID string) error
+    DeleteByStory(ctx context.Context, storyID string) error
+}
+
+type ActorRepository interface {
+    Create(ctx context.Context, run *ActorRun) error
+    ListByFilter(ctx context.Context, filter ActorRunFilter) ([]*ActorRun, error)
+    DeleteByStory(ctx context.Context, storyID string) error
+}
+
+type CanonDeltaRepository interface {
+    Create(ctx context.Context, delta *CanonDelta) error
+    ListByScene(ctx context.Context, storyID, sceneID string) ([]*CanonDelta, error)
+    ListByStory(ctx context.Context, storyID string) ([]*CanonDelta, error)
+    DeleteByStory(ctx context.Context, storyID string) error
+}
+```
+
+MongoDB implementations live in `internal/repository/mongo/` (`scene_turns.go`, `agent_runs.go`, `canon_deltas.go`).
+
+All repositories depend on interfaces, not `*mongo.Collection` directly.
 
 ---
 
@@ -372,20 +423,13 @@ func (r *AgentRegistry) List() []AgentSpec
 
 ### Integration with GenerationService
 
-```go
-// In runPipeline:
-if scene.SceneStructure != nil {
-    plan := orchestrator.Plan(scene)
-    result := orchestrator.Execute(plan, agentContext)
-    orchestrator.RunFinish(scene, agentContext)
-} else {
-    // existing 6-worker pipeline
-}
-```
+`GenerationService.Generate()` checks `agentSvc.IsAgentScene(scene)` at entry. If true, it calls `agentSvc.GenerateScene()` directly (no job, no worker pool). Otherwise, it enqueues a job for the 6-worker pipeline.
+
+AgentService builds `AgentContext` via a context builder, runs orchestrator Plan→Execute→RunFinish, persists turns + generation + deltas, and returns.
 
 ### Agent Context
 
-Each agent receives an `AgentContext` with story, scene, characters, states, bible, memories, timeline, canon deltas, and summaries. The context is assembled by the orchestrator before the first turn and refreshed between phases.
+`AgentContext` is assembled by `internal/service/agent.go` and includes: story, scene, characters, states, bible, edges, turns, timeline, memories (map[charID][]memory), canon deltas, summaries, and participant IDs.
 
 ---
 

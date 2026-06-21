@@ -2,6 +2,8 @@ package agents
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/llm"
@@ -23,13 +25,55 @@ Polish generated scene text while preserving intent:
 5. Trim verbosity
 6. Fix tone mismatches
 
-Output the cleaned text. If no changes needed, return the original.`,
+Output only the polished prose. If no changes needed, return the original.`,
 		Runner: func(ctx context.Context, input AgentInput) (*AgentOutput, error) {
+			narratorOutput := ""
+			for _, t := range input.Ctx.Turns {
+				if t.Role == "narrator" {
+					narratorOutput = t.Output
+				}
+			}
+			if narratorOutput == "" {
+				for _, t := range input.Ctx.Turns {
+					if t.Output != "" {
+						narratorOutput = t.Output
+					}
+				}
+			}
+			if narratorOutput == "" {
+				return &AgentOutput{
+					Content:   "",
+					Data:      map[string]any{"changes": 0},
+					Decisions: map[string]any{"needs_revision": false, "changes_made": 0},
+					Status:    "success",
+				}, nil
+			}
+
+			userMsg := fmt.Sprintf(`Polish the following narrative text. Preserve all story content, characters, and events. Fix only prose quality issues.
+
+Tone: %s | POV: %s
+
+=== TEXT TO POLISH ===
+%s`, input.Ctx.Scene.Tone, input.Ctx.Scene.POV, narratorOutput)
+
+			resp, err := llmClient.Complete(ctx, llm.CompletionRequest{
+				Model:       llm.ModelHaiku,
+				System:      "You are a prose editor. Output only the polished text, no commentary.",
+				UserMessage: userMsg,
+				Temperature: 0.2,
+				MaxTokens:   4096,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("editor agent llm call: %w", err)
+			}
+
+			changed := strings.TrimSpace(resp.Content) != strings.TrimSpace(narratorOutput)
+
 			return &AgentOutput{
-				Content: "Editor review complete.",
+				Content: resp.Content,
 				Data:    map[string]any{"changes": 0},
 				Decisions: map[string]any{
-					"needs_revision": false,
+					"needs_revision": changed,
 					"changes_made":   0,
 				},
 				Status: "success",

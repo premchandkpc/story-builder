@@ -28,38 +28,6 @@ export interface Location {
   created_at: string   // ISO timestamp
 }
 
-// ---- Interface: Chapter ----
-// A chapter groups scenes within a story, ordered by sort_order.
-export interface Chapter {
-  id: string           // unique identifier
-  story_id: string     // parent story
-  title: string        // chapter title
-  description: string  // brief description
-  sort_order: number   // ordering position within the story
-  created_at: string   // ISO timestamp
-  updated_at: string   // ISO timestamp of last update
-}
-
-// ---- Interface: Scene ----
-// A scene is a narrative beat within a chapter.
-// This is the "old" scene model (used alongside the newer GraphNode).
-export interface Scene {
-  id: string                        // unique identifier
-  chapter_id: string                // parent chapter
-  story_id: string                  // parent story
-  beat_intent: string               // what this scene aims to achieve
-  character_refs: string[]          // character IDs involved
-  location_ref: string | null       // location ID (nullable)
-  pov: string                       // point of view style (first-person, third-person, omniscient)
-  tone: string                      // emotional tone (e.g. "tense", "neutral")
-  target_words: number              // target word count for generation
-  status: NodeStatus                // current status (draft/generated/accepted/stale)
-  scene_structure?: SceneStructure  // optional structure config for multi-turn scenes
-  sort_order: number                // ordering within the chapter
-  created_at: string                // ISO timestamp
-  updated_at: string                // ISO timestamp of last update
-}
-
 // ---- Interface: Story ----
 // A story is the top-level entity — a DAG of scenes/nodes.
 export interface Story {
@@ -67,27 +35,6 @@ export interface Story {
   title: string                           // story title
   canon_pins: Record<string, unknown>     // pinned canon facts (key-value map)
   createdAt: string                       // ISO timestamp
-}
-
-// ---- Interface: CreateChapterPayload ----
-// Data shape required when creating a new chapter via API.
-export interface CreateChapterPayload {
-  title: string          // chapter title
-  description?: string   // optional description
-  sort_order?: number    // optional position override
-}
-
-// ---- Interface: CreateScenePayload ----
-// Data shape required when creating a new scene via API.
-export interface CreateScenePayload {
-  beat_intent: string               // what the scene should accomplish
-  character_refs: string[]          // characters involved
-  location_ref?: string | null      // optional location
-  pov: string                       // point of view style
-  tone: string                      // emotional tone
-  target_words: number              // desired word count
-  scene_structure?: SceneStructure  // optional structure for interactive scenes
-  sort_order?: number               // optional position
 }
 
 // ---- Interface: StoryStats ----
@@ -131,20 +78,6 @@ export interface SceneStructure {
   character_order?: string[]       // turn order for round_robin flow
   situation_flow: string           // description of how the scene should progress
   max_turns?: number               // max LLM turns before finishing
-}
-
-// ---- Interface: SceneTurn ----
-// Represents one "turn" in an interactive scene generation.
-export interface SceneTurn {
-  id: string           // unique identifier
-  node_id: string      // which node this turn belongs to
-  turn_number: number  // turn sequence number
-  actor_ids: string[]  // which actors participated in this turn
-  prompt: string       // the prompt sent to the LLM
-  output: string       // the LLM's generated output
-  model: string        // which model generated this turn
-  status: string       // status of this turn (e.g. "completed", "pending")
-  created_at: string   // ISO timestamp
 }
 
 // ---- Interface: GraphNode ----
@@ -328,6 +261,57 @@ export const slideUpStyle: Record<string, string | number> = {
 
 export const scaleInStyle: Record<string, string | number> = {
   animation: "scaleIn 0.2s var(--ease-out)",
+}
+
+// ---- Interface: SceneTurn ----
+// A single turn in a scene's interactive generation flow.
+export interface SceneTurn {
+  id: string
+  scene_id: string
+  story_id: string
+  number: number
+  agent_id: string
+  role: string
+  input: string
+  output: string
+  model: string
+  status: "pending" | "running" | "done" | "failed" | "skipped"
+  error: string
+  prompt_tokens: number
+  completion_tokens: number
+  duration_ms: number
+  created_at: string
+  updated_at: string
+}
+
+// ---- Interface: AgentRun ----
+// Execution log for a single agent during generation.
+export interface AgentRun {
+  id: string
+  story_id: string
+  scene_id: string
+  turn_id: string
+  agent_type: string
+  input: Record<string, unknown>
+  output: Record<string, unknown>
+  model: string
+  status: string
+  error: string
+  duration_ms: number
+  created_at: string
+}
+
+// ---- Interface: LlmMetrics ----
+// Aggregated LLM usage metrics for a story.
+export interface LlmMetrics {
+  total_prompt_tokens: number
+  total_completion_tokens: number
+  total_tokens: number
+  total_cost_estimate: number
+  turn_count: number
+  generation_count: number
+  by_model: Record<string, { prompt_tokens: number; completion_tokens: number; cost: number }>
+  by_agent: Record<string, { prompt_tokens: number; completion_tokens: number; turn_count: number }>
 }
 
 export { inputStyle }

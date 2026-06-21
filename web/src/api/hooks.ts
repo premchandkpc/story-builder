@@ -16,7 +16,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 // useNavigate: React Router hook to programmatically navigate between pages
 import { useNavigate } from "react-router-dom"
 import { api } from "./client"
-import type { Story, StoryStats } from "./types"
+import type { Story, StoryStats, SceneTurn, AgentRun, LlmMetrics } from "./types"
 
 // ---- useStories() ----
 // Custom hook that fetches the list of all stories.
@@ -120,5 +120,46 @@ export function useGenerateStory() {
         navigate(`/stories/${result.story_id}`)
       }
     },
+  })
+}
+
+// ---- useTurns(storyId, nodeId) ----
+// Fetches all turns for a given scene/node.
+export function useTurns(storyId: string, nodeId: string | null) {
+  return useQuery<SceneTurn[]>({
+    queryKey: ["turns", storyId, nodeId],
+    queryFn: () => api.turns.list(storyId, nodeId!),
+    enabled: !!nodeId,
+  })
+}
+
+// ---- useTurn() ----
+// Fetches a single turn by ID.
+export function useTurn(storyId: string, nodeId: string, turnId: string) {
+  return useQuery<SceneTurn>({
+    queryKey: ["turn", storyId, nodeId, turnId],
+    queryFn: () => api.turns.get(storyId, nodeId, turnId),
+    enabled: !!turnId,
+  })
+}
+
+// ---- useAgentRuns(storyId, nodeId) ----
+// Fetches agent run logs for a given scene/node.
+export function useAgentRuns(storyId: string, nodeId: string | null) {
+  return useQuery<AgentRun[]>({
+    queryKey: ["agentRuns", storyId, nodeId],
+    queryFn: () => api.agentRuns.list(storyId, nodeId!),
+    enabled: !!nodeId,
+  })
+}
+
+// ---- useLlmMetrics(storyId) ----
+// Fetches aggregated LLM token usage metrics for a story.
+export function useLlmMetrics(storyId: string) {
+  return useQuery<LlmMetrics>({
+    queryKey: ["llmMetrics", storyId],
+    queryFn: () => api.metrics.llm(storyId),
+    enabled: !!storyId,
+    refetchInterval: 30_000,
   })
 }

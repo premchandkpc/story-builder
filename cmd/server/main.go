@@ -46,7 +46,9 @@ func main() {
 		deps.tlSvc, deps.sumSvc, deps.memSvc, deps.locSvc,
 		deps.bibleSvc, deps.chapterSvc,
 		deps.outlineSvc, deps.titleSvc,
+		deps.metricsSvc,
 		deps.progressHub, deps.eventBus,
+		deps.agentSvc,
 	)
 
 	srv := api.NewServer(h, deps.rateLimiter)

@@ -17,6 +17,10 @@ import {
 import "@xyflow/react/dist/style.css"
 
 import SceneNode from "./SceneNode"
+import TurnTimeline from "./TurnTimeline"
+import AgentRunPanel from "./AgentRunPanel"
+import GenerationCompare from "./GenerationCompare"
+import LlmMetricsDashboard from "./LlmMetricsDashboard"
 import { api } from "../api/client"
 import type { GraphNode, GraphEdge, EdgeType, Generation } from "../api/types"
 import { spinnerStyle, slideUpStyle } from "../api/types"
@@ -136,6 +140,7 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
   const [generations, setGenerations] = useState<Generation[]>([])
   const [gensLoading, setGensLoading] = useState(false)
   const [expandedGen, setExpandedGen] = useState<string | null>(null)
+  const [showCompare, setShowCompare] = useState(false)
   const [pendingEdgeType, setPendingEdgeType] = useState<EdgeType>(
     () => (localStorage.getItem("edgeType") as EdgeType) || "seq",
   )
@@ -492,76 +497,99 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
     if (selectedNode && activeTab === "generations") {
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12 }}>
-          <div style={{ color: "var(--text-muted)", marginBottom: 4 }}>Generations</div>
-          {gensLoading && <div style={{ color: "var(--text-muted)" }}>Loading...</div>}
-          {!gensLoading && generations.length === 0 && (
-            <div style={{ color: "var(--text-muted)", fontStyle: "italic" }}>No generations yet. Click Generate to start.</div>
-          )}
-          {!gensLoading && generations.map((g) => {
-            const isAccepted = g.accepted
-            const isExpanded = expandedGen === g.id
-            return (
-              <div key={g.id} style={{
-                border: `1px solid ${isAccepted ? "var(--accent)" : "var(--border)"}`,
-                borderRadius: 6, padding: 10,
-                background: isAccepted ? "rgba(212,168,83,0.06)" : "transparent",
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                  <span style={{ fontWeight: 600, fontSize: 11, color: isAccepted ? "var(--accent)" : "var(--text)" }}>
-                    {g.model || "unknown"}
-                  </span>
-                  <span style={{ fontSize: 10, color: "var(--text-muted)" }}>
-                    {new Date(g.created_at).toLocaleString()}
-                  </span>
-                </div>
-                <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                  <span style={{
-                    fontSize: 10, padding: "1px 5px", borderRadius: 3,
-                    background: isAccepted ? "var(--accent)" : g.output ? "#5c4a2e" : "var(--text-muted)",
-                    color: isAccepted ? "#1a1a24" : "#f5f0e8",
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <div style={{ color: "var(--text-muted)" }}>Generations</div>
+            {generations.filter(g => g.output).length >= 2 && (
+              <button
+                onClick={() => setShowCompare(!showCompare)}
+                style={{
+                  background: showCompare ? "var(--accent)" : "transparent",
+                  border: `1px solid ${showCompare ? "var(--accent)" : "var(--border)"}`,
+                  borderRadius: 4, padding: "3px 8px",
+                  color: showCompare ? "#1a1a24" : "var(--text-muted)",
+                  cursor: "pointer", fontSize: 10,
+                }}
+              >
+                {showCompare ? "List" : "Compare"}
+              </button>
+            )}
+          </div>
+
+          {showCompare ? (
+            <GenerationCompare generations={generations} />
+          ) : (
+            <>
+              {gensLoading && <div style={{ color: "var(--text-muted)" }}>Loading...</div>}
+              {!gensLoading && generations.length === 0 && (
+                <div style={{ color: "var(--text-muted)", fontStyle: "italic" }}>No generations yet. Click Generate to start.</div>
+              )}
+              {!gensLoading && generations.map((g) => {
+                const isAccepted = g.accepted
+                const isExpanded = expandedGen === g.id
+                return (
+                  <div key={g.id} style={{
+                    border: `1px solid ${isAccepted ? "var(--accent)" : "var(--border)"}`,
+                    borderRadius: 6, padding: 10,
+                    background: isAccepted ? "rgba(212,168,83,0.06)" : "transparent",
                   }}>
-                    {isAccepted ? "Accepted" : g.output ? "Generated" : "Pending"}
-                  </span>
-                  {g.output && (
-                    <button
-                      onClick={() => setExpandedGen(isExpanded ? null : g.id)}
-                      style={{
-                        background: "none", border: "none", color: "var(--accent)",
-                        cursor: "pointer", fontSize: 10, padding: 0,
-                      }}
-                    >
-                      {isExpanded ? "Collapse" : "Preview"}
-                    </button>
-                  )}
-                </div>
-                {isExpanded && g.output && (
-                  <div style={{
-                    marginTop: 6, padding: 8,
-                    background: "var(--bg)", borderRadius: 4,
-                    fontSize: 11, lineHeight: 1.5,
-                    maxHeight: 200, overflowY: "auto",
-                    whiteSpace: "pre-wrap", color: "var(--text)",
-                  }}>
-                    {g.output}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <span style={{ fontWeight: 600, fontSize: 11, color: isAccepted ? "var(--accent)" : "var(--text)" }}>
+                        {g.model || "unknown"}
+                      </span>
+                      <span style={{ fontSize: 10, color: "var(--text-muted)" }}>
+                        {new Date(g.created_at).toLocaleString()}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                      <span style={{
+                        fontSize: 10, padding: "1px 5px", borderRadius: 3,
+                        background: isAccepted ? "var(--accent)" : g.output ? "#5c4a2e" : "var(--text-muted)",
+                        color: isAccepted ? "#1a1a24" : "#f5f0e8",
+                      }}>
+                        {isAccepted ? "Accepted" : g.output ? "Generated" : "Pending"}
+                      </span>
+                      {g.output && (
+                        <button
+                          onClick={() => setExpandedGen(isExpanded ? null : g.id)}
+                          style={{
+                            background: "none", border: "none", color: "var(--accent)",
+                            cursor: "pointer", fontSize: 10, padding: 0,
+                          }}
+                        >
+                          {isExpanded ? "Collapse" : "Preview"}
+                        </button>
+                      )}
+                    </div>
+                    {isExpanded && g.output && (
+                      <div style={{
+                        marginTop: 6, padding: 8,
+                        background: "var(--bg)", borderRadius: 4,
+                        fontSize: 11, lineHeight: 1.5,
+                        maxHeight: 200, overflowY: "auto",
+                        whiteSpace: "pre-wrap", color: "var(--text)",
+                      }}>
+                        {g.output}
+                      </div>
+                    )}
+                    {g.output && !isAccepted && (
+                      <button
+                        onClick={() => acceptGeneration(selectedNode.id, g.id)}
+                        style={{
+                          marginTop: 6, padding: "4px 10px",
+                          background: "var(--accent)", color: "#1a1a24",
+                          border: "none", borderRadius: 4,
+                          cursor: "pointer", fontWeight: 600, fontSize: 11,
+                          width: "100%",
+                        }}
+                      >
+                        Accept
+                      </button>
+                    )}
                   </div>
-                )}
-                {g.output && !isAccepted && (
-                  <button
-                    onClick={() => acceptGeneration(selectedNode.id, g.id)}
-                    style={{
-                      marginTop: 6, padding: "4px 10px",
-                      background: "var(--accent)", color: "#1a1a24",
-                      border: "none", borderRadius: 4,
-                      cursor: "pointer", fontWeight: 600, fontSize: 11,
-                      width: "100%",
-                    }}
-                  >
-                    Accept
-                  </button>
-                )}
-              </div>
-            )
-          })}
+                )
+              })}
+            </>
+          )}
         </div>
       )
     }
@@ -615,6 +643,24 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
       )
     }
 
+    if (selectedNode && activeTab === "turns") {
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ color: "var(--text-muted)", fontSize: 11, marginBottom: 4 }}>Turn Timeline</div>
+          <TurnTimeline storyId={storyId} nodeId={selectedNode.id} compact />
+        </div>
+      )
+    }
+
+    if (selectedNode && activeTab === "agents") {
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ color: "var(--text-muted)", fontSize: 11, marginBottom: 4 }}>Agent Runs</div>
+          <AgentRunPanel storyId={storyId} nodeId={selectedNode.id} />
+        </div>
+      )
+    }
+
     if (selectedEdge) {
       const edgeLabel = selectedEdge.label || "seq"
       return (
@@ -651,12 +697,17 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
     }
 
     return (
-      <div style={{
-        padding: "16px", textAlign: "center", color: "var(--text-muted)", fontSize: 12,
-        borderTop: "1px solid var(--border)", marginTop: "auto",
-      }}>
-        Click a node to edit<br />
-        <span style={{ fontSize: 11 }}>Esc to deselect · Delete to remove</span>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          <LlmMetricsDashboard storyId={storyId} />
+        </div>
+        <div style={{
+          padding: "12px 16px", textAlign: "center", color: "var(--text-muted)", fontSize: 12,
+          borderTop: "1px solid var(--border)",
+        }}>
+          Click a node to edit<br />
+          <span style={{ fontSize: 11 }}>Esc to deselect · Delete to remove</span>
+        </div>
       </div>
     )
   }
@@ -795,12 +846,13 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
 
         {(selectedNode || selectedEdge) && (
           <div style={{ display: "flex", borderBottom: "1px solid var(--border)", padding: "0 16px" }}>
-            {selectedNode && (["edit", "info", "generations"] as const).map((tab) => (
+            {selectedNode && (["edit", "info", "generations", "turns", "agents"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => {
                   setActiveTab(tab)
                   if (tab === "generations") loadGenerations(selectedNode!.id)
+                  if (tab === "turns" || tab === "agents") setShowCompare(false)
                 }}
                 style={{
                   flex: 1,
@@ -816,7 +868,7 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
                   transition: "color 0.15s, border-color 0.15s",
                 }}
               >
-                {tab === "edit" ? "Edit" : tab === "info" ? "Info" : "Generations"}
+                {tab === "edit" ? "Edit" : tab === "info" ? "Info" : tab === "generations" ? "Gen" : tab === "turns" ? "Turns" : "Agents"}
               </button>
             ))}
           </div>

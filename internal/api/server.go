@@ -115,6 +115,8 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 					r.Get("/level", h.GetSummaryByLevel)
 					r.Get("/nodes/{nodeID}", h.GetSceneSummary)
 				})
+
+				r.Get("/metrics/llm", h.GetLlmMetrics)
 			})
 		})
 
@@ -158,13 +160,19 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 		r.Route("/experimental", func(r chi.Router) {
 			// Scene turns (interactive turn-by-turn generation)
 			r.Route("/stories/{storyID}/nodes/{nodeID}/scene", func(r chi.Router) {
-				r.Put("/structure", h.NotImplemented)
 				r.Get("/structure", h.NotImplemented)
+				r.Put("/structure", h.NotImplemented)
 				r.Post("/start", h.NotImplemented)
 				r.Post("/next", h.NotImplemented)
 				r.Post("/finish", h.NotImplemented)
-				r.Get("/turns", h.NotImplemented)
+				r.Get("/turns", h.ListSceneTurns)
+				r.Get("/deltas", h.ListSceneCanonDeltas)
+				r.Post("/deltas", h.RecordCanonDelta)
+				r.Get("/turns/role", h.ListSceneTurnsByRole)
 			})
+
+			// Agent runs
+			r.Get("/agent-runs", h.ListAgentRuns)
 
 			// Actors
 			r.Get("/actors", h.EmptyArray)

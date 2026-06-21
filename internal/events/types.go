@@ -40,4 +40,9 @@ const (
 	EventAgentTurnFailed     = "agent.turn_failed"
 	EventSceneTurnsComplete  = "scene.turns_complete"
 	EventAgentError          = "agent.error"
+
+	// Budget / metrics events
+	EventBudgetLimitExceeded = "budget.limit_exceeded"
+	EventBudgetWarning       = "budget.warning"
+	EventMetricsUpdated      = "metrics.updated"
 )

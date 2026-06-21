@@ -2,12 +2,11 @@
 // These are TypeScript interfaces describing the shape of API responses and request payloads.
 // We import only the *type* versions (using `import type`) — they vanish at runtime.
 import type {
-  Chapter, Character,
-  CreateCharacterPayload,
-  CreateChapterPayload, CreateLocationPayload,
-  CreateNodePayload, CreateScenePayload, CreateStoryPayload, CreateEdgePayload,
+  Character, CreateCharacterPayload, CreateLocationPayload,
+  CreateNodePayload, CreateStoryPayload, CreateEdgePayload,
   Generation, GraphEdge, GraphNode, Location,
-  Scene, Story, StoryGenerateResult, StorySummary, Topology, UpdateNodePayload,
+  SceneTurn, AgentRun, LlmMetrics,
+  Story, StoryGenerateResult, StorySummary, Topology, UpdateNodePayload,
 } from "./types"
 
 // ---- Base URL ----
@@ -103,32 +102,6 @@ export const api = {
   },
 
   // ==========================================
-  // Chapters — groups of scenes within a story
-  // ==========================================
-  chapters: {
-    list:   (storyId: string)                  => request<Chapter[]>(`/stories/${storyId}/chapters`),
-    get:    (storyId: string, id: string)      => request<Chapter>(`/stories/${storyId}/chapters/${id}`),
-    create: (storyId: string, data: CreateChapterPayload) =>
-      request<Chapter>(`/stories/${storyId}/chapters`, { method: "POST", body: JSON.stringify(data) }),
-    update: (storyId: string, id: string, data: CreateChapterPayload) =>
-      request<Chapter>(`/stories/${storyId}/chapters/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-    delete: (storyId: string, id: string) =>
-      request<void>(`/stories/${storyId}/chapters/${id}`, { method: "DELETE" }),
-  },
-
-  // ==========================================
-  // Scenes (legacy chapter-based model)
-  // ==========================================
-  scenes: {
-    list:   (storyId: string, chapterId: string)          => request<Scene[]>(`/stories/${storyId}/chapters/${chapterId}/scenes`),
-    get:    (storyId: string, chapterId: string, id: string) => request<Scene>(`/stories/${storyId}/chapters/${chapterId}/scenes/${id}`),
-    create: (storyId: string, chapterId: string, data: CreateScenePayload) =>
-      request<Scene>(`/stories/${storyId}/chapters/${chapterId}/scenes`, { method: "POST", body: JSON.stringify(data) }),
-    update: (storyId: string, chapterId: string, id: string, data: CreateScenePayload) =>
-      request<Scene>(`/stories/${storyId}/chapters/${chapterId}/scenes/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-  },
-
-  // ==========================================
   // Nodes (newer graph-based model)
   // ==========================================
   nodes: {
@@ -190,5 +163,29 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ generation_id: generationId }),
       }),
+  },
+
+  // ==========================================
+  // Turns — scene turn playback
+  // ==========================================
+  turns: {
+    list: (storyId: string, nodeId: string) =>
+      request<SceneTurn[]>(`/experimental/stories/${storyId}/nodes/${nodeId}/scene/turns`),
+  },
+
+  // ==========================================
+  // Agent Runs — agent execution logs
+  // ==========================================
+  agentRuns: {
+    list: (storyId: string, _nodeId: string) =>
+      request<AgentRun[]>(`/experimental/agent-runs`),
+  },
+
+  // ==========================================
+  // LLM Metrics — aggregated token usage
+  // ==========================================
+  metrics: {
+    llm: (storyId: string) =>
+      request<LlmMetrics>(`/stories/${storyId}/metrics/llm`),
   },
 }

@@ -536,15 +536,66 @@ Delete a chapter.
 
 ---
 
-## Experimental Routes (Stubs)
+## Experimental Routes
 
-All feature stubs are behind `/api/v1/experimental`:
+Scenes with `sceneStructure` or `flowType` set route to the agent orchestrator via `POST /api/v1/stories/{id}/nodes/{nodeID}/generate`. Turn and delta data is available at these endpoints:
 
-| Group | Endpoint | Behavior |
-|---|---|---|
-| Scene turns | `PUT/GET .../scene/structure`, `POST .../scene/{start,next,finish}`, `GET .../scene/turns` | 501 |
-| Actors | `GET/POST /experimental/actors`, `GET/PUT /experimental/actors/{id}` | `[]` / 501 |
-| Character traits | `GET /experimental/character-traits`, `POST assign`, `DELETE unassign` | `[]` / 501 |
-| Lore | `GET /experimental/lore`, `POST /experimental/lore`, `POST .../search` | `[]` / 501 |
-| Casting | `POST /experimental/stories/{id}/casting`, `GET .../casting`, `GET .../casting/actor/{id}`, `GET .../casting/character/{id}` | `[]` / 501 |
+### Scene Turns & Canon Deltas
+
+All under `/api/v1/experimental/stories/{storyID}/nodes/{nodeID}/scene/`:
+
+| Method | Path | Behavior | Status |
+|--------|------|----------|--------|
+| GET | `/structure` | Read scene orchestration structure | 501 |
+| PUT | `/structure` | Update scene orchestration structure | 501 |
+| POST | `/start` | Start agent-based generation | 501 |
+| POST | `/next` | Execute next turn | 501 |
+| POST | `/finish` | Run finish phase (extract, evaluate) | 501 |
+| **GET** | **`/turns`** | **List all turns for scene** | **200** |
+| **GET** | **`/turns/role?role=`** | **List turns filtered by role** | **200** |
+| **GET** | **`/deltas`** | **List canon deltas for scene** | **200** |
+| **POST** | **`/deltas`** | **Record a canon delta** | **201** |
+
+### Agent Runs
+
+## LLM Metrics
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/stories/{storyID}/metrics/llm` | Aggregated LLM token usage + cost estimate by model and agent |
+
+Returns:
+
+```json
+{
+  "total_prompt_tokens": 15000,
+  "total_completion_tokens": 42000,
+  "total_tokens": 57000,
+  "total_cost_estimate": 0.8425,
+  "turn_count": 24,
+  "generation_count": 8,
+  "by_model": {
+    "claude-sonnet": { "prompt_tokens": 10000, "completion_tokens": 30000, "cost": 0.725 },
+    "claude-haiku": { "prompt_tokens": 3000, "completion_tokens": 8000, "cost": 0.1075 },
+    "local-7b": { "prompt_tokens": 2000, "completion_tokens": 4000, "cost": 0.010 }
+  },
+  "by_agent": {
+    "director": { "prompt_tokens": 5000, "completion_tokens": 2000, "turn_count": 8 },
+    "character": { "prompt_tokens": 8000, "completion_tokens": 20000, "turn_count": 12 }
+  }
+}
+```
+
+| Method | Path | Behavior |
+|--------|------|----------|
+| GET | `/api/v1/experimental/agent-runs` | List agent runs (empty) |
+
+### Stub Groups (all return `[]` or 501)
+
+| Group | Endpoints |
+|---|---|
+| Actors | `GET/POST /experimental/actors`, `GET/PUT /experimental/actors/{id}` |
+| Character traits | `GET /experimental/character-traits`, POST assign, DELETE unassign |
+| Lore | `GET/POST /experimental/lore`, POST `/search` |
+| Casting | `POST/GET /experimental/stories/{id}/casting`, `GET .../actor/{id}`, `GET .../character/{id}` |
 | `PUT /api/v1/locations/{id}` | Name field not mutable; accepts `description` + `props` only |

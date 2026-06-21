@@ -17,12 +17,14 @@ type GenerationServiceConfig struct {
 	SceneRepo repository.SceneRepository
 	JobRepo   repository.JobRepository
 	EventBus  events.Bus
+	AgentSvc  *AgentService
 }
 
 type GenerationService struct {
 	genRepo       repository.GenerationRepository
 	sceneRepo     repository.SceneRepository
 	jobRepo       repository.JobRepository
+	agentSvc      *AgentService
 
 	genInFlight    sync.Map
 	acceptInFlight sync.Map
@@ -35,6 +37,7 @@ func NewGenerationService(cfg GenerationServiceConfig) *GenerationService {
 		genRepo:   cfg.GenRepo,
 		sceneRepo: cfg.SceneRepo,
 		jobRepo:   cfg.JobRepo,
+		agentSvc:  cfg.AgentSvc,
 		eventBus:  cfg.EventBus,
 	}
 }
@@ -60,6 +63,12 @@ func (s *GenerationService) Generate(ctx context.Context, sceneID string) (*doma
 	if scene == nil {
 		s.genInFlight.Delete(sceneID)
 		return nil, fmt.Errorf("scene not found")
+	}
+
+	if s.agentSvc != nil && s.agentSvc.IsAgentScene(scene) {
+		gen, err := s.agentSvc.GenerateScene(ctx, sceneID)
+		s.genInFlight.Delete(sceneID)
+		return gen, err
 	}
 
 	gen := &domain.Generation{

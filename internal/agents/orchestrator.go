@@ -71,6 +71,9 @@ func NewOrchestrator(cfg OrchestratorConfig) *Orchestrator {
 			domain.AgentTypeCanonGuard:  15 * time.Second,
 			domain.AgentTypeCritic:      15 * time.Second,
 			domain.AgentTypeStateExtract: 30 * time.Second,
+			domain.AgentTypeWorld:       30 * time.Second,
+			domain.AgentTypeArc:         20 * time.Second,
+			domain.AgentTypeMemory:      30 * time.Second,
 		}
 	}
 	return &Orchestrator{
@@ -242,6 +245,9 @@ func (o *Orchestrator) RunFinish(ctx context.Context, sceneID string, agentCtx *
 
 	finishOrder := []TurnStep{
 		{AgentType: domain.AgentTypeStateExtract, Phase: "extract", Required: false, Blocking: true},
+		{AgentType: domain.AgentTypeWorld, Phase: "world-check", Required: false, Blocking: false},
+		{AgentType: domain.AgentTypeArc, Phase: "arc-check", Required: false, Blocking: false},
+		{AgentType: domain.AgentTypeMemory, Phase: "memory-analysis", Required: false, Blocking: false},
 		{AgentType: domain.AgentTypeDirector, Phase: "evaluate", Required: true, Blocking: true},
 	}
 

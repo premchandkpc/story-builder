@@ -84,6 +84,21 @@ func EnsureIndexes(ctx context.Context, db *mongo.Database) error {
 			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "order", Value: 1}}},
 			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "sceneId", Value: 1}}},
 		},
+		"scene_turns": {
+			{Keys: bson.D{{Key: "sceneId", Value: 1}, {Key: "number", Value: 1}}, Options: options.Index().SetUnique(true)},
+			{Keys: bson.D{{Key: "sceneId", Value: 1}, {Key: "role", Value: 1}}},
+			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "createdAt", Value: -1}}},
+		},
+		"agent_runs": {
+			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "sceneId", Value: 1}, {Key: "createdAt", Value: -1}}},
+			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "agentType", Value: 1}}},
+			{Keys: bson.D{{Key: "sceneId", Value: 1}}},
+		},
+		"canon_deltas": {
+			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "createdAt", Value: -1}}},
+			{Keys: bson.D{{Key: "sceneId", Value: 1}}},
+			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "category", Value: 1}}},
+		},
 		"jobs": {
 			{Keys: bson.D{{Key: "type", Value: 1}, {Key: "status", Value: 1}}},
 			{Keys: bson.D{{Key: "status", Value: 1}, {Key: "updatedAt", Value: 1}}},

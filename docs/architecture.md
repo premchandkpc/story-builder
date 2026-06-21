@@ -108,6 +108,7 @@ cmd/server/
     │   └── canon_delta.go     ─── CanonDelta (append-only canon changes)
     │
     ├── internal/service       ─── Business logic
+    │   ├── agent.go           ─── AgentService (orchestrator-based scene generation)
     │   ├── story.go           ─── Story CRUD, cascade delete, Scene/Edge/Character/Timeline/Summary/Memory services
     │   ├── location.go        ─── Location CRUD + GetByName
     │   ├── generation.go      ─── Durable pipeline orchestration (context.Background, partial success)
@@ -120,8 +121,9 @@ cmd/server/
     │
     ├── internal/agents        ─── Runtime narrative agents
     │   ├── types.go           ─── Agent, AgentSpec, AgentContext, OrchestrationPlan
+    │   ├── register.go        ─── RegisterAll — wires all 10 agents
     │   ├── orchestrator.go    ─── AgentRegistry, Orchestrator (Plan, Execute, RunFinish)
-    │   ├── director.go        ─── Director agent (scene planning, turn orchestration)
+    │   ├── director.go        ─── Director agent (scene planning, real LLM call w/ JSON parse)
     │   ├── character_agent.go ─── Character agent (in-character dialogue/action)
     │   ├── narrator.go        ─── Narrator agent (prose stitching)
     │   ├── editor.go          ─── Editor agent (polish, trim, pace)
@@ -253,14 +255,18 @@ The frontend types in `web/src/api/types.ts` mirror the backend domain models. K
 
 ## Agent Orchestration
 
-See `docs/agents.md` for full agent architecture. Summary:
+See `docs/agents.md` for full agent architecture. Implemented:
 
-- 10 runtime agents: Director, Character, Narrator, Editor, CanonGuard, Critic, StateExtract, World, Arc, Memory
+- 10 agents registered via `RegisterAll()` in `internal/agents/register.go`
 - `internal/agents/orchestrator.go` — Plan, Execute, RunFinish
+- `internal/service/agent.go` — AgentService builds context, runs orchestrator, persists results
+- Director agent calls `LLMClient.Complete()` with JSON parsing (others stub until P1)
 - Turn order determined by `scene.FlowType` (monologue/dialogue/round_robin/action/silent)
-- Agents called in sequence, each producing a `domain.SceneTurn`
-- P0 agents (Director, Character, Narrator, CanonGuard, StateExtract) built first
-- Integration: scenes with `sceneStructure` → agent orchestrator; simple scenes → existing pipeline
+- `GenerationService.Generate()` routes via `agentSvc.IsAgentScene(scene)`:
+  - `SceneStructure` set or non-custom `FlowType` → AgentService (no job, no worker pool)
+  - Otherwise → enqueue job → 6-worker pipeline
+- Repos: `SceneTurnRepository`, `ActorRepository`, `CanonDeltaRepository` in `internal/repository/mongo/`
+- API: `GET /turns`, `GET /turns/role`, `GET /deltas`, `POST /deltas` implemented in `internal/api/agents.go`
 
 ## Data Flow: Scene Generation
 
@@ -271,8 +277,25 @@ User clicks "Generate" on a node
 api.GenerationHandler.Generate()
     │
     │ 1. Load scene from Mongo
-    │ 2. Create Generation doc (status=pending) + Job (status=pending)
-    │ 3. Return immediately (async)
+    │
+    ▼
+service.GenerationService.Generate()
+    │
+    ├── IsAgentScene(scene)?
+    │   (scene.SceneStructure != nil || flowType != custom)
+    │   │
+    │   ├── YES → Agent Path:
+    │   │   AgentService.GenerateScene()
+    │   │     → AgentService.BuildContext() — loads same context as worker path
+    │   │     → orchestrator.Plan(scene) — returns TurnOrder by FlowType
+    │   │     → orchestrator.Execute(plan, ctx) — runs each agent, records turns
+    │   │       └── Director (LLM) → Character(s) → Narrator → Editor → CanonGuard
+    │   │     → orchestrator.RunFinish(scene, ctx) — StateExtract + Critic + Director
+    │   │     → persists turns, generation, canon deltas to Mongo
+    │   │     → returns immediately
+    │   │
+    │   └── NO → Worker Path (async):
+    │       Creates Generation doc + Job, returns immediately
     │
     ▼
 service.GenerationJobWorker (goroutine, polls for jobs)
@@ -359,15 +382,18 @@ When Redis is unavailable, all features degrade gracefully (no caching, no rate 
 
 ## Scene Turn Scheduling
 
-`internal/scene/turn.go` — `WhoActsNext` determines which actor speaks next:
+Turn ordering is determined by `agents.Orchestrator.Plan()` in `internal/agents/orchestrator.go`:
 
-| FlowType | Behavior |
+| FlowType | Turn Sequence |
 |---|---|
-| `monologue` | First character speaks once |
-| `dialogue` | Alternating round-robin through character order |
-| `round_robin` | Same as dialogue |
-| `parallel` | All characters act simultaneously |
-| `custom` | Round-robin starting after last speaker |
+| `monologue` | Director → Character(1) → Narrator → Editor → CanonGuard |
+| `dialogue` | Director → Character(1) → Character(2) → Narrator → Editor → CanonGuard |
+| `round_robin` | Director → (Character × N → Narrator → CanonGuard) × maxTurns |
+| `parallel` | Director → Character(all) → Narrator → CanonGuard |
+| `action` | Director → Character → Narrator → Editor |
+| `silent` | Director → Narrator |
+
+`internal/scene/turn.go` also retains a `WhoActsNext` helper for use within individual character turns during execution.
 
 ## Canon Versioning
 
@@ -393,12 +419,14 @@ MongoDB + Redis → Go API (chi) → React Flow
     6. Durable Pipeline — context.Background(), partial success, retries, status tracking
 ```
 
-**Phase 3 — Agent Orchestration:**
-- 10 runtime narrative agents (see `docs/agents.md`)
-- Director-led turn orchestration replacing hardcoded pipeline steps
-- Agent context assembly (bible + state + memory + canon)
-- Turn-level LLM calls with role-specific system prompts
-- Critic-scored scene quality feedback loop
+**Phase 3 — Agent Orchestration (implemented):**
+- 10 runtime narrative agents registered in `internal/agents/` (P0 agents: Director, Character, Narrator, CanonGuard, StateExtract; P1: Editor, Critic, World, Arc, Memory)
+- Director agent calls `LLMClient.Complete()` with structured JSON parsing; others are stubs awaiting P1 wiring
+- `AgentService` in `internal/service/agent.go` — orchestrator-based scene generation with context assembly
+- Pipeline hybrid: agent path for structured scenes, worker path for simple scenes
+- Turn/Lore/Canon repository interfaces + MongoDB implementations in Phase 1.3
+- Turn-level agent runs with role-specific system prompts
+- API endpoints for turns, deltas, and agent-run queries (Phase 1.4)
 
 **Phase 4 — Narrative Intelligence:**
 - Sequential generation: whole acts, not individual scenes
