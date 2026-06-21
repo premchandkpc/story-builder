@@ -89,11 +89,12 @@ internal/
 3. **One custom hook per logical query.** Hooks encapsulate query keys, cache invalidation, and navigation side effects.
 4. **Props are typed with interfaces.** Every component defines or imports a Props interface.
 5. **No prop drilling beyond 2 levels.** Use React Router's params or React Query's cache for shared state.
-6. **Inline styles only** (no CSS modules, no Tailwind). Style objects live in the component file or in `api/types.ts` for shared styles.
-7. **`memo()` on React Flow custom nodes.** Performance optimization — prevents re-render of nodes whose data hasn't changed.
-8. **`useCallback` for handlers passed to child components.** Prevents unnecessary re-renders.
-9. **`useMemo` for derived data.** Only recompute when dependencies change.
-10. **Dark theme throughout.** Background `#0f172a`, text `#e2e8f0`, cards `#1e293b`.
+6. **Inline styles + CSS utility classes** (no CSS modules, no Tailwind). Style objects live in the component file or `api/types.ts`. Interaction utilities (`.card-hover`, `.btn-press`) and entrance animations (`.stagger-fade-in`, `.stagger-slide-up`) are in `index.css`.
+7. **All border-radius via `--radius-*` tokens** — never raw px values. All transitions via `--transition-*` tokens.
+8. **`memo()` on React Flow custom nodes.** Performance optimization — prevents re-render of nodes whose data hasn't changed.
+9. **`useCallback` for handlers passed to child components.** Prevents unnecessary re-renders.
+10. **`useMemo` for derived data.** Only recompute when dependencies change.
+11. **Warm dark theme throughout.** Background `#1a1512`, text `#f5f0e8`, surfaces `#2a2420`, borders `#3d3530`.
 
 ## Testing Priority
 

@@ -186,15 +186,25 @@ cmd/server/
 ### Component Tree
 
 ```
-main.tsx                          ← Entry: StrictMode + QueryClientProvider + RouterProvider
-  └── routes.tsx                  ← Route definitions (createBrowserRouter)
-       └── Layout.tsx             ← App shell: TopBar + Sidebar + <Outlet/>
-            ├── TopBar.tsx        ← Search bar + navigation
-            ├── StoryListItem.tsx ← Sidebar story entries (×N)
-            ├── HomeView.tsx      ← Home page ("/"): create/generate stories
-            └── StoryView.tsx     ← Story detail page ("/stories/:storyId")
-                 └── StoryGraph.tsx  ← React Flow canvas + side panel
-                      └── SceneNode.tsx  ← Custom React Flow node (×N)
+main.tsx                              ← Entry: StrictMode + QueryClientProvider + RouterProvider
+  └── routes.tsx                      ← Route definitions (createBrowserRouter)
+       └── Layout.tsx                 ← App shell: TopBar + Sidebar + <Outlet/>
+            ├── TopBar.tsx            ← Search bar + navigation (editorial masthead)
+            ├── StoryListItem.tsx     ← Sidebar story entries (×N)
+            ├── HomeView.tsx          ← Home page ("/"): create/generate stories
+            └── StoryView.tsx         ← Story detail page ("/stories/:storyId")
+                 └── StoryGraph.tsx   ← React Flow canvas + right sidebar
+                      ├── SceneNode.tsx   ← Custom React Flow node (×N)
+                      └── GraphPanel.tsx  ← 300px right sidebar (tabbed)
+                           ├── SceneEditorPanel.tsx  ← Edit tab form
+                           ├── NodeInfoPanel.tsx     ← Info tab (read-only)
+                           ├── EdgeInfoPanel.tsx     ← Info tab (edge details)
+                           ├── GenerationList.tsx    ← Gen tab (LLM outputs)
+                           │    └── GenerationCompare.tsx  ← side-by-side diff
+                           ├── TurnTimeline.tsx      ← Turns tab
+                           │    └── TurnItem.tsx     ← individual turn (×N)
+                           └── AgentRunPanel.tsx     ← Agents tab
+                                └── AgentRunItem.tsx ← individual run (×N)
 ```
 
 ### Data Flow (Frontend)
@@ -225,18 +235,34 @@ Go API Server (chi)
 web/src/
   main.tsx              React entry point
   routes.tsx            Route tree
-  index.css             Global styles
+  index.css             Global styles (warm dark theme, animations, utility classes)
   api/
-    types.ts            TypeScript interfaces (mirrors backend domain)
+    types.ts            TypeScript interfaces + shared style objects + SceneNodeData
     client.ts           HTTP API client (fetch + timeout)
     hooks.ts            React Query hooks
   components/
     Layout.tsx          App shell: sidebar + content area
-    TopBar.tsx          Top navigation bar
+    TopBar.tsx          Top navigation bar (editorial masthead)
     HomeView.tsx        Landing page
     StoryView.tsx       Story detail wrapper
-    StoryGraph.tsx      React Flow canvas + side panel
-    SceneNode.tsx       Custom React Flow node
+    StoryGraph.tsx      React Flow canvas + right sidebar (orchestrator)
+    GraphPanel.tsx      300px right sidebar with tab routing
+    SceneEditorPanel.tsx Edit form (beat intent, POV, tone, words)
+    NodeInfoPanel.tsx   Read-only node info
+    EdgeInfoPanel.tsx   Read-only edge details
+    GenerationList.tsx  Generations list with preview/accept
+    GenerationCompare.tsx Side-by-side generation diff
+    SceneNode.tsx       Custom React Flow node (index card + pin)
+    TurnItem.tsx        Individual agent turn (expandable I/O)
+    TurnTimeline.tsx    Wrapper mapping turns → TurnItem
+    AgentRunItem.tsx    Individual agent run (expandable I/O)
+    AgentRunPanel.tsx   Wrapper mapping runs → AgentRunItem
+    StatCard.tsx        Shared metric card
+    LlmMetricsDashboard.tsx  Token/cost metrics
+    CriticScoreDashboard.tsx Critic evaluation scores
+    AuditDashboard.tsx  Code audit findings
+    CompressionStats.tsx Token compression display
+    Toast.tsx           Toast notification system
     StoryListItem.tsx   Sidebar story entry
 ```
 
@@ -252,6 +278,9 @@ The frontend types in `web/src/api/types.ts` mirror the backend domain models. K
 - `NodeStatus` → `draft | generated | accepted | stale`
 - `EdgeType` → `seq | fork | join | choice`
 - `SceneStructure` / `SceneTurn` → interactive turn-based generation
+- `SceneNodeData` → React Flow node data type (id, label, beatIntent, pov, tone, status, wordCount, targetWords)
+
+Plus shared style objects: `inputStyle`, `btnStyle`, `spinnerStyle`, `labelStyle`, `cardStyle`, `badgeStyle`, `ghostBtnStyle`, `destructiveBtnStyle`.
 
 ## Agent Orchestration
 
