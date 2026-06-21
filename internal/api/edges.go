@@ -5,9 +5,29 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"go.mongodb.org/mongo-driver/mongo"
 
 	"github.com/premchand/story-builder/internal/domain"
 )
+
+var validEdgeTypes = map[string]bool{
+	domain.EdgeTypeSeq:      true,
+	domain.EdgeTypeFork:     true,
+	domain.EdgeTypeJoin:     true,
+	domain.EdgeTypeChoice:   true,
+	domain.EdgeTypeParallel: true,
+}
+
+func isValidEdgeType(t string) bool {
+	if t == "" {
+		return false
+	}
+	return validEdgeTypes[t]
+}
+
+func isDuplicateKeyError(err error) bool {
+	return mongo.IsDuplicateKeyError(err)
+}
 
 // DeleteEdge handles DELETE /stories/{storyID}/edges?from_scene=X&to_scene=Y.
 func (h *Handlers) DeleteEdge(w http.ResponseWriter, r *http.Request) {
@@ -42,6 +62,10 @@ func (h *Handlers) V2CreateEdge(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "from_node and to_node are required")
 		return
 	}
+	if !isValidEdgeType(body.EdgeType) {
+		writeError(w, http.StatusBadRequest, "invalid edge type: "+body.EdgeType)
+		return
+	}
 	edge := &domain.SceneEdge{
 		StoryID:     storyID,
 		FromSceneID: body.FromNode,
@@ -51,6 +75,10 @@ func (h *Handlers) V2CreateEdge(w http.ResponseWriter, r *http.Request) {
 	}
 	created, err := h.edgeSvc.Create(r.Context(), edge)
 	if err != nil {
+		if isDuplicateKeyError(err) {
+			writeError(w, http.StatusConflict, err.Error())
+			return
+		}
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

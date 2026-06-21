@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"go.mongodb.org/mongo-driver/mongo"
 
 	"github.com/premchand/story-builder/internal/domain"
 )
@@ -43,6 +44,10 @@ func (h *Handlers) CreateLocation(w http.ResponseWriter, r *http.Request) {
 		Props:       body.Props,
 	}
 	if err := h.locSvc.Create(r.Context(), loc); err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			writeError(w, http.StatusConflict, "location name already exists in this story")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

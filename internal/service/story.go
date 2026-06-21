@@ -404,7 +404,7 @@ func (s *CharacterService) MigrateCharacter(ctx context.Context, charID, targetS
 	}
 	now := time.Now()
 	migrated := &domain.Character{
-		CharID:         char.CharID,
+		CharID:         "",
 		StoryID:        targetStoryID,
 		Name:           char.Name,
 		Persona:        char.Persona,

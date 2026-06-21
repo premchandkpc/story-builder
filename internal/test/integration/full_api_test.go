@@ -25,7 +25,7 @@ func TestAPI_NodesCRUD(t *testing.T) {
 	base := "/api/v1/stories/" + s.ID + "/nodes"
 
 	t.Run("create node", func(t *testing.T) {
-		payload := `{"title":"Node A","status":"draft"}`
+		payload := `{"beat_intent":"Node A","status":"draft"}`
 		req := httptest.NewRequest("POST", base, bytes.NewBufferString(payload))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -33,13 +33,13 @@ func TestAPI_NodesCRUD(t *testing.T) {
 		if rec.Code != http.StatusCreated {
 			t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
 		}
-		var node domain.Scene
+		var node map[string]any
 		json.NewDecoder(rec.Body).Decode(&node)
-		if node.Title != "Node A" {
-			t.Fatalf("title: got %q", node.Title)
+		if node["beat_intent"] != "Node A" {
+			t.Fatalf("beat_intent: got %q", node["beat_intent"])
 		}
-		if node.StoryID != s.ID {
-			t.Fatalf("storyID: got %q", node.StoryID)
+		if node["story_id"] != s.ID {
+			t.Fatalf("storyID: got %q", node["story_id"])
 		}
 	})
 
@@ -49,7 +49,7 @@ func TestAPI_NodesCRUD(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d", rec.Code)
 		}
-		var nodes []*domain.Scene
+		var nodes []map[string]any
 		json.NewDecoder(rec.Body).Decode(&nodes)
 		if len(nodes) < 1 {
 			t.Fatal("expected at least 1 node")
@@ -57,22 +57,22 @@ func TestAPI_NodesCRUD(t *testing.T) {
 	})
 
 	t.Run("get node by ID", func(t *testing.T) {
-		var created domain.Scene
-		creq := httptest.NewRequest("POST", base, bytes.NewBufferString(`{"title":"GetTest"}`))
+		var created map[string]any
+		creq := httptest.NewRequest("POST", base, bytes.NewBufferString(`{"beat_intent":"GetTest"}`))
 		creq.Header.Set("Content-Type", "application/json")
 		crec := httptest.NewRecorder()
 		srv.Router.ServeHTTP(crec, creq)
 		json.NewDecoder(crec.Body).Decode(&created)
 
 		rec := httptest.NewRecorder()
-		srv.Router.ServeHTTP(rec, httptest.NewRequest("GET", base+"/"+created.ID, nil))
+		srv.Router.ServeHTTP(rec, httptest.NewRequest("GET", base+"/"+created["id"].(string), nil))
 		if rec.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d", rec.Code)
 		}
-		var got domain.Scene
+		var got map[string]any
 		json.NewDecoder(rec.Body).Decode(&got)
-		if got.ID != created.ID {
-			t.Fatalf("id: got %q", got.ID)
+		if got["id"] != created["id"] {
+			t.Fatalf("id: got %q", got["id"])
 		}
 	})
 
@@ -85,44 +85,44 @@ func TestAPI_NodesCRUD(t *testing.T) {
 	})
 
 	t.Run("update node", func(t *testing.T) {
-		var created domain.Scene
-		creq := httptest.NewRequest("POST", base, bytes.NewBufferString(`{"title":"Original"}`))
+		var created map[string]any
+		creq := httptest.NewRequest("POST", base, bytes.NewBufferString(`{"beat_intent":"Original"}`))
 		creq.Header.Set("Content-Type", "application/json")
 		crec := httptest.NewRecorder()
 		srv.Router.ServeHTTP(crec, creq)
 		json.NewDecoder(crec.Body).Decode(&created)
 
-		payload := fmt.Sprintf(`{"title":"Updated","status":"generated"}`)
-		req := httptest.NewRequest("PUT", base+"/"+created.ID, bytes.NewBufferString(payload))
+		payload := fmt.Sprintf(`{"beat_intent":"Updated","status":"generated"}`)
+		req := httptest.NewRequest("PUT", base+"/"+created["id"].(string), bytes.NewBufferString(payload))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 		srv.Router.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 		}
-		var updated domain.Scene
+		var updated map[string]any
 		json.NewDecoder(rec.Body).Decode(&updated)
-		if updated.Title != "Updated" {
-			t.Fatalf("title: got %q", updated.Title)
+		if updated["beat_intent"] != "Updated" {
+			t.Fatalf("beat_intent: got %q", updated["beat_intent"])
 		}
 	})
 
 	t.Run("delete node", func(t *testing.T) {
-		var created domain.Scene
-		creq := httptest.NewRequest("POST", base, bytes.NewBufferString(`{"title":"DeleteMe"}`))
+		var created map[string]any
+		creq := httptest.NewRequest("POST", base, bytes.NewBufferString(`{"beat_intent":"DeleteMe"}`))
 		creq.Header.Set("Content-Type", "application/json")
 		crec := httptest.NewRecorder()
 		srv.Router.ServeHTTP(crec, creq)
 		json.NewDecoder(crec.Body).Decode(&created)
 
 		rec := httptest.NewRecorder()
-		srv.Router.ServeHTTP(rec, httptest.NewRequest("DELETE", base+"/"+created.ID, nil))
+		srv.Router.ServeHTTP(rec, httptest.NewRequest("DELETE", base+"/"+created["id"].(string), nil))
 		if rec.Code != http.StatusNoContent {
 			t.Fatalf("expected 204, got %d", rec.Code)
 		}
 
 		grec := httptest.NewRecorder()
-		srv.Router.ServeHTTP(grec, httptest.NewRequest("GET", base+"/"+created.ID, nil))
+		srv.Router.ServeHTTP(grec, httptest.NewRequest("GET", base+"/"+created["id"].(string), nil))
 		if grec.Code != http.StatusNotFound {
 			t.Fatalf("expected 404 after delete, got %d", grec.Code)
 		}
@@ -153,7 +153,7 @@ func TestAPI_EdgesAdvanced(t *testing.T) {
 	base := "/api/v1/stories/" + s.ID + "/edges"
 
 	t.Run("create edge with invalid type returns 400", func(t *testing.T) {
-		payload := `{"fromSceneId":"` + sc1.ID + `","toSceneId":"` + sc2.ID + `","type":"invalid-type"}`
+		payload := `{"from_node":"` + sc1.ID + `","to_node":"` + sc2.ID + `","edge_type":"invalid-type"}`
 		req := httptest.NewRequest("POST", base, bytes.NewBufferString(payload))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -164,7 +164,7 @@ func TestAPI_EdgesAdvanced(t *testing.T) {
 	})
 
 	t.Run("create duplicate edge returns 409", func(t *testing.T) {
-		payload := `{"fromSceneId":"` + sc1.ID + `","toSceneId":"` + sc2.ID + `","type":"seq"}`
+		payload := `{"from_node":"` + sc1.ID + `","to_node":"` + sc2.ID + `","edge_type":"seq"}`
 		for i := 0; i < 2; i++ {
 			req := httptest.NewRequest("POST", base, bytes.NewBufferString(payload))
 			req.Header.Set("Content-Type", "application/json")
@@ -284,14 +284,14 @@ func TestAPI_BibleCRUD(t *testing.T) {
 		}
 	})
 
-	t.Run("generate bible returns 202", func(t *testing.T) {
+	t.Run("generate bible returns 201", func(t *testing.T) {
 		payload := `{}`
 		req := httptest.NewRequest("POST", base+"/generate", bytes.NewBufferString(payload))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 		srv.Router.ServeHTTP(rec, req)
-		if rec.Code != http.StatusAccepted {
-			t.Fatalf("expected 202, got %d: %s", rec.Code, rec.Body.String())
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
 		}
 	})
 
@@ -326,8 +326,8 @@ func TestAPI_BibleCRUD(t *testing.T) {
 
 		rec := httptest.NewRecorder()
 		srv.Router.ServeHTTP(rec, httptest.NewRequest("DELETE", base, nil))
-		if rec.Code != http.StatusOK {
-			t.Fatalf("expected 200, got %d", rec.Code)
+		if rec.Code != http.StatusNoContent {
+			t.Fatalf("expected 204, got %d", rec.Code)
 		}
 	})
 }
@@ -852,55 +852,64 @@ func TestAPI_Chapters(t *testing.T) {
 	})
 
 	t.Run("get chapter by ID", func(t *testing.T) {
-		chRepo := mgorepo.NewChapterRepo(testDB)
-		ch := &domain.Chapter{StoryID: s.ID, Title: "Get Me", ActNumber: 1}
-		chRepo.Create(ctx, ch)
+		var created map[string]any
+		creq := httptest.NewRequest("POST", base, bytes.NewBufferString(`{"title":"Get Me","actNumber":1}`))
+		creq.Header.Set("Content-Type", "application/json")
+		crec := httptest.NewRecorder()
+		srv.Router.ServeHTTP(crec, creq)
+		json.NewDecoder(crec.Body).Decode(&created)
 
 		rec := httptest.NewRecorder()
-		srv.Router.ServeHTTP(rec, httptest.NewRequest("GET", base+"/"+ch.ID, nil))
+		srv.Router.ServeHTTP(rec, httptest.NewRequest("GET", base+"/"+created["id"].(string), nil))
 		if rec.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d", rec.Code)
 		}
-		var got domain.Chapter
+		var got map[string]any
 		json.NewDecoder(rec.Body).Decode(&got)
-		if got.Title != "Get Me" {
-			t.Fatalf("title: got %q", got.Title)
+		if got["title"] != "Get Me" {
+			t.Fatalf("title: got %q", got["title"])
 		}
 	})
 
 	t.Run("update chapter", func(t *testing.T) {
-		chRepo := mgorepo.NewChapterRepo(testDB)
-		ch := &domain.Chapter{StoryID: s.ID, Title: "Old", ActNumber: 1}
-		chRepo.Create(ctx, ch)
+		var created map[string]any
+		creq := httptest.NewRequest("POST", base, bytes.NewBufferString(`{"title":"Old","actNumber":1}`))
+		creq.Header.Set("Content-Type", "application/json")
+		crec := httptest.NewRecorder()
+		srv.Router.ServeHTTP(crec, creq)
+		json.NewDecoder(crec.Body).Decode(&created)
 
 		payload := `{"title":"New Title"}`
-		req := httptest.NewRequest("PUT", base+"/"+ch.ID, bytes.NewBufferString(payload))
+		req := httptest.NewRequest("PUT", base+"/"+created["id"].(string), bytes.NewBufferString(payload))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 		srv.Router.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d", rec.Code)
 		}
-		var updated domain.Chapter
+		var updated map[string]any
 		json.NewDecoder(rec.Body).Decode(&updated)
-		if updated.Title != "New Title" {
-			t.Fatalf("title: got %q", updated.Title)
+		if updated["title"] != "New Title" {
+			t.Fatalf("title: got %q", updated["title"])
 		}
 	})
 
 	t.Run("delete chapter", func(t *testing.T) {
-		chRepo := mgorepo.NewChapterRepo(testDB)
-		ch := &domain.Chapter{StoryID: s.ID, Title: "Delete Me", ActNumber: 1}
-		chRepo.Create(ctx, ch)
+		var created map[string]any
+		creq := httptest.NewRequest("POST", base, bytes.NewBufferString(`{"title":"Delete Me","actNumber":1}`))
+		creq.Header.Set("Content-Type", "application/json")
+		crec := httptest.NewRecorder()
+		srv.Router.ServeHTTP(crec, creq)
+		json.NewDecoder(crec.Body).Decode(&created)
 
 		rec := httptest.NewRecorder()
-		srv.Router.ServeHTTP(rec, httptest.NewRequest("DELETE", base+"/"+ch.ID, nil))
-		if rec.Code != http.StatusOK {
-			t.Fatalf("expected 200, got %d", rec.Code)
+		srv.Router.ServeHTTP(rec, httptest.NewRequest("DELETE", base+"/"+created["id"].(string), nil))
+		if rec.Code != http.StatusNoContent {
+			t.Fatalf("expected 204, got %d", rec.Code)
 		}
 
 		grec := httptest.NewRecorder()
-		srv.Router.ServeHTTP(grec, httptest.NewRequest("GET", base+"/"+ch.ID, nil))
+		srv.Router.ServeHTTP(grec, httptest.NewRequest("GET", base+"/"+created["id"].(string), nil))
 		if grec.Code != http.StatusNotFound {
 			t.Fatalf("expected 404 after delete, got %d", grec.Code)
 		}

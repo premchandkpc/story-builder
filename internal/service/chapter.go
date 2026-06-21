@@ -18,8 +18,6 @@ func NewChapterSvc(repo repository.ChapterRepository) *ChapterSvc {
 }
 
 func (s *ChapterSvc) Create(ctx context.Context, c *domain.Chapter) (*domain.Chapter, error) {
-	c.CreatedAt = time.Now()
-	c.UpdatedAt = time.Now()
 	if err := s.repo.Create(ctx, c); err != nil {
 		return nil, fmt.Errorf("create chapter: %w", err)
 	}

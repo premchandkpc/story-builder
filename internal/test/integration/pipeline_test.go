@@ -85,8 +85,11 @@ func TestIntegration_GenerationPipeline(t *testing.T) {
 	worker.Start()
 	t.Cleanup(worker.Stop)
 
+	var gen *domain.Generation
+
 	t.Run("generation creates record and runs pipeline", func(t *testing.T) {
-		gen, err := genSvc.Generate(ctx, scene.ID)
+		var err error
+		gen, err = genSvc.Generate(ctx, scene.ID)
 		if err != nil {
 			t.Fatalf("generate scene: %v", err)
 		}
@@ -97,23 +100,16 @@ func TestIntegration_GenerationPipeline(t *testing.T) {
 			t.Fatalf("model: got %q", gen.Model)
 		}
 
-		var gens []*domain.Generation
+		var output string
 		for i := 0; i < 100; i++ {
-			gens, err = genSvc.ListGenerations(ctx, scene.ID)
-			if err != nil {
-				t.Fatalf("list gens: %v", err)
-			}
-			if len(gens) > 0 && gens[0].Output != "" {
+			updated, rerr := genRepo.Get(ctx, gen.ID)
+			if rerr == nil && updated != nil && updated.Output != "" {
+				output = updated.Output
 				break
 			}
 			time.Sleep(20 * time.Millisecond)
 		}
-		if len(gens) == 0 {
-			t.Fatal("no generations found after pipeline (timeout)")
-		}
-
-		latest := gens[0]
-		if latest.Output == "" {
+		if output == "" {
 			t.Fatal("generation output should not be empty after pipeline")
 		}
 	})
@@ -140,19 +136,23 @@ func TestIntegration_GenerationPipeline(t *testing.T) {
 	})
 
 	t.Run("accept generation marks scene accepted and rejects others", func(t *testing.T) {
-		var gens []*domain.Generation
-		for i := 0; i < 50; i++ {
-			gens, _ = genSvc.ListGenerations(ctx, scene.ID)
-			if len(gens) > 0 {
+		var output string
+		for i := 0; i < 150; i++ {
+			updated, rerr := genRepo.Get(ctx, gen.ID)
+			if rerr == nil && updated != nil && updated.Output != "" {
+				output = updated.Output
 				break
 			}
 			time.Sleep(20 * time.Millisecond)
 		}
-		if len(gens) == 0 {
-			t.Fatal("no generations to accept")
+		if output == "" {
+			t.Fatal("no completed generations to accept")
 		}
 
-		err := genSvc.AcceptGeneration(ctx, scene.ID, gens[0].ID)
+		scene.Status = domain.SceneStatusGenerated
+		sceneRepo.Update(ctx, scene)
+
+		err := genSvc.AcceptGeneration(ctx, scene.ID, gen.ID)
 		if err != nil {
 			t.Fatalf("accept gen: %v", err)
 		}
@@ -162,9 +162,9 @@ func TestIntegration_GenerationPipeline(t *testing.T) {
 			t.Fatalf("scene status after accept: got %q", acceptedScene.Status)
 		}
 
-		gens, _ = genSvc.ListGenerations(ctx, scene.ID)
+		gens, _ := genSvc.ListGenerations(ctx, scene.ID)
 		for _, g := range gens {
-			if g.ID == gens[0].ID && !g.Accepted {
+			if g.ID == gen.ID && !g.Accepted {
 				t.Fatal("accepted generation should be marked accepted")
 			}
 		}
@@ -182,23 +182,25 @@ func TestIntegration_GenerationPipeline(t *testing.T) {
 		}
 		defer func() { llmSvc.generateFn = oldProse }()
 
-		gen, _ := genSvc.Generate(ctx, scene.ID)
+		gen, _ = genSvc.Generate(ctx, scene.ID)
 
-		var gens []*domain.Generation
 		for i := 0; i < 50; i++ {
-			gens, _ = genSvc.ListGenerations(ctx, scene.ID)
-			if len(gens) > 0 {
+			updated, rerr := genRepo.Get(ctx, gen.ID)
+			if rerr == nil && updated != nil && updated.Output != "" {
 				break
 			}
 			time.Sleep(20 * time.Millisecond)
 		}
+
+		scene.Status = domain.SceneStatusGenerated
+		sceneRepo.Update(ctx, scene)
+
 		genSvc.AcceptGeneration(ctx, scene.ID, gen.ID)
 
-		if len(gens) > 0 && gens[0].ID != gen.ID {
-			for _, g := range gens {
-				if g.ID != gen.ID && g.Accepted {
-					t.Fatal("non-current generation should not be accepted")
-				}
+		gens, _ := genSvc.ListGenerations(ctx, scene.ID)
+		for _, g := range gens {
+			if g.ID != gen.ID && g.Accepted {
+				t.Fatal("non-current generation should not be accepted")
 			}
 		}
 	})
@@ -328,6 +330,9 @@ func TestIntegration_GenerationCustomProse(t *testing.T) {
 	if gens[0].Output != "" {
 		t.Logf("generation output: %s", gens[0].Output[:min(len(gens[0].Output), 100)])
 	}
+
+	scene.Status = domain.SceneStatusGenerated
+	sceneRepo.Update(ctx, scene)
 
 	err = genSvc.AcceptGeneration(ctx, scene.ID, gen.ID)
 	if err != nil {

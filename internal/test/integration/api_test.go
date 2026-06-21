@@ -66,6 +66,8 @@ func buildServer(t *testing.T) (*api.Server, *mgorepo.StoryRepo) {
 	genSvc.SetProgressPublisher(progressHub)
 	agentCfgSvc := service.NewAgentConfigService(agentCfgRepo)
 
+	criticSvc := service.NewCriticScoresService(genRepo, sceneRepo)
+
 	h := api.NewHandlers(
 		service.NewStoryService(storyRepo, deleter),
 		service.NewSceneService(sceneRepo, edgeRepo, genRepo),
@@ -81,7 +83,7 @@ func buildServer(t *testing.T) (*api.Server, *mgorepo.StoryRepo) {
 		outlineSvc,
 		titleSvc,
 		nil,
-		nil,
+		criticSvc,
 		agentCfgSvc,
 		progressHub,
 		nil,
@@ -274,10 +276,10 @@ func TestAPI_Scenes(t *testing.T) {
 	ctx := context.Background()
 	s := &domain.Story{Title: "Scene Test", Status: domain.StoryStatusDraft}
 	storyRepo.Create(ctx, s)
-	base := "/api/v1/stories/" + s.ID + "/scenes"
+	base := "/api/v1/stories/" + s.ID + "/nodes"
 
-	t.Run("create scene", func(t *testing.T) {
-		payload := fmt.Sprintf(`{"title":"Action Scene","beat_intent":"Hero fights villain","pov":"Hero","tone":"intense","target_words":750}`)
+	t.Run("create node", func(t *testing.T) {
+		payload := fmt.Sprintf(`{"beat_intent":"Hero fights villain","pov":"Hero","tone":"intense","target_words":750}`)
 		req := httptest.NewRequest("POST", base, bytes.NewBufferString(payload))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -286,17 +288,17 @@ func TestAPI_Scenes(t *testing.T) {
 		if rec.Code != http.StatusCreated {
 			t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
 		}
-		var scene domain.Scene
-		json.NewDecoder(rec.Body).Decode(&scene)
-		if scene.Title != "Action Scene" {
-			t.Fatalf("title: got %q", scene.Title)
+		var node map[string]any
+		json.NewDecoder(rec.Body).Decode(&node)
+		if node["beat_intent"] != "Hero fights villain" {
+			t.Fatalf("beat_intent: got %q", node["beat_intent"])
 		}
-		if scene.StoryID != s.ID {
-			t.Fatalf("storyID: got %q", scene.StoryID)
+		if node["story_id"] != s.ID {
+			t.Fatalf("storyID: got %q", node["story_id"])
 		}
 	})
 
-	t.Run("create scene with invalid JSON returns 400", func(t *testing.T) {
+	t.Run("create node with invalid JSON returns 400", func(t *testing.T) {
 		req := httptest.NewRequest("POST", base, bytes.NewBufferString(`invalid`))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -417,7 +419,7 @@ func TestAPI_Edges(t *testing.T) {
 	base := "/api/v1/stories/" + s.ID + "/edges"
 
 	t.Run("create edge via API", func(t *testing.T) {
-		payload := `{"fromSceneId":"` + sc1.ID + `","toSceneId":"` + sc2.ID + `","type":"seq"}`
+		payload := `{"from_node":"` + sc1.ID + `","to_node":"` + sc2.ID + `","edge_type":"seq"}`
 		req := httptest.NewRequest("POST", base, bytes.NewBufferString(payload))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()

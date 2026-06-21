@@ -107,6 +107,7 @@ func (s *GenerationService) Generate(ctx context.Context, sceneID string) (*doma
 		return nil, fmt.Errorf("enqueue generation job: %w", err)
 	}
 
+	s.genInFlight.Delete(sceneID)
 	slog.Info("generation enqueued", "sceneId", sceneID, "genId", gen.ID, "jobId", job.ID)
 	return gen, nil
 }

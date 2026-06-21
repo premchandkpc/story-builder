@@ -18,15 +18,17 @@ func TestIntegration_Stories(t *testing.T) {
 
 	storyRepo := mgorepo.NewStoryRepo(testDB)
 	deleter := &service.StoryCascadeDeleter{
-		SceneRepo: mgorepo.NewSceneRepo(testDB),
-		EdgeRepo:  mgorepo.NewSceneEdgeRepo(testDB),
-		CharRepo:  mgorepo.NewCharacterRepo(testDB),
-		StateRepo: mgorepo.NewCharacterStateRepo(testDB),
-		GenRepo:   mgorepo.NewGenerationRepo(testDB),
-		MemRepo:   mgorepo.NewMemoryRepo(testDB),
-		TlRepo:    mgorepo.NewTimelineRepo(testDB),
-		SumRepo:   mgorepo.NewSummaryRepo(testDB),
-		LocRepo:   mgorepo.NewLocationRepo(testDB),
+		SceneRepo:   mgorepo.NewSceneRepo(testDB),
+		EdgeRepo:    mgorepo.NewSceneEdgeRepo(testDB),
+		CharRepo:    mgorepo.NewCharacterRepo(testDB),
+		StateRepo:   mgorepo.NewCharacterStateRepo(testDB),
+		GenRepo:     mgorepo.NewGenerationRepo(testDB),
+		MemRepo:     mgorepo.NewMemoryRepo(testDB),
+		TlRepo:      mgorepo.NewTimelineRepo(testDB),
+		SumRepo:     mgorepo.NewSummaryRepo(testDB),
+		LocRepo:     mgorepo.NewLocationRepo(testDB),
+		BibleRepo:   mgorepo.NewBibleRepo(testDB),
+		ChapterRepo: mgorepo.NewChapterRepo(testDB),
 	}
 	svc := service.NewStoryService(storyRepo, deleter)
 	ctx := context.Background()

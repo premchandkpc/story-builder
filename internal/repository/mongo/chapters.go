@@ -2,9 +2,11 @@ package mongo
 
 import (
 	"context"
+	"time"
 
 	"github.com/premchand/story-builder/internal/domain"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -17,6 +19,10 @@ func NewChapterRepo(db *mongo.Database) *ChapterRepo {
 }
 
 func (r *ChapterRepo) Create(ctx context.Context, c *domain.Chapter) error {
+	c.CreatedAt = time.Now()
+	if c.ID == "" {
+		c.ID = primitive.NewObjectID().Hex()
+	}
 	_, err := r.coll.InsertOne(ctx, c)
 	return err
 }
