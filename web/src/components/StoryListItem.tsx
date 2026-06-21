@@ -19,27 +19,27 @@ export default function StoryListItem({
 
   const info =
     sceneCount === 0
-      ? "No scenes"
-      : `${chapterCount} chapters · ${sceneCount} scenes · ${accepted} accepted · ${generated} generated`
+      ? "Empty"
+      : `${chapterCount} ch · ${sceneCount} sc · ${accepted}✓ ${generated}○`
 
   const statusColor =
     stale > 0                                ? "var(--error)"
     : sceneCount > 0 && accepted === sceneCount ? "var(--success)"
     : sceneCount > 0                           ? "var(--accent)"
-                                                 : "var(--text-dim)"
+                                                 : "var(--text-faint)"
 
   const hasIssues = stale > 0
   const isComplete = sceneCount > 0 && accepted === sceneCount
   const hasProgress = sceneCount > 0
 
-  const date = story.createdAt ? new Date(story.createdAt).toLocaleDateString() : ""
+  const date = story.createdAt ? new Date(story.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : ""
 
   return (
     <button
       onClick={() => navigate(`/stories/${story.id}`)}
       style={{
         width: "100%",
-        padding: "12px 16px",
+        padding: "11px 16px",
         background: isActive ? "var(--surface)" : "transparent",
         border: "none",
         borderBottom: "1px solid var(--border)",
@@ -47,10 +47,10 @@ export default function StoryListItem({
         color: "var(--text)",
         cursor: "pointer",
         textAlign: "left",
-        fontSize: 14,
+        fontSize: 13,
         display: "flex",
         flexDirection: "column",
-        gap: 4,
+        gap: 3,
         transition: "background 0.15s, border-left-color 0.15s",
         animation: `slideInLeft 0.25s var(--ease-out) ${index * 0.03}s both`,
       }}
@@ -61,20 +61,20 @@ export default function StoryListItem({
         if (!isActive) e.currentTarget.style.background = "transparent"
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
         <span style={{
-          width: 7,
-          height: 7,
+          width: 6,
+          height: 6,
           borderRadius: "50%",
           background: statusColor,
           flexShrink: 0,
-          boxShadow: hasIssues ? "0 0 8px var(--error)" : isComplete ? "0 0 8px var(--success)" : hasProgress ? "0 0 6px var(--accent)" : "none",
+          boxShadow: hasIssues ? "0 0 6px var(--error)" : isComplete ? "0 0 6px var(--success)" : hasProgress ? "0 0 5px var(--accent)" : "none",
         }} />
         <span style={{
           fontWeight: isActive ? 700 : 500,
           fontFamily: isActive ? "var(--font-heading)" : "var(--font-body)",
           color: isActive ? "var(--accent)" : "var(--text)",
-          fontSize: isActive ? 15 : 14,
+          fontSize: isActive ? 14 : 13,
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
@@ -83,17 +83,17 @@ export default function StoryListItem({
         </span>
       </div>
       <div style={{
-        fontSize: 11,
-        color: "var(--text-dim)",
-        paddingLeft: 16,
+        fontSize: 10,
+        color: "var(--text-faint)",
+        paddingLeft: 14,
         display: "flex",
-        gap: 8,
+        gap: 6,
         alignItems: "center",
       }}>
         <span>{info}</span>
         {date && (
           <>
-            <span style={{ opacity: 0.4 }}>·</span>
+            <span style={{ opacity: 0.3 }}>·</span>
             <span>{date}</span>
           </>
         )}

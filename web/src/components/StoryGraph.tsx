@@ -130,12 +130,13 @@ const tabBtnStyle = (active: boolean): React.CSSProperties => ({
   padding: "8px 0",
   background: "none",
   border: "none",
-  borderBottom: active ? "2px solid var(--accent)" : "2px solid transparent",
+  borderBottom: active ? "1.5px solid var(--accent)" : "1.5px solid transparent",
   color: active ? "var(--accent)" : "var(--text-dim)",
   cursor: "pointer",
   fontWeight: active ? 600 : 400,
-  fontSize: 11,
-  textTransform: "capitalize",
+  fontSize: 10,
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
   transition: "color 0.15s, border-color 0.15s",
 })
 
@@ -449,13 +450,19 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
           <LlmMetricsDashboard storyId={storyId} />
         </div>
         <div style={{
-          padding: "12px 16px", textAlign: "center", color: "var(--text-dim)", fontSize: 12,
+          padding: "14px 16px", textAlign: "center",
           borderTop: "1px solid var(--border)",
-          lineHeight: 1.6,
+          lineHeight: 1.7,
         }}>
-          Click a node to edit<br />
-          <span style={{ fontSize: 11, color: "var(--text-dim)" }}>
-            Esc to deselect · Delete to remove
+          <span style={{
+            fontSize: 12, color: "var(--text-dim)", fontStyle: "italic",
+            fontFamily: "var(--font-heading)",
+          }}>
+            Select a node to begin editing
+          </span>
+          <br />
+          <span style={{ fontSize: 10, color: "var(--text-faint)", letterSpacing: "0.03em" }}>
+            Esc to deselect  ·  Delete to remove
           </span>
         </div>
       </div>
@@ -545,9 +552,9 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
         style={{
           ...slideUpStyle,
           width: 300,
-          background: "var(--surface)",
+          background: "var(--bg-warm)",
           borderLeft: "1px solid var(--border)",
-          padding: "16px 0",
+          boxShadow: "inset 1px 0 0 rgba(212,168,83,0.04)",
           display: "flex",
           flexDirection: "column",
           color: "var(--text)",
@@ -556,12 +563,14 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
           flexShrink: 0,
         }}
       >
-        <div style={{ padding: "0 16px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ padding: "16px 16px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <h3 style={{
             margin: 0,
-            fontSize: 16,
+            fontSize: 15,
             fontFamily: "var(--font-heading)",
             color: "var(--accent)",
+            fontWeight: 600,
+            letterSpacing: "0.02em",
           }}>
             {selectedNode ? "Scene Editor" : selectedEdge ? "Edge Details" : "Story Graph"}
           </h3>
@@ -569,17 +578,22 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
             <button
               onClick={() => { setSelectedNode(null); setSelectedEdge(null); setConfirmingGenerate(false) }}
               style={{
-                background: "none", border: "none", color: "var(--text-dim)",
+                background: "none", border: "none", color: "var(--text-faint)",
                 cursor: "pointer", padding: 4, display: "flex",
                 transition: "color 0.15s",
               }}
-              onMouseEnter={(e) => e.currentTarget.style.color = "var(--text)"}
-              onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-dim)"}
+              onMouseEnter={(e) => e.currentTarget.style.color = "var(--text-dim)"}
+              onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-faint)"}
             >
               {closeSvg}
             </button>
           )}
         </div>
+        <div style={{
+          margin: "10px 16px 12px",
+          height: 1,
+          background: "linear-gradient(90deg, var(--border) 0%, rgba(212,168,83,0.18) 50%, var(--border) 100%)",
+        }} />
 
         <div style={{ padding: "0 16px", marginBottom: 12 }}>
           <button
@@ -615,14 +629,13 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
         </div>
 
         {(selectedNode || selectedEdge) && (
-          <div style={{ display: "flex", borderBottom: "1px solid var(--border)", padding: "0 16px" }}>
+          <div style={{ display: "flex", borderBottom: "1px solid var(--border)", padding: "0 16px", gap: 0 }}>
             {selectedNode && (["edit", "info", "generations", "turns", "agents"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => {
                   setActiveTab(tab)
                   if (tab === "generations") loadGenerations(selectedNode!.id)
-                  if (tab === "turns" || tab === "agents") {}
                 }}
                 style={tabBtnStyle(activeTab === tab)}
                 onMouseEnter={(e) => {
@@ -648,10 +661,11 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
         {nodes.length > 0 && (
           <div style={{
             borderTop: "1px solid var(--border)", padding: "10px 16px",
-            fontSize: 11, color: "var(--text-dim)",
+            fontSize: 10, color: "var(--text-dim)",
+            letterSpacing: "0.02em",
           }}>
             <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-              <span>{nodes.length} nodes · {edges.length} edges</span>
+              <span style={{ color: "var(--text-faint)", fontWeight: 500 }}>{nodes.length} nodes · {edges.length} edges</span>
               <span style={{ display: "flex", gap: 4 }}>
                 {edgeTypes.map((et) => (
                   <button

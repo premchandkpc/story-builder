@@ -26,11 +26,11 @@ export default function AgentRunPanel({ storyId, nodeId }: AgentRunPanelProps) {
   const [expanded, setExpanded] = useState<string | null>(null)
 
   if (isLoading) {
-    return <div style={{ color: "var(--text-muted)", fontSize: 12, padding: 8 }}>Loading agent runs...</div>
+    return <div style={{ color: "var(--text-faint)", fontSize: 12, padding: 8, fontStyle: "italic" }}>Loading agent runs...</div>
   }
 
   if (!runs || runs.length === 0) {
-    return <div style={{ color: "var(--text-dim)", fontSize: 12, fontStyle: "italic", padding: 8 }}>No agent runs recorded.</div>
+    return <div style={{ color: "var(--text-faint)", fontSize: 12, fontStyle: "italic", padding: 8 }}>No agent runs recorded.</div>
   }
 
   return (
@@ -43,7 +43,7 @@ export default function AgentRunPanel({ storyId, nodeId }: AgentRunPanelProps) {
         return (
           <div key={run.id} style={{
             border: `1px solid ${isFailed ? "var(--error)" : "var(--border)"}`,
-            borderRadius: 6, padding: 10,
+            borderRadius: "var(--radius-md)", padding: 10,
             background: isFailed ? "rgba(212,103,103,0.04)" : "var(--surface)",
           }}>
             <div
@@ -68,7 +68,7 @@ export default function AgentRunPanel({ storyId, nodeId }: AgentRunPanelProps) {
                   <span style={{
                     fontSize: 9, color: "var(--text-dim)",
                     padding: "1px 5px", background: "rgba(136,136,160,0.08)",
-                    borderRadius: 3, fontFamily: "var(--font-mono)",
+                    borderRadius: "var(--radius-sm)", fontFamily: "var(--font-mono)",
                   }}>
                     {run.model}
                   </span>
@@ -89,11 +89,12 @@ export default function AgentRunPanel({ storyId, nodeId }: AgentRunPanelProps) {
                 <div style={{ marginBottom: 6 }}>
                   <div style={{ color: "var(--text-dim)", fontSize: 10, marginBottom: 2 }}>Input</div>
                   <pre style={{
-                    margin: 0, padding: 6, background: "var(--bg)", borderRadius: 4,
+                    margin: 0, padding: 6, background: "var(--bg)", borderRadius: "var(--radius-sm)",
                     maxHeight: 150, overflowY: "auto", fontSize: 10, color: "var(--text)",
                     whiteSpace: "pre-wrap", wordBreak: "break-all",
                     border: "1px solid var(--border)",
                     fontFamily: "var(--font-mono)",
+                    boxShadow: "var(--shadow-inner)",
                   }}>
                     {JSON.stringify(run.input, null, 2)}
                   </pre>
@@ -101,17 +102,18 @@ export default function AgentRunPanel({ storyId, nodeId }: AgentRunPanelProps) {
                 <div>
                   <div style={{ color: "var(--text-dim)", fontSize: 10, marginBottom: 2 }}>Output</div>
                   <pre style={{
-                    margin: 0, padding: 6, background: "var(--bg)", borderRadius: 4,
+                    margin: 0, padding: 6, background: "var(--bg)", borderRadius: "var(--radius-sm)",
                     maxHeight: 200, overflowY: "auto", fontSize: 10, color: "var(--text)",
                     whiteSpace: "pre-wrap", wordBreak: "break-all",
                     border: "1px solid var(--border)",
                     fontFamily: "var(--font-mono)",
+                    boxShadow: "var(--shadow-inner)",
                   }}>
                     {JSON.stringify(run.output, null, 2)}
                   </pre>
                 </div>
                 {run.error && (
-                  <div style={{ color: "var(--error)", marginTop: 4, fontSize: 10, background: "var(--error-dim)", padding: "4px 6px", borderRadius: 4 }}>
+                  <div style={{ color: "var(--error)", marginTop: 4, fontSize: 10, background: "var(--error-dim)", padding: "4px 6px", borderRadius: "var(--radius-sm)" }}>
                     {run.error}
                   </div>
                 )}

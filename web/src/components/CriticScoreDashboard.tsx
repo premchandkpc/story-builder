@@ -15,7 +15,7 @@ function StatCard({ label, value, color }: { label: string; value: string; color
   return (
     <div style={{
       background: "var(--surface)", border: "1px solid var(--border)",
-      borderRadius: 8, padding: "12px 14px",
+      borderRadius: "var(--radius-md)", padding: "12px 14px",
       transition: "border-color 0.15s",
     }}>
       <div style={{
@@ -49,7 +49,7 @@ export default function CriticScoreDashboard({ storyId }: CriticScoreDashboardPr
 
   if (error || !scores || scores.length === 0) {
     return (
-      <div style={{ padding: 16, color: "var(--text-dim)", fontSize: 12 }}>
+      <div style={{ padding: 16, color: "var(--text-faint)", fontSize: 12, fontStyle: "italic" }}>
         No critic evaluations yet. Generate scenes with agent mode first.
       </div>
     )
@@ -64,6 +64,7 @@ export default function CriticScoreDashboard({ storyId }: CriticScoreDashboardPr
       <h3 style={{
         margin: 0, fontSize: 14,
         fontFamily: "var(--font-heading)", color: "var(--accent)",
+        fontWeight: 600, letterSpacing: "0.02em",
       }}>
         Critic Evaluations
       </h3>
@@ -96,7 +97,7 @@ export default function CriticScoreDashboard({ storyId }: CriticScoreDashboardPr
         {scores.map((s) => (
           <div key={s.generation_id} style={{
             display: "flex", justifyContent: "space-between", alignItems: "center",
-            padding: "8px 10px", background: "var(--surface)", borderRadius: 4,
+            padding: "8px 10px", background: "var(--surface)", borderRadius: "var(--radius-sm)",
             fontSize: 11,
             border: "1px solid var(--border)",
           }}>
@@ -114,7 +115,7 @@ export default function CriticScoreDashboard({ storyId }: CriticScoreDashboardPr
               fontWeight: 700,
               fontFamily: "var(--font-mono)",
               padding: "2px 6px",
-              borderRadius: 4,
+              borderRadius: "var(--radius-sm)",
               background: `${scoreColor(s.score)}15`,
             }}>
               {(s.score * 100).toFixed(0)}%

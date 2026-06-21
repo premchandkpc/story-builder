@@ -34,8 +34,9 @@ export default function GenerationCompare({ generations }: GenerationCompareProp
             style={{
               width: "100%", padding: "6px 8px", fontSize: 11,
               background: "var(--bg)", border: "1px solid var(--border)",
-              borderRadius: 4, color: "var(--text)",
+              borderRadius: "var(--radius-sm)", color: "var(--text)",
               fontFamily: "var(--font-body)",
+              boxShadow: "var(--shadow-inner)",
             }}
           >
             {nonEmpty.map((g, i) => (
@@ -46,7 +47,7 @@ export default function GenerationCompare({ generations }: GenerationCompareProp
             ))}
           </select>
         </div>
-        <span style={{ color: "var(--text-dim)", fontSize: 11, fontWeight: 600 }}>vs</span>
+        <span style={{ color: "var(--text-faint)", fontSize: 11, fontWeight: 600 }}>vs</span>
         <div style={{ flex: 1 }}>
           <select
             value={rightIdx}
@@ -54,8 +55,9 @@ export default function GenerationCompare({ generations }: GenerationCompareProp
             style={{
               width: "100%", padding: "6px 8px", fontSize: 11,
               background: "var(--bg)", border: "1px solid var(--border)",
-              borderRadius: 4, color: "var(--text)",
+              borderRadius: "var(--radius-sm)", color: "var(--text)",
               fontFamily: "var(--font-body)",
+              boxShadow: "var(--shadow-inner)",
             }}
           >
             {nonEmpty.map((g, i) => (
@@ -77,11 +79,12 @@ export default function GenerationCompare({ generations }: GenerationCompareProp
             {left.model || "?"}
           </div>
           <div style={{
-            padding: 10, background: "var(--bg)", borderRadius: 4,
+            padding: 10, background: "var(--bg)", borderRadius: "var(--radius-sm)",
             fontSize: 11, lineHeight: 1.6,
             maxHeight: 400, overflowY: "auto",
             whiteSpace: "pre-wrap", color: "var(--text)",
             border: left.accepted ? "1px solid var(--accent)" : "1px solid var(--border)",
+            boxShadow: "var(--shadow-inner)",
           }}>
             {left.output}
           </div>
@@ -99,11 +102,12 @@ export default function GenerationCompare({ generations }: GenerationCompareProp
             {right.model || "?"}
           </div>
           <div style={{
-            padding: 10, background: "var(--bg)", borderRadius: 4,
+            padding: 10, background: "var(--bg)", borderRadius: "var(--radius-sm)",
             fontSize: 11, lineHeight: 1.6,
             maxHeight: 400, overflowY: "auto",
             whiteSpace: "pre-wrap", color: "var(--text)",
             border: right.accepted ? "1px solid var(--accent)" : "1px solid var(--border)",
+            boxShadow: "var(--shadow-inner)",
           }}>
             {right.output}
           </div>

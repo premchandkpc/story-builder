@@ -26,9 +26,9 @@ export function useToast() {
 }
 
 const toastConfig: Record<ToastType, { bg: string; color: string; icon: string }> = {
-  success: { bg: "var(--success)", color: "#fff", icon: "✓" },
-  error: { bg: "var(--error)", color: "#fff", icon: "✕" },
-  info: { bg: "var(--accent)", color: "#1a1a24", icon: "●" },
+  success: { bg: "var(--success)", color: "#f5f0e8", icon: "✓" },
+  error: { bg: "var(--error)", color: "#f5f0e8", icon: "✕" },
+  info: { bg: "var(--accent)", color: "#1a1512", icon: "●" },
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -70,7 +70,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               style={{
                 animation: "slideUp 0.25s var(--ease-out)",
                 padding: "10px 16px",
-                borderRadius: 8,
+                borderRadius: "var(--radius-lg)",
                 background: c.bg,
                 color: c.color,
                 fontSize: 13,

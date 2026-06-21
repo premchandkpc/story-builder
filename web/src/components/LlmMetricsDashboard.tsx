@@ -10,7 +10,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <div style={{
       background: "var(--surface)", border: "1px solid var(--border)",
-      borderRadius: 8, padding: "12px 14px",
+      borderRadius: "var(--radius-md)", padding: "12px 14px",
     }}>
       <div style={{
         fontSize: 10, color: "var(--text-dim)",
@@ -43,7 +43,7 @@ export default function LlmMetricsDashboard({ storyId }: LlmMetricsDashboardProp
 
   if (error || !metrics) {
     return (
-      <div style={{ padding: 16, color: "var(--text-dim)", fontSize: 12 }}>
+      <div style={{ padding: 16, color: "var(--text-faint)", fontSize: 12, fontStyle: "italic" }}>
         No metrics available yet. Generate some scenes first.
       </div>
     )
@@ -54,6 +54,7 @@ export default function LlmMetricsDashboard({ storyId }: LlmMetricsDashboardProp
       <h3 style={{
         margin: 0, fontSize: 14,
         fontFamily: "var(--font-heading)", color: "var(--accent)",
+        fontWeight: 600, letterSpacing: "0.02em",
       }}>
         LLM Usage
       </h3>
@@ -78,7 +79,7 @@ export default function LlmMetricsDashboard({ storyId }: LlmMetricsDashboardProp
           {Object.entries(metrics.by_model).map(([model, data]) => (
             <div key={model} style={{
               display: "flex", justifyContent: "space-between", alignItems: "center",
-              padding: "6px 10px", background: "var(--surface)", borderRadius: 4,
+              padding: "6px 10px", background: "var(--surface)", borderRadius: "var(--radius-sm)",
               fontSize: 11, border: "1px solid var(--border)",
             }}>
               <span style={{ color: "var(--accent)", fontWeight: 600 }}>{model}</span>

@@ -20,13 +20,18 @@ export default function NodeInfoPanel({ edges, selectedNodeId, status, beatInten
   const outEdges = edges.filter((e) => e.source === selectedNodeId)
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12 }}>
-      <div>
-        <div style={{ color: "var(--text-dim)", fontSize: 11, marginBottom: 2 }}>Status</div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 12 }}>
+      <div style={{
+        background: "var(--surface)",
+        borderRadius: "var(--radius-md)",
+        padding: "10px 12px",
+        border: "1px solid var(--border)",
+      }}>
+        <div style={{ color: "var(--text-faint)", fontSize: 10, marginBottom: 4, letterSpacing: "0.04em", textTransform: "uppercase" }}>Status</div>
         <div style={{
           fontWeight: 600, textTransform: "capitalize",
           display: "inline-flex", alignItems: "center", gap: 6,
-          padding: "2px 8px", borderRadius: 4,
+          padding: "3px 10px", borderRadius: "var(--radius-sm)",
           background: "rgba(212,168,83,0.08)",
           color: "var(--accent)",
           fontSize: 12,
@@ -36,35 +41,45 @@ export default function NodeInfoPanel({ edges, selectedNodeId, status, beatInten
         </div>
       </div>
 
-      <div>
-        <div style={{ color: "var(--text-dim)", fontSize: 11, marginBottom: 2 }}>Beat Intent</div>
-        <div style={{ color: "var(--text)", lineHeight: 1.4 }}>
-          {beatIntent || "—"}
+      <div style={{
+        background: "var(--surface)",
+        borderRadius: "var(--radius-md)",
+        padding: "10px 12px",
+        border: "1px solid var(--border)",
+      }}>
+        <div style={{ color: "var(--text-faint)", fontSize: 10, marginBottom: 4, letterSpacing: "0.04em", textTransform: "uppercase" }}>Beat Intent</div>
+        <div style={{ color: "var(--text)", lineHeight: 1.5, fontSize: 12 }}>
+          {beatIntent || <span style={{ color: "var(--text-faint)", fontStyle: "italic" }}>None set</span>}
         </div>
       </div>
 
-      <div>
-        <div style={{ color: "var(--text-dim)", fontSize: 11, marginBottom: 4 }}>Edges</div>
+      <div style={{
+        background: "var(--surface)",
+        borderRadius: "var(--radius-md)",
+        padding: "10px 12px",
+        border: "1px solid var(--border)",
+      }}>
+        <div style={{ color: "var(--text-faint)", fontSize: 10, marginBottom: 6, letterSpacing: "0.04em", textTransform: "uppercase" }}>Edges</div>
         <div style={{
-          display: "flex", gap: 8, alignItems: "center",
-          padding: "6px 10px", background: "var(--bg)",
-          borderRadius: 4, fontSize: 12, color: "var(--text)",
+          display: "flex", gap: 6, alignItems: "center",
+          fontSize: 12, color: "var(--text)",
         }}>
-          <span>Incoming: {inEdges.length}</span>
+          <span style={{ fontWeight: 500 }}>Incoming:</span>
+          <span style={{ color: "var(--text-dim)" }}>{inEdges.length}</span>
           {inEdges.length > 0 && (
-            <span style={{ fontSize: 10, color: "var(--text-dim)" }}>
+            <span style={{ fontSize: 10, color: "var(--text-faint)" }}>
               ({inEdges.map((e) => e.label || "seq").join(", ")})
             </span>
           )}
         </div>
         <div style={{
-          display: "flex", gap: 8, alignItems: "center",
-          padding: "6px 10px", background: "var(--bg)",
-          borderRadius: 4, fontSize: 12, color: "var(--text)", marginTop: 4,
+          display: "flex", gap: 6, alignItems: "center",
+          fontSize: 12, color: "var(--text)", marginTop: 4,
         }}>
-          <span>Outgoing: {outEdges.length}</span>
+          <span style={{ fontWeight: 500 }}>Outgoing:</span>
+          <span style={{ color: "var(--text-dim)" }}>{outEdges.length}</span>
           {outEdges.length > 0 && (
-            <span style={{ fontSize: 10, color: "var(--text-dim)" }}>
+            <span style={{ fontSize: 10, color: "var(--text-faint)" }}>
               ({outEdges.map((e) => e.label || "seq").join(", ")})
             </span>
           )}
@@ -73,7 +88,7 @@ export default function NodeInfoPanel({ edges, selectedNodeId, status, beatInten
 
       <button
         onClick={onDelete}
-        style={{ ...destructiveBtnStyle, marginTop: 8, justifyContent: "center" }}
+        style={{ ...destructiveBtnStyle, marginTop: 4, justifyContent: "center", fontSize: 11 }}
         onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(212,103,103,0.12)" }}
         onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
       >

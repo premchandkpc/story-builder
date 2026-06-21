@@ -39,11 +39,11 @@ export default function TurnTimeline({ storyId, nodeId, compact }: TurnTimelineP
   const [expandedTurn, setExpandedTurn] = useState<string | null>(null)
 
   if (isLoading) {
-    return <div style={{ color: "var(--text-muted)", fontSize: 12, padding: 8 }}>Loading turns...</div>
+    return <div style={{ color: "var(--text-faint)", fontSize: 12, padding: 8, fontStyle: "italic" }}>Loading turns...</div>
   }
 
   if (!turns || turns.length === 0) {
-    return <div style={{ color: "var(--text-dim)", fontSize: 12, fontStyle: "italic", padding: 8 }}>No turns yet. Generate to populate.</div>
+    return <div style={{ color: "var(--text-faint)", fontSize: 12, fontStyle: "italic", padding: 8 }}>No turns yet. Generate to populate.</div>
   }
 
   return (
@@ -81,7 +81,7 @@ export default function TurnTimeline({ storyId, nodeId, compact }: TurnTimelineP
                 </span>
                 {turn.model && (
                   <span style={{
-                    fontSize: 9, padding: "1px 5px", borderRadius: 3,
+                    fontSize: 9, padding: "1px 5px", borderRadius: "var(--radius-sm)",
                     background: "rgba(136,136,160,0.1)", color: "var(--text-dim)",
                     fontFamily: "var(--font-mono)",
                   }}>
@@ -118,10 +118,11 @@ export default function TurnTimeline({ storyId, nodeId, compact }: TurnTimelineP
                   <div style={{ marginBottom: 6 }}>
                     <div style={{ color: "var(--text-dim)", fontSize: 10, marginBottom: 2 }}>Input</div>
                     <div style={{
-                      padding: 6, background: "var(--bg)", borderRadius: 4,
+                      padding: 6, background: "var(--bg)", borderRadius: "var(--radius-sm)",
                       whiteSpace: "pre-wrap", maxHeight: 120, overflowY: "auto",
                       color: "var(--text)", fontSize: 10, fontFamily: "var(--font-mono)",
                       border: "1px solid var(--border)",
+                      boxShadow: "var(--shadow-inner)",
                     }}>
                       {turn.input.length > 500 ? turn.input.slice(0, 500) + "..." : turn.input}
                     </div>
@@ -131,17 +132,18 @@ export default function TurnTimeline({ storyId, nodeId, compact }: TurnTimelineP
                   <div>
                     <div style={{ color: "var(--text-dim)", fontSize: 10, marginBottom: 2 }}>Output</div>
                     <div style={{
-                      padding: 6, background: "var(--bg)", borderRadius: 4,
+                      padding: 6, background: "var(--bg)", borderRadius: "var(--radius-sm)",
                       whiteSpace: "pre-wrap", maxHeight: 200, overflowY: "auto",
                       color: "var(--text)", fontSize: 10, fontFamily: "var(--font-mono)",
                       border: "1px solid var(--border)",
+                      boxShadow: "var(--shadow-inner)",
                     }}>
                       {turn.output.length > 1000 ? turn.output.slice(0, 1000) + "..." : turn.output}
                     </div>
                   </div>
                 )}
                 {turn.error && (
-                  <div style={{ color: "var(--error)", fontSize: 10, marginTop: 4, background: "var(--error-dim)", padding: "4px 6px", borderRadius: 4 }}>
+                  <div style={{ color: "var(--error)", fontSize: 10, marginTop: 4, background: "var(--error-dim)", padding: "4px 6px", borderRadius: "var(--radius-sm)" }}>
                     Error: {turn.error}
                   </div>
                 )}

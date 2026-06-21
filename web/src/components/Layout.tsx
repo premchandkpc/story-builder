@@ -8,20 +8,20 @@ import TopBar from "./TopBar"
 import { useToast } from "./Toast"
 
 const sidebarToggleSvg = (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
     <path d="M6 3L3 8l3 5" />
     <path d="M13 3l-3 5 3 5" />
   </svg>
 )
 
 const plusSvg = (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
     <path d="M8 3v10M3 8h10" />
   </svg>
 )
 
 const storyIconSvg = (
-  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" style={{ opacity: 0.35 }}>
+  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" style={{ opacity: 0.3 }}>
     <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
     <path d="M14 2v6h6" />
     <path d="M12 18v-6" />
@@ -86,12 +86,12 @@ export default function Layout() {
           display: "flex",
           flexDirection: "column",
           flexShrink: 0,
-          background: "var(--bg)",
+          background: "var(--bg-warm)",
           overflow: "hidden",
           transition: "width 0.2s var(--ease-out)",
         }}>
           <div style={{
-            padding: "12px 16px",
+            padding: "12px 16px 10px",
             borderBottom: "1px solid var(--border)",
             display: "flex",
             gap: 6,
@@ -101,7 +101,7 @@ export default function Layout() {
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               placeholder="New story title..."
-              style={{ ...inputStyle, fontSize: 13, flex: 1 }}
+              style={{ ...inputStyle, fontSize: 12, flex: 1 }}
               onKeyDown={(e) => e.key === "Enter" && handleCreateStory()}
             />
             <button
@@ -115,36 +115,39 @@ export default function Layout() {
           </div>
 
           <div style={{
-            fontSize: 10,
-            color: "var(--text-dim)",
+            fontSize: 9,
+            color: "var(--text-faint)",
             textTransform: "uppercase",
-            letterSpacing: "0.08em",
+            letterSpacing: "0.1em",
             fontWeight: 600,
-            padding: "10px 16px 6px",
+            padding: "10px 16px 7px",
             borderBottom: "1px solid var(--border)",
             minWidth: 280,
           }}>
             Stories {filteredStories.length > 0 && `(${filteredStories.length})`}
           </div>
 
-          <div style={{ flex: 1, overflowY: "auto", minWidth: 280 }}>
+          <div style={{
+            flex: 1, overflowY: "auto", minWidth: 280,
+            background: "var(--bg)",
+          }}>
             {isLoading ? (
               <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
                 {[1, 2, 3, 4].map((i) => (
                   <div key={i} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    <div style={skeletonStyle("70%", 16)} />
-                    <div style={skeletonStyle("40%", 11)} />
+                    <div style={skeletonStyle("70%", 15)} />
+                    <div style={skeletonStyle("40%", 10)} />
                   </div>
                 ))}
               </div>
             ) : filteredStories.length === 0 ? (
               <div style={{
-                padding: 40, textAlign: "center", color: "var(--text-dim)", fontSize: 13,
-                display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
+                padding: 40, textAlign: "center", color: "var(--text-faint)", fontSize: 12,
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
               }}>
                 {storyIconSvg}
                 <span>{searchQuery ? "No matching stories" : "No stories yet"}</span>
-                <span style={{ fontSize: 11, opacity: 0.6 }}>{searchQuery ? "Try a different search" : "Create one above to get started"}</span>
+                <span style={{ fontSize: 10, opacity: 0.6 }}>{searchQuery ? "Try a different search" : "Create one above to get started"}</span>
               </div>
             ) : (
               filteredStories.map((s, i) => {
@@ -177,10 +180,10 @@ export default function Layout() {
             background: "var(--surface)",
             border: "1px solid var(--border)",
             borderLeft: "none",
-            borderRadius: "0 6px 6px 0",
-            padding: "10px 4px",
+            borderRadius: "0 5px 5px 0",
+            padding: "10px 3px",
             cursor: "pointer",
-            color: "var(--text-dim)",
+            color: "var(--text-faint)",
             zIndex: 10,
             transition: "left 0.2s var(--ease-out), color 0.15s, background 0.15s",
             display: "flex",
@@ -191,7 +194,7 @@ export default function Layout() {
             e.currentTarget.style.background = "var(--surface-hover)"
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.color = "var(--text-dim)"
+            e.currentTarget.style.color = "var(--text-faint)"
             e.currentTarget.style.background = "var(--surface)"
           }}
           title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}

@@ -11,13 +11,13 @@ interface TopBarProps {
 
 function btnStyle(bg: string): Record<string, string | number> {
   return {
-    padding: "8px 12px",
+    padding: "7px 10px",
     background: bg,
-    color: "var(--text-muted)",
+    color: "var(--text-dim)",
     border: "1px solid var(--border)",
-    borderRadius: 6,
+    borderRadius: 5,
     cursor: "pointer",
-    fontSize: 13,
+    fontSize: 12,
     transition: "color 0.15s, border-color 0.15s, background 0.15s",
     display: "flex",
     alignItems: "center",
@@ -27,7 +27,7 @@ function btnStyle(bg: string): Record<string, string | number> {
 }
 
 const quillSvg = (
-  <svg width="20" height="20" viewBox="0 0 48 48" fill="none" style={{ verticalAlign: "middle" }}>
+  <svg width="22" height="22" viewBox="0 0 48 48" fill="none" style={{ verticalAlign: "middle" }}>
     <path fill="#d4a853" d="M29.5 4.5c-2.5 2-5.5 6.5-6 10-.5 3.5 1 6 3 7.5s5 2 7 .5c2-1.5 3.5-5 3.5-8s-1.5-6-3.5-8c-1-.75-2.5-2-4-2z"/>
     <path fill="#c9734a" d="M23.5 11.5c-2 2.5-3.5 6-3.5 9 0 3 1.5 5.5 3 6.5s3 1 4.5-.5c1.5-1.5 2.5-4.5 2.5-7s-1-4.5-2.5-6c-.75-.75-2.25-2.5-4-2z"/>
     <path fill="#e8e4d8" d="M17 22c-1.5 2-2.5 5-2.5 7.5 0 2.5 1 4.5 2.5 5.5s3 .5 4-1c1-1.5 1.5-4 1.5-6s-.5-4-1.5-5c-.5-.5-2.25-2-4-1z"/>
@@ -37,27 +37,27 @@ const quillSvg = (
 )
 
 const searchSvg = (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
     <circle cx="11" cy="11" r="8" />
     <path d="M21 21l-4.35-4.35" />
   </svg>
 )
 
 const clearSvg = (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
     <path d="M18 6L6 18M6 6l12 12" />
   </svg>
 )
 
 const homeSvg = (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
     <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
     <path d="M9 22V12h6v10" />
   </svg>
 )
 
 const auditSvg = (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
     <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
     <path d="M14 2v6h6" />
     <path d="M16 13H8M16 17H8M10 9H8" />
@@ -65,7 +65,7 @@ const auditSvg = (
 )
 
 const sidebarSvg = (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
     <rect x="3" y="3" width="18" height="18" rx="2" />
     <path d="M9 3v18" />
   </svg>
@@ -78,10 +78,10 @@ export default function TopBar({ searchQuery, onSearchChange, hasActiveStory, on
     <div style={{
       display: "flex",
       alignItems: "center",
-      padding: "10px 20px",
+      padding: "10px 18px",
       background: "var(--surface)",
       borderBottom: "1px solid var(--border)",
-      gap: 12,
+      gap: 10,
       flexShrink: 0,
     }}>
       <div
@@ -92,7 +92,7 @@ export default function TopBar({ searchQuery, onSearchChange, hasActiveStory, on
           cursor: "pointer",
           userSelect: "none",
           transition: "opacity 0.15s",
-          paddingRight: 4,
+          paddingRight: 6,
         }}
         onClick={() => navigate("/")}
         onMouseEnter={(e) => e.currentTarget.style.opacity = "0.85"}
@@ -102,7 +102,7 @@ export default function TopBar({ searchQuery, onSearchChange, hasActiveStory, on
         <div style={{ display: "flex", flexDirection: "column" }}>
           <span style={{
             fontFamily: "var(--font-heading)",
-            fontSize: 18,
+            fontSize: 17,
             fontWeight: 700,
             color: "var(--accent)",
             letterSpacing: "-0.02em",
@@ -110,29 +110,31 @@ export default function TopBar({ searchQuery, onSearchChange, hasActiveStory, on
           }}>
             Story Builder
           </span>
-          <span style={{ fontSize: 9, color: "var(--text-dim)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+          <span style={{ fontSize: 8, color: "var(--text-faint)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
             Narrative Editor
           </span>
         </div>
       </div>
+
+      <div style={{ width: 1, height: 24, background: "var(--border)", flexShrink: 0 }} />
 
       <button
         onClick={onToggleSidebar}
         style={btnStyle("transparent")}
         title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
         onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; e.currentTarget.style.borderColor = "var(--accent)" }}
-        onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.borderColor = "var(--border)" }}
+        onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-dim)"; e.currentTarget.style.borderColor = "var(--border)" }}
       >
         {sidebarSvg}
       </button>
 
-      <div style={{ position: "relative", flex: "0 1 260px" }}>
+      <div style={{ position: "relative", flex: "0 1 240px" }}>
         <span style={{
           position: "absolute",
-          left: 10,
+          left: 9,
           top: "50%",
           transform: "translateY(-50%)",
-          color: "var(--text-dim)",
+          color: "var(--text-faint)",
           pointerEvents: "none",
           display: "flex",
         }}>
@@ -142,27 +144,27 @@ export default function TopBar({ searchQuery, onSearchChange, hasActiveStory, on
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Search stories..."
-          style={{ ...inputStyle, paddingLeft: 30, paddingRight: searchQuery ? 30 : 10, fontSize: 13 }}
+          style={{ ...inputStyle, paddingLeft: 28, paddingRight: searchQuery ? 28 : 9, fontSize: 12 }}
         />
         {searchQuery && (
           <button
             onClick={() => onSearchChange("")}
             style={{
               position: "absolute",
-              right: 6,
+              right: 5,
               top: "50%",
               transform: "translateY(-50%)",
               background: "none",
               border: "none",
-              color: "var(--text-dim)",
+              color: "var(--text-faint)",
               cursor: "pointer",
               padding: 2,
               display: "flex",
-              borderRadius: 4,
+              borderRadius: 3,
               transition: "color 0.15s",
             }}
             onMouseEnter={(e) => e.currentTarget.style.color = "var(--text)"}
-            onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-dim)"}
+            onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-faint)"}
           >
             {clearSvg}
           </button>
@@ -176,10 +178,10 @@ export default function TopBar({ searchQuery, onSearchChange, hasActiveStory, on
           onClick={() => navigate("/")}
           style={btnStyle("transparent")}
           onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; e.currentTarget.style.borderColor = "var(--accent)" }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.borderColor = "var(--border)" }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-dim)"; e.currentTarget.style.borderColor = "var(--border)" }}
         >
           {homeSvg}
-          <span style={{ fontSize: 12 }}>Home</span>
+          <span style={{ fontSize: 11 }}>Home</span>
         </button>
       )}
       <button
@@ -187,10 +189,10 @@ export default function TopBar({ searchQuery, onSearchChange, hasActiveStory, on
         style={btnStyle("transparent")}
         title="Code Audit"
         onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; e.currentTarget.style.borderColor = "var(--accent)" }}
-        onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.borderColor = "var(--border)" }}
+        onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-dim)"; e.currentTarget.style.borderColor = "var(--border)" }}
       >
         {auditSvg}
-        <span style={{ fontSize: 12 }}>Audit</span>
+        <span style={{ fontSize: 11 }}>Audit</span>
       </button>
     </div>
   )
