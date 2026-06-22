@@ -26,6 +26,7 @@ type SceneRepository interface {
 
 type SceneEdgeRepository interface {
 	Create(ctx context.Context, e *domain.SceneEdge) error
+	Get(ctx context.Context, edgeID string) (*domain.SceneEdge, error)
 	ListByStory(ctx context.Context, storyID string) ([]*domain.SceneEdge, error)
 	ListFrom(ctx context.Context, sceneID string) ([]*domain.SceneEdge, error)
 	ListTo(ctx context.Context, sceneID string) ([]*domain.SceneEdge, error)

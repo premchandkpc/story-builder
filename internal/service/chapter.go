@@ -46,7 +46,7 @@ func (s *ChapterSvc) Update(ctx context.Context, c *domain.Chapter) (*domain.Cha
 		return nil, fmt.Errorf("get chapter for update: %w", err)
 	}
 	if existing == nil {
-		return nil, fmt.Errorf("chapter not found")
+		return nil, fmt.Errorf("chapter not found: %w", ErrNotFound)
 	}
 	if c.Title != "" {
 		existing.Title = c.Title

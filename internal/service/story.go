@@ -63,7 +63,7 @@ func (s *StoryService) Update(ctx context.Context, id string, params UpdateStory
 		return nil, fmt.Errorf("get story for update: %w", err)
 	}
 	if st == nil {
-		return nil, fmt.Errorf("story not found")
+		return nil, fmt.Errorf("story not found: %w", ErrNotFound)
 	}
 	if params.Title != "" {
 		st.Title = params.Title
@@ -91,7 +91,7 @@ func (s *StoryService) GetBlueprint(ctx context.Context, id string) (*domain.Sto
 		return nil, err
 	}
 	if st == nil {
-		return nil, fmt.Errorf("story not found")
+		return nil, fmt.Errorf("story not found: %w", ErrNotFound)
 	}
 	return st.Blueprint, nil
 }
@@ -102,7 +102,7 @@ func (s *StoryService) UpdateBlueprint(ctx context.Context, id string, bp *domai
 		return err
 	}
 	if st == nil {
-		return fmt.Errorf("story not found")
+		return fmt.Errorf("story not found: %w", ErrNotFound)
 	}
 	st.Blueprint = bp
 	st.UpdatedAt = time.Now()
@@ -178,7 +178,7 @@ func (s *SceneService) Update(ctx context.Context, scene *domain.Scene) (*domain
 		return nil, fmt.Errorf("get scene for update: %w", err)
 	}
 	if existing == nil {
-		return nil, fmt.Errorf("scene not found")
+		return nil, fmt.Errorf("scene not found: %w", ErrNotFound)
 	}
 	if scene.Title != "" {
 		existing.Title = scene.Title
@@ -305,6 +305,13 @@ func (s *EdgeService) Delete(ctx context.Context, storyID, from, to string) erro
 }
 
 func (s *EdgeService) DeleteByID(ctx context.Context, edgeID string) error {
+	existing, err := s.repo.Get(ctx, edgeID)
+	if err != nil {
+		return fmt.Errorf("get edge: %w", err)
+	}
+	if existing == nil {
+		return fmt.Errorf("edge not found: %w", ErrNotFound)
+	}
 	return s.repo.DeleteByID(ctx, edgeID)
 }
 
@@ -343,7 +350,7 @@ func (s *CharacterService) Update(ctx context.Context, c *domain.Character) (*do
 		return nil, fmt.Errorf("get latest character: %w", err)
 	}
 	if existing == nil {
-		return nil, fmt.Errorf("character not found")
+		return nil, fmt.Errorf("character not found: %w", ErrNotFound)
 	}
 	if c.Name != "" {
 		existing.Name = c.Name
@@ -406,7 +413,7 @@ func (s *CharacterService) MigrateCharacter(ctx context.Context, charID, targetS
 		return nil, fmt.Errorf("get character: %w", err)
 	}
 	if char == nil {
-		return nil, fmt.Errorf("character not found")
+		return nil, fmt.Errorf("character not found: %w", ErrNotFound)
 	}
 	now := time.Now()
 	migrated := &domain.Character{

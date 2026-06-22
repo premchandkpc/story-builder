@@ -98,6 +98,14 @@ func (m *mockEdgeRepo) Create(ctx context.Context, e *domain.SceneEdge) error {
 	return nil
 }
 
+func (m *mockEdgeRepo) Get(ctx context.Context, edgeID string) (*domain.SceneEdge, error) {
+	e, ok := m.edges[edgeID]
+	if !ok {
+		return nil, nil
+	}
+	return e, nil
+}
+
 func (m *mockEdgeRepo) ListByStory(ctx context.Context, storyID string) ([]*domain.SceneEdge, error) {
 	if m.err != nil {
 		return nil, m.err

@@ -167,8 +167,7 @@ func (h *Handlers) V2UpdateCharacter(w http.ResponseWriter, r *http.Request) {
 		updated.ArcType = body.ArcType
 	}
 	result, err := h.charSvc.Update(r.Context(), updated)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+	if handleSvcErr(w, err) {
 		return
 	}
 	writeJSON(w, http.StatusOK, result)

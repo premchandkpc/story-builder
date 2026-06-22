@@ -86,8 +86,7 @@ func (h *Handlers) UpdateChapter(w http.ResponseWriter, r *http.Request) {
 	}
 	body.ID = id
 	updated, err := h.chapterSvc.Update(r.Context(), &body)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+	if handleSvcErr(w, err) {
 		return
 	}
 	writeJSON(w, http.StatusOK, updated)

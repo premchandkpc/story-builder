@@ -28,6 +28,18 @@ func (r *SceneEdgeRepo) Create(ctx context.Context, e *domain.SceneEdge) error {
 	return err
 }
 
+func (r *SceneEdgeRepo) Get(ctx context.Context, edgeID string) (*domain.SceneEdge, error) {
+	var e domain.SceneEdge
+	err := r.coll.FindOne(ctx, bson.M{"_id": edgeID}).Decode(&e)
+	if err == mongo.ErrNoDocuments {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &e, nil
+}
+
 func (r *SceneEdgeRepo) ListByStory(ctx context.Context, storyID string) ([]*domain.SceneEdge, error) {
 	cursor, err := r.coll.Find(ctx, bson.M{"storyId": storyID})
 	if err != nil {

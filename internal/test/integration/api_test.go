@@ -76,7 +76,7 @@ func buildServer(t *testing.T) (*api.Server, *mgorepo.StoryRepo) {
 		genSvc, genSvc,
 		service.NewTimelineService(tlRepo),
 		service.NewSummaryService(sumRepo),
-		service.NewMemoryService(memRepo, nil),
+		service.NewMemoryService(memRepo, &mockEmbeddingService{}),
 		service.NewLocationService(locRepo),
 		bibleSvc,
 		chapterSvc,

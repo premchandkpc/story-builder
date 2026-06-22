@@ -12,8 +12,7 @@ import (
 func (h *Handlers) V2GenerateNode(w http.ResponseWriter, r *http.Request) {
 	nodeID := chi.URLParam(r, "nodeID")
 	gen, err := h.genWriteSvc.Generate(r.Context(), nodeID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+	if handleSvcErr(w, err) {
 		return
 	}
 	writeJSON(w, http.StatusAccepted, gen)
@@ -43,8 +42,7 @@ func (h *Handlers) V2AcceptGeneration(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if err := h.genWriteSvc.AcceptGeneration(r.Context(), nodeID, body.GenerationID); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+	if handleSvcErr(w, h.genWriteSvc.AcceptGeneration(r.Context(), nodeID, body.GenerationID)) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "accepted"})

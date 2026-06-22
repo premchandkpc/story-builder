@@ -4,6 +4,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -232,4 +233,18 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 		slog.Error("server error", "status", status, "msg", msg)
 	}
 	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+// handleSvcErr returns true if err is non-nil, writing 404 for service.ErrNotFound
+// and 500 for other errors. Returns false when err is nil (caller proceeds).
+func handleSvcErr(w http.ResponseWriter, err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, service.ErrNotFound) {
+		writeError(w, http.StatusNotFound, err.Error())
+		return true
+	}
+	writeError(w, http.StatusInternalServerError, err.Error())
+	return true
 }

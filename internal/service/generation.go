@@ -65,7 +65,7 @@ func (s *GenerationService) Generate(ctx context.Context, sceneID string) (*doma
 	}
 	if scene == nil {
 		s.genInFlight.Delete(sceneID)
-		return nil, fmt.Errorf("scene not found")
+		return nil, fmt.Errorf("scene not found: %w", ErrNotFound)
 	}
 
 	if s.budgetSvc != nil {
@@ -125,7 +125,7 @@ func (s *GenerationService) AcceptGeneration(ctx context.Context, sceneID, genID
 		return err
 	}
 	if gen == nil {
-		return fmt.Errorf("generation not found")
+		return fmt.Errorf("generation not found: %w", ErrNotFound)
 	}
 
 	scene, err := s.sceneRepo.Get(ctx, sceneID)
@@ -133,7 +133,7 @@ func (s *GenerationService) AcceptGeneration(ctx context.Context, sceneID, genID
 		return fmt.Errorf("accept gen: get scene: %w", err)
 	}
 	if scene == nil {
-		return fmt.Errorf("scene not found")
+		return fmt.Errorf("scene not found: %w", ErrNotFound)
 	}
 	if err := scene.CanTransitionTo(domain.SceneStatusAccepted); err != nil {
 		return fmt.Errorf("accept gen: %w", err)

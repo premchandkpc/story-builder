@@ -12,12 +12,16 @@ func (h *Handlers) GetSummaryByLevel(w http.ResponseWriter, r *http.Request) {
 	storyID := chi.URLParam(r, "storyID")
 	level := r.URL.Query().Get("level")
 	if level == "" {
-		level = "act"
+		writeError(w, http.StatusBadRequest, "level query param is required")
+		return
+	}
+	if level != "scene" && level != "act" && level != "story" {
+		writeError(w, http.StatusBadRequest, "invalid level: must be scene, act, or story")
+		return
 	}
 
 	sum, err := h.sumSvc.GetByLevel(r.Context(), storyID, level)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+	if handleSvcErr(w, err) {
 		return
 	}
 	if sum == nil {
@@ -37,8 +41,7 @@ func (h *Handlers) GetSceneSummary(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sum, err := h.sumSvc.GetSceneSummary(r.Context(), storyID, sceneID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+	if handleSvcErr(w, err) {
 		return
 	}
 	if sum == nil {

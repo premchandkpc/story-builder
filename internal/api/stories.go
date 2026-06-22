@@ -61,12 +61,15 @@ func (h *Handlers) UpdateStory(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	if body.Title == "" {
+		writeError(w, http.StatusBadRequest, "title is required")
+		return
+	}
 	updated, err := h.storySvc.Update(r.Context(), id, service.UpdateStoryParams{
 		Title:  body.Title,
 		Status: body.Status,
 	})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+	if handleSvcErr(w, err) {
 		return
 	}
 	writeJSON(w, http.StatusOK, updated)

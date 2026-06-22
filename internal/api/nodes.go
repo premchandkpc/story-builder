@@ -202,8 +202,7 @@ func (h *Handlers) UpdateNode(w http.ResponseWriter, r *http.Request) {
 	scene.PositionX = body.PositionX
 	scene.PositionY = body.PositionY
 	updated, err := h.sceneSvc.Update(r.Context(), scene)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+	if handleSvcErr(w, err) {
 		return
 	}
 	writeJSON(w, http.StatusOK, sceneToNode(updated))

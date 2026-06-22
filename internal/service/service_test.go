@@ -20,6 +20,14 @@ func newMockEdgeRepo2() *mockEdgeRepo2 {
 	}
 }
 
+func (m *mockEdgeRepo2) Get(ctx context.Context, edgeID string) (*domain.SceneEdge, error) {
+	e, ok := m.edges[edgeID]
+	if !ok {
+		return nil, nil
+	}
+	return e, nil
+}
+
 func (m *mockEdgeRepo2) Create(ctx context.Context, e *domain.SceneEdge) error {
 	if m.err != nil {
 		return m.err

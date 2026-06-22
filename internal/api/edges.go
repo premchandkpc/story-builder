@@ -38,8 +38,7 @@ func (h *Handlers) DeleteEdge(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "from_scene and to_scene query params are required")
 		return
 	}
-	if err := h.edgeSvc.Delete(r.Context(), storyID, fromScene, toScene); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+	if handleSvcErr(w, h.edgeSvc.Delete(r.Context(), storyID, fromScene, toScene)) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -92,8 +91,7 @@ func (h *Handlers) DeleteEdgeByID(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "edgeID is required")
 		return
 	}
-	if err := h.edgeSvc.DeleteByID(r.Context(), edgeID); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+	if handleSvcErr(w, h.edgeSvc.DeleteByID(r.Context(), edgeID)) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

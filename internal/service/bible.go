@@ -59,7 +59,7 @@ func (s *BibleService) Generate(ctx context.Context, storyID string) (*domain.St
 		return nil, fmt.Errorf("get story: %w", err)
 	}
 	if story == nil {
-		return nil, fmt.Errorf("story not found")
+		return nil, fmt.Errorf("story not found: %w", ErrNotFound)
 	}
 
 	synopsis := story.MainPrompt
@@ -141,7 +141,7 @@ func (s *BibleService) LinkBibleToStory(ctx context.Context, bibleID, targetStor
 		return fmt.Errorf("get bible: %w", err)
 	}
 	if bible == nil {
-		return fmt.Errorf("bible %s not found", bibleID)
+		return fmt.Errorf("bible %s not found: %w", bibleID, ErrNotFound)
 	}
 	for _, sid := range bible.ReferenceStories {
 		if sid == targetStoryID {
@@ -159,7 +159,7 @@ func (s *BibleService) UnlinkBibleFromStory(ctx context.Context, bibleID, target
 		return fmt.Errorf("get bible: %w", err)
 	}
 	if bible == nil {
-		return fmt.Errorf("bible %s not found", bibleID)
+		return fmt.Errorf("bible %s not found: %w", bibleID, ErrNotFound)
 	}
 	filtered := bible.ReferenceStories[:0]
 	for _, sid := range bible.ReferenceStories {

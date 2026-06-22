@@ -34,7 +34,7 @@ func (s *LocationService) Update(ctx context.Context, loc *domain.Location) erro
 		return err
 	}
 	if existing == nil {
-		return fmt.Errorf("location not found")
+		return fmt.Errorf("location not found: %w", ErrNotFound)
 	}
 	if loc.Name != "" {
 		existing.Name = loc.Name

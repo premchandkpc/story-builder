@@ -35,7 +35,7 @@ func (s *AgentConfigService) Export(ctx context.Context, name string) (*domain.A
 		return nil, fmt.Errorf("get agent config: %w", err)
 	}
 	if cfg == nil {
-		return nil, fmt.Errorf("agent config %s not found", name)
+		return nil, fmt.Errorf("agent config %s not found: %w", name, ErrNotFound)
 	}
 	return cfg, nil
 }

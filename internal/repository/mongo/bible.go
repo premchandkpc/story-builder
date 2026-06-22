@@ -6,6 +6,7 @@ import (
 	"github.com/premchand/story-builder/internal/domain"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type BibleRepo struct {
@@ -46,7 +47,7 @@ func (r *BibleRepo) GetByStory(ctx context.Context, storyID string) (*domain.Sto
 }
 
 func (r *BibleRepo) Update(ctx context.Context, b *domain.StoryBible) error {
-	_, err := r.coll.ReplaceOne(ctx, bson.M{"_id": b.ID}, b)
+	_, err := r.coll.ReplaceOne(ctx, bson.M{"_id": b.ID}, b, options.Replace().SetUpsert(true))
 	return err
 }
 

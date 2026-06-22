@@ -17,11 +17,14 @@ func (h *Handlers) CreateTimelineEvent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	if evt.Title == "" {
+		writeError(w, http.StatusBadRequest, "title is required")
+		return
+	}
 	evt.StoryID = storyID
 
 	created, err := h.tlSvc.Create(r.Context(), &evt)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+	if handleSvcErr(w, err) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, created)

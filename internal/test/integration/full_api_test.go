@@ -397,8 +397,8 @@ func TestAPI_BibleSharing(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 		srv.Router.ServeHTTP(rec, req)
-		if rec.Code != http.StatusInternalServerError {
-			t.Fatalf("expected 500, got %d", rec.Code)
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("expected 404, got %d", rec.Code)
 		}
 	})
 }
@@ -505,8 +505,8 @@ func TestAPI_CharacterMigration(t *testing.T) {
 		rec := httptest.NewRecorder()
 		srv.Router.ServeHTTP(rec, httptest.NewRequest("POST",
 			"/api/v1/stories/"+s2.ID+"/characters/nonexistent/migrate", nil))
-		if rec.Code != http.StatusInternalServerError {
-			t.Fatalf("expected 500, got %d", rec.Code)
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("expected 404, got %d", rec.Code)
 		}
 	})
 }

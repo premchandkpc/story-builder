@@ -17,8 +17,7 @@ func (h *Handlers) LinkBibleToStory(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	if err := h.bibleSvc.LinkBibleToStory(r.Context(), body.BibleID, storyID); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+	if handleSvcErr(w, h.bibleSvc.LinkBibleToStory(r.Context(), body.BibleID, storyID)) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "linked"})
@@ -33,8 +32,7 @@ func (h *Handlers) UnlinkBibleFromStory(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	if err := h.bibleSvc.UnlinkBibleFromStory(r.Context(), body.BibleID, storyID); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+	if handleSvcErr(w, h.bibleSvc.UnlinkBibleFromStory(r.Context(), body.BibleID, storyID)) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "unlinked"})
@@ -57,10 +55,13 @@ func (h *Handlers) CreateCrossStoryEvent(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
+	if e.Title == "" {
+		writeError(w, http.StatusBadRequest, "title is required")
+		return
+	}
 	e.StoryID = storyID
 	result, err := h.tlSvc.CreateCrossStory(r.Context(), &e)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+	if handleSvcErr(w, err) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, result)
@@ -80,8 +81,7 @@ func (h *Handlers) MigrateCharacter(w http.ResponseWriter, r *http.Request) {
 	storyID := chi.URLParam(r, "storyID")
 	charID := chi.URLParam(r, "charID")
 	result, err := h.charSvc.MigrateCharacter(r.Context(), charID, storyID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+	if handleSvcErr(w, err) {
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
