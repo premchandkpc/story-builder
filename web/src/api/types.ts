@@ -131,6 +131,20 @@ export interface StoryBible {
   created_at: string
 }
 
+export interface TimelineEvent {
+  id: string
+  story_id: string
+  related_story_ids?: string[]
+  scene_id?: string
+  title: string
+  event_type?: string
+  description?: string
+  dependencies?: string[]
+  consequences?: string[]
+  order: number
+  created_at: string
+}
+
 export interface CreateCharacterPayload {
   name: string
   persona?: string

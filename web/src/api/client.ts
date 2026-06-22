@@ -199,6 +199,17 @@ export const api = {
       request<CriticScoreData[]>(`/stories/${storyId}/critic-scores`),
   },
 
+  // Timeline — story events
+  // =================================
+  timeline: {
+    list: (storyId: string) =>
+      request<TimelineEvent[]>(`/stories/${storyId}/timeline`),
+    crossStoryList: (storyId: string) =>
+      request<TimelineEvent[]>(`/stories/${storyId}/timeline/cross-story`),
+    createCrossStory: (storyId: string, event: { title: string; related_story_ids?: string[]; description?: string; event_type?: string; order?: number }) =>
+      request<TimelineEvent>(`/stories/${storyId}/timeline/cross-story`, { method: "POST", body: JSON.stringify(event) }),
+  },
+
   // Bible — world building + cross-story sharing
   // ============================================
   bible: {

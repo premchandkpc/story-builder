@@ -9,6 +9,8 @@ import TurnTimeline from "./TurnTimeline"
 import AgentRunPanel from "./AgentRunPanel"
 import LlmMetricsDashboard from "./LlmMetricsDashboard"
 import CriticScoreDashboard from "./CriticScoreDashboard"
+import BiblePanel from "./BiblePanel"
+import TimelineView from "./TimelineView"
 
 interface GraphPanelProps {
   storyId: string
@@ -150,6 +152,8 @@ export default function GraphPanel({
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
         <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 20 }}>
+          <TimelineView storyId={storyId} />
+          <BiblePanel storyId={storyId} />
           <LlmMetricsDashboard storyId={storyId} />
           <CriticScoreDashboard storyId={storyId} />
         </div>

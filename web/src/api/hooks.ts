@@ -16,7 +16,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 // useNavigate: React Router hook to programmatically navigate between pages
 import { useNavigate } from "react-router-dom"
 import { api } from "./client"
-import type { CriticScoreData, Story, StoryStats, SceneTurn, AgentRun, LlmMetrics, StoryBible } from "./types"
+import type { CriticScoreData, Story, StoryStats, SceneTurn, AgentRun, LlmMetrics, StoryBible, TimelineEvent } from "./types"
 
 // ---- useStories() ----
 // Custom hook that fetches the list of all stories.
@@ -172,6 +172,23 @@ export function useCriticScores(storyId: string) {
     queryFn: () => api.critic.list(storyId),
     enabled: !!storyId,
     refetchInterval: 30_000,
+  })
+}
+
+// ---- Timeline Hooks ----
+export function useTimeline(storyId: string) {
+  return useQuery<TimelineEvent[]>({
+    queryKey: ["timeline", storyId],
+    queryFn: () => api.timeline.list(storyId),
+    enabled: !!storyId,
+  })
+}
+
+export function useCrossStoryTimeline(storyId: string) {
+  return useQuery<TimelineEvent[]>({
+    queryKey: ["crossStoryTimeline", storyId],
+    queryFn: () => api.timeline.crossStoryList(storyId),
+    enabled: !!storyId,
   })
 }
 

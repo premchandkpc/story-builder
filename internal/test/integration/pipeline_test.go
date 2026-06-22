@@ -72,7 +72,7 @@ func TestIntegration_GenerationPipeline(t *testing.T) {
 	worker := service.NewGenerationJobWorker(service.GenerationJobWorkerConfig{
 		JobRepo: jobRepo, GenRepo: genRepo, SceneRepo: sceneRepo,
 		StoryRepo: storyRepo, CharRepo: charRepo, StateRepo: stateRepo,
-		EdgeRepo: edgeRepo, MemRepo: memRepo, TlRepo: tlRepo,
+		EdgeRepo: edgeRepo, BibleRepo: nil, MemRepo: memRepo, TlRepo: tlRepo,
 		SumRepo: sumRepo, LocRepo: locRepo,
 		ProseSvc: llmSvc, ExtractSvc: extractSvc,
 		SummarySvc: summarySvc, ValidateSvc: validateSvc,
@@ -291,14 +291,15 @@ func TestIntegration_GenerationCustomProse(t *testing.T) {
 		GenRepo: genRepo, SceneRepo: sceneRepo,
 		JobRepo: jobRepo, EventBus: eventBus,
 	})
+	bibleRepo := mgorepo.NewBibleRepo(testDB)
 	contextBldr := service.NewContextBuilder(
-		mgorepo.NewBibleRepo(testDB), storyRepo, charRepo, stateRepo,
+		bibleRepo, storyRepo, charRepo, stateRepo,
 		locRepo, memRepo, sumRepo, tlRepo,
 	)
 	worker := service.NewGenerationJobWorker(service.GenerationJobWorkerConfig{
 		JobRepo: jobRepo, GenRepo: genRepo, SceneRepo: sceneRepo,
 		StoryRepo: storyRepo, CharRepo: charRepo, StateRepo: stateRepo,
-		EdgeRepo: edgeRepo, MemRepo: memRepo, TlRepo: tlRepo,
+		EdgeRepo: edgeRepo, BibleRepo: bibleRepo, MemRepo: memRepo, TlRepo: tlRepo,
 		SumRepo: sumRepo, LocRepo: locRepo,
 		ProseSvc: customProse, ExtractSvc: &mockExtractionService{},
 		SummarySvc: &mockSummaryService{}, ValidateSvc: &mockValidationService{},

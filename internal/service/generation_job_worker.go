@@ -24,6 +24,7 @@ type GenerationJobWorkerConfig struct {
 	CharRepo       repository.CharacterRepository
 	StateRepo      repository.CharacterStateRepository
 	EdgeRepo       repository.SceneEdgeRepository
+	BibleRepo      repository.BibleRepository
 	MemRepo        repository.MemoryRepository
 	TlRepo         repository.TimelineRepository
 	SumRepo        repository.SummaryRepository
@@ -267,7 +268,7 @@ func (w *GenerationJobWorker) runPipeline(ctx context.Context, gen *domain.Gener
 	genWorker := worker.NewGenerateSceneWorker(w.cfg.ProseSvc, w.cfg.GenRepo, w.cfg.SceneRepo)
 	extractWorker := worker.NewExtractStateWorker(w.cfg.ExtractSvc, w.cfg.StateRepo)
 	memWorker := worker.NewMemoryUpdateWorker(w.cfg.MemRepo, w.cfg.EmbeddingSvc)
-	tlWorker := worker.NewTimelineWorker(w.cfg.TlRepo, w.cfg.EdgeRepo)
+	tlWorker := worker.NewTimelineWorker(w.cfg.TlRepo, w.cfg.EdgeRepo, w.cfg.BibleRepo)
 	sumWorker := worker.NewSummaryWorker(w.cfg.SummarySvc, w.cfg.SumRepo)
 	valWorker := worker.NewValidationWorker(w.cfg.ValidateSvc, w.cfg.GenRepo)
 

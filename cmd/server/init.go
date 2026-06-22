@@ -181,7 +181,7 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 	genJobWorker := service.NewGenerationJobWorker(service.GenerationJobWorkerConfig{
 		JobRepo: jobRepo, GenRepo: genRepo, SceneRepo: sceneRepo,
 		StoryRepo: storyRepo, CharRepo: charRepo, StateRepo: stateRepo,
-		EdgeRepo: edgeRepo, MemRepo: memRepo, TlRepo: tlRepo,
+		EdgeRepo: edgeRepo, BibleRepo: bibleRepo, MemRepo: memRepo, TlRepo: tlRepo,
 		SumRepo: sumRepo, LocRepo: locRepo,
 		ProseSvc: proseSvc, ExtractSvc: extractSvc,
 		SummarySvc: summarySvc, ValidateSvc: validateSvc,

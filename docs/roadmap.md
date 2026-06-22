@@ -176,7 +176,7 @@
 		- [x] Agent run tracing (OpenTelemetry) — 10 agents + LLM router instrumented; OTLP HTTP exporter via OTEL_EXPORTER_OTLP_ENDPOINT
 
 3. **Multi-story orchestration**
-   - [ ] Shared world bible across stories
+   - [x] Shared world bible across stories (StoryBible.ReferenceStories backend; BibleService.Get() falls back to referencing bibles; BiblePanel frontend with sharing UI wired into GraphPanel default view)
    - [ ] Cross-story timeline
    - [ ] Character migration between stories
 
