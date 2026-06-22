@@ -558,6 +558,72 @@ All under `/api/v1/experimental/stories/{storyID}/nodes/{nodeID}/scene/`:
 
 ### Agent Runs
 
+## Character Agents
+
+Runtime inspection and control endpoints for per-character autonomous agents.
+
+### `GET /api/v1/agents/characters/{charID}/state`
+
+Inspect a running character agent's in-memory state (emotion, goals, knowledge, thoughts, plan).
+
+**Response 200:**
+```json
+{
+  "character_id": "char_abc123",
+  "name": "Arya",
+  "current_emotion": "determined",
+  "current_mood": "cautious",
+  "active_goal": "find the hidden passage",
+  "sub_goals": ["distract the guard", "locate the map"],
+  "knowledge": ["the castle has a secret tunnel"],
+  "knowledge_gaps": ["where the tunnel exits"],
+  "internal_thoughts": [
+    {"timestamp": "2026-06-22T12:00:00Z", "thought": "I need to find that map", "type": "reflection"}
+  ],
+  "recent_actions": [
+    {"scene_id": "scene_1", "action_type": "propose", "content": "I will search for clues"}
+  ],
+  "recent_dialogue": ["\"The map must be in the library.\""],
+  "plan": {"goal": "find the hidden passage", "steps": ["get map", "find tunnel"], "priority": 5, "active": true},
+  "running": true
+}
+```
+
+**Response 404:** `{"error": "character agent char_abc123 not found or not running"}`
+
+### `POST /api/v1/agents/characters/broadcast`
+
+Send a custom event to all running character agents.
+
+**Request:**
+```json
+{
+  "story_id": "story_1",
+  "event_type": "state_update",
+  "data": {"emotion": "fearful", "goal": "escape"}
+}
+```
+
+**Response 200:** `{"status": "broadcasted"}`
+
+### `GET /api/v1/agents/characters/proposals?scene_id=<sceneID>`
+
+Retrieve autonomous proposals from character agents for a given scene (triggers QueryProposals).
+
+**Response 200:**
+```json
+[
+  {
+    "character_id": "char_abc123",
+    "action_type": "dialogue",
+    "content": "I will search the library for clues",
+    "priority": 5
+  }
+]
+```
+
+---
+
 ## LLM Metrics
 
 | Method | Path | Description |

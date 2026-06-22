@@ -7,6 +7,7 @@ import (
 
 	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/llm"
+	"github.com/premchand/story-builder/internal/trace"
 )
 
 func NewDirectorSpec(llmClient llm.LLMClient, proseSvc llm.ProseService) AgentSpec {
@@ -31,10 +32,19 @@ Output valid JSON only with these fields:
   "reasoning": "brief explanation of the plan"
 }`,
 		Runner: func(ctx context.Context, input AgentInput) (*AgentOutput, error) {
+			ctx, span := trace.StartSpan(ctx, "agent.director."+input.Directive)
+			defer trace.End(span)
+
 			scene := input.Ctx.Scene
 			if scene == nil {
-				return nil, fmt.Errorf("scene required for director")
+				err := fmt.Errorf("scene required for director")
+				trace.SetError(span, err)
+				return nil, err
 			}
+
+			trace.SetAttribute(span, "sceneId", scene.ID)
+			trace.SetAttribute(span, "flowType", scene.FlowType)
+			trace.SetAttribute(span, "turnCount", len(input.Ctx.Turns))
 
 			participants := scene.Participants
 			if len(participants) == 0 {
@@ -54,6 +64,17 @@ Output valid JSON only with these fields:
 				prevTurns += fmt.Sprintf("Turn %d [%s]: %s\n", t.Number, t.Role, t.Output)
 			}
 
+			proposalsBlock := ""
+			if props, ok := input.Payload["proposals"]; ok {
+				if propsList, ok := props.([]CharacterProposal); ok && len(propsList) > 0 {
+					proposalsBlock = "\nCharacter Proposals:\n"
+					for _, p := range propsList {
+						proposalsBlock += fmt.Sprintf("- %s wants to: %s\n", p.CharacterID, p.Content)
+					}
+					proposalsBlock += "\n"
+				}
+			}
+
 			userMsg := fmt.Sprintf(`Scene: %s
 Beat Intent: %s
 POV: %s
@@ -61,7 +82,7 @@ Tone: %s
 Flow Type: %s
 Max Turns: %d
 Participants: %v
-
+%s
 Characters:
 %s
 
@@ -71,7 +92,7 @@ Character States:
 Previous Turns:
 %s
 
-Produce a JSON turn plan.`, scene.Title, scene.BeatIntent, scene.POV, scene.Tone, scene.FlowType, scene.MaxTurns, participants, chars, states, prevTurns)
+Produce a JSON turn plan.`, scene.Title, scene.BeatIntent, scene.POV, scene.Tone, scene.FlowType, scene.MaxTurns, participants, proposalsBlock, chars, states, prevTurns)
 
 			resp, err := llmClient.Complete(ctx, llm.CompletionRequest{
 				Model:        llm.ModelSonnet,
@@ -82,6 +103,7 @@ Produce a JSON turn plan.`, scene.Title, scene.BeatIntent, scene.POV, scene.Tone
 				ValidateJSON: true,
 			})
 			if err != nil {
+				trace.SetError(span, err)
 				return nil, fmt.Errorf("director llm call: %w", err)
 			}
 

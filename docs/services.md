@@ -178,6 +178,17 @@ The output is approximately 20k tokens of structured context. Bible is included 
 | `GetCanonDeltas(ctx, storyID, sceneID)` | Lists CanonDeltas for a scene |
 | `RecordStateDelta(ctx, delta)` | Appends a CanonDelta |
 | `IsAgentScene(scene)` | Returns true if scene has SceneStructure or non-custom FlowType |
+| `GetAgentState(ctx, charID)` | Returns `*agents.AgentStateSnapshot` for a running character agent |
+| `BroadcastEvent(ctx, storyID, eventType, data)` | Sends a custom event to all running character agents |
+| `GetProposals(ctx, sceneID)` | Triggers `QueryProposals` and returns `[]agents.ProposalSnapshot` |
+
+---
+
+## Tracing
+
+Every agent runner and the LLM router is instrumented with `internal/trace/` — a thin wrapper around OpenTelemetry. Spans are created via `trace.StartSpan(ctx, "operation.name")` and ended with `defer trace.End(span)`. Errors are recorded via `trace.SetError(span, err)`.
+
+See `docs/architecture.md` for the full span table and setup instructions.
 
 ---
 

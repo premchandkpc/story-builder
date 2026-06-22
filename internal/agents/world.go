@@ -8,6 +8,7 @@ import (
 
 	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/llm"
+	"github.com/premchand/story-builder/internal/trace"
 )
 
 func NewWorldSpec(llmClient llm.LLMClient) AgentSpec {
@@ -29,6 +30,9 @@ You maintain world consistency:
 Flag any violations and suggest corrections. Output JSON:
 {"world_stable": bool, "violations": [{"type": "string", "detail": "string", "severity": "warning|error|critical"}], "faction_status": [{"name": "string", "status": "string"}], "summary": "string"}`,
 		Runner: func(ctx context.Context, input AgentInput) (*AgentOutput, error) {
+			ctx, span := trace.StartSpan(ctx, "agent.world."+input.Directive)
+			defer trace.End(span)
+
 			userMsg := buildWorldPrompt(input)
 
 			resp, err := llmClient.Complete(ctx, llm.CompletionRequest{
@@ -40,6 +44,7 @@ Flag any violations and suggest corrections. Output JSON:
 				ValidateJSON: true,
 			})
 			if err != nil {
+				trace.SetError(span, err)
 				return nil, fmt.Errorf("world agent llm call: %w", err)
 			}
 

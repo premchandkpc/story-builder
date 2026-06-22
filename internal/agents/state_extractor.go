@@ -7,6 +7,7 @@ import (
 
 	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/llm"
+	"github.com/premchand/story-builder/internal/trace"
 )
 
 func NewStateExtractorSpec(llmClient llm.LLMClient, extractSvc llm.ExtractionService) AgentSpec {
@@ -29,11 +30,15 @@ After a scene completes, extract all structured state changes:
 
 Output structured deltas for each category.`,
 		Runner: func(ctx context.Context, input AgentInput) (*AgentOutput, error) {
+			ctx, span := trace.StartSpan(ctx, "agent.state_extractor."+input.Directive)
+			defer trace.End(span)
+
 			sceneText := buildSceneText(input)
 			roster := buildRoster(input)
 
 			stateDeltas, err := extractSvc.ExtractState(ctx, sceneText, roster)
 			if err != nil {
+				trace.SetError(span, err)
 				return nil, fmt.Errorf("state extraction: %w", err)
 			}
 

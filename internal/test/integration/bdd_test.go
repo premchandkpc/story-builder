@@ -97,7 +97,7 @@ func bddServer() (*api.Server, *mgorepo.StoryRepo) {
 		outlineSvc,
 		titleSvc,
 		nil, criticSvc, agentCfgSvc,
-		progressHub, nil, nil,
+		progressHub, nil, nil, nil,
 	)
 
 	return api.NewServer(h, nil), storyRepo

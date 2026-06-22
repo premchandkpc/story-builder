@@ -8,6 +8,7 @@ import (
 
 	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/llm"
+	"github.com/premchand/story-builder/internal/trace"
 )
 
 func NewCriticSpec(llmClient llm.LLMClient) AgentSpec {
@@ -34,6 +35,9 @@ Also flag:
 Output valid JSON with format:
 {"score": 0.0-1.0, "critiques": ["string"], "strengths": ["string"], "summary": "one-line verdict"}`,
 		Runner: func(ctx context.Context, input AgentInput) (*AgentOutput, error) {
+			ctx, span := trace.StartSpan(ctx, "agent.critic."+input.Directive)
+			defer trace.End(span)
+
 			userMsg := buildCriticPrompt(input)
 
 			resp, err := llmClient.Complete(ctx, llm.CompletionRequest{
@@ -45,6 +49,7 @@ Output valid JSON with format:
 				ValidateJSON: true,
 			})
 			if err != nil {
+				trace.SetError(span, err)
 				return nil, fmt.Errorf("critic agent llm call: %w", err)
 			}
 

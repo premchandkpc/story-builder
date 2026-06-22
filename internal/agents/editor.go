@@ -7,6 +7,7 @@ import (
 
 	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/llm"
+	"github.com/premchand/story-builder/internal/trace"
 )
 
 func NewEditorSpec(llmClient llm.LLMClient) AgentSpec {
@@ -27,6 +28,9 @@ Polish generated scene text while preserving intent:
 
 Output only the polished prose. If no changes needed, return the original.`,
 		Runner: func(ctx context.Context, input AgentInput) (*AgentOutput, error) {
+			ctx, span := trace.StartSpan(ctx, "agent.editor."+input.Directive)
+			defer trace.End(span)
+
 			narratorOutput := ""
 			for _, t := range input.Ctx.Turns {
 				if t.Role == "narrator" {
@@ -64,6 +68,7 @@ Tone: %s | POV: %s
 				MaxTokens:   4096,
 			})
 			if err != nil {
+				trace.SetError(span, err)
 				return nil, fmt.Errorf("editor agent llm call: %w", err)
 			}
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/llm"
+	"github.com/premchand/story-builder/internal/trace"
 )
 
 func NewNarratorSpec(llmClient llm.LLMClient, proseSvc llm.ProseService) AgentSpec {
@@ -30,7 +31,11 @@ Rules:
 
 Output only narrative prose — no JSON, no annotations.`,
 		Runner: func(ctx context.Context, input AgentInput) (*AgentOutput, error) {
+			ctx, span := trace.StartSpan(ctx, "agent.narrator."+input.Directive)
+			defer trace.End(span)
+
 			scene := input.Ctx.Scene
+			trace.SetAttribute(span, "sceneId", scene.ID)
 
 			userMsg := buildNarratorPrompt(input, scene)
 
@@ -42,6 +47,7 @@ Output only narrative prose — no JSON, no annotations.`,
 				MaxTokens:   2048,
 			})
 			if err != nil {
+				trace.SetError(span, err)
 				return nil, fmt.Errorf("narrator agent llm call: %w", err)
 			}
 

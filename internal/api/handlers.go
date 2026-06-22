@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/premchand/story-builder/internal/agents"
 	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/events"
 	"github.com/premchand/story-builder/internal/llm"
@@ -114,6 +115,13 @@ type AgentService interface {
 	RecordStateDelta(ctx context.Context, d *domain.CanonDelta) error
 }
 
+// CharAgentService provides runtime character agent inspection + control.
+type CharAgentService interface {
+	GetAgentState(ctx context.Context, charID string) (*agents.AgentStateSnapshot, error)
+	BroadcastEvent(ctx context.Context, storyID, eventType string, data map[string]any) error
+	GetProposals(ctx context.Context, sceneID string) ([]agents.ProposalSnapshot, error)
+}
+
 // LocationService manages story locations (hierarchical, named places).
 type LocationService interface {
 	Create(ctx context.Context, loc *domain.Location) error
@@ -167,6 +175,7 @@ type Handlers struct {
 	progress     *ProgressHub
 	eventBus     events.Bus
 	agentSvc     AgentService
+	charAgentSvc CharAgentService
 }
 
 // NewHandlers wires all service dependencies into a single Handlers struct.
@@ -191,6 +200,7 @@ func NewHandlers(
 	progress *ProgressHub,
 	eventBus events.Bus,
 	agentSvc AgentService,
+	charAgentSvc CharAgentService,
 ) *Handlers {
 	return &Handlers{
 		storySvc: storySvc, sceneSvc: sceneSvc, edgeSvc: edgeSvc,
@@ -200,6 +210,7 @@ func NewHandlers(
 		outlineSvc: outlineSvc, titleSvc: titleSvc, metricsSvc: metricsSvc,
 		criticSvc: criticSvc, agentCfgSvc: agentCfgSvc,
 		progress: progress, eventBus: eventBus, agentSvc: agentSvc,
+		charAgentSvc: charAgentSvc,
 	}
 }
 

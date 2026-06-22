@@ -8,6 +8,7 @@ import (
 
 	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/llm"
+	"github.com/premchand/story-builder/internal/trace"
 )
 
 func NewArcSpec(llmClient llm.LLMClient) AgentSpec {
@@ -30,6 +31,9 @@ Report arc health and flag abandoned threads or stalled character growth.
 Output JSON:
 {"arc_healthy": bool, "act": int, "character_arcs": [{"name": "string", "status": "string"}], "abandoned_threads": [{"thread": "string", "detail": "string"}], "stalled_characters": [{"name": "string", "reason": "string"}], "pacing": "string", "summary": "string"}`,
 		Runner: func(ctx context.Context, input AgentInput) (*AgentOutput, error) {
+			ctx, span := trace.StartSpan(ctx, "agent.arc."+input.Directive)
+			defer trace.End(span)
+
 			userMsg := buildArcPrompt(input)
 
 			resp, err := llmClient.Complete(ctx, llm.CompletionRequest{
@@ -41,6 +45,7 @@ Output JSON:
 				ValidateJSON: true,
 			})
 			if err != nil {
+				trace.SetError(span, err)
 				return nil, fmt.Errorf("arc agent llm call: %w", err)
 			}
 

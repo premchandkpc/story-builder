@@ -220,6 +220,15 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 				r.Post("/import", h.ImportAgentConfig)
 			})
 		})
+
+		// Character agents — runtime inspection + control
+		r.Route("/agents/characters", func(r chi.Router) {
+			r.Post("/broadcast", h.BroadcastCharEvent)
+			r.Get("/proposals", h.ListCharAgentProposals)
+			r.Route("/{charID}", func(r chi.Router) {
+				r.Get("/state", h.GetCharAgentState)
+			})
+		})
 	})
 
 	s.Router = r

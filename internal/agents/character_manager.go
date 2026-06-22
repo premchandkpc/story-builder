@@ -257,6 +257,81 @@ func updateFromTurn(inst *CharacterAgentInstance, evt CharacterEvent) {
 	}
 }
 
+func (m *CharacterManager) SnapshotState(charID string) *AgentStateSnapshot {
+	m.mu.RLock()
+	inst, ok := m.agents[charID]
+	m.mu.RUnlock()
+	if !ok {
+		return nil
+	}
+
+	inst.State.mu.RLock()
+	defer inst.State.mu.RUnlock()
+
+	snap := &AgentStateSnapshot{
+		CharacterID:    inst.State.CharacterID,
+		Name:           inst.State.Name,
+		CurrentEmotion: inst.State.CurrentEmotion,
+		CurrentMood:    inst.State.CurrentMood,
+		ActiveGoal:     inst.State.ActiveGoal,
+		SubGoals:       copySlice(inst.State.SubGoals),
+		Knowledge:      copySlice(inst.State.Knowledge),
+		KnowledgeGaps:  copySlice(inst.State.KnowledgeGaps),
+		RecentDialogue: copySlice(inst.State.RecentDialogue),
+		Running:        true,
+	}
+
+	for _, t := range inst.State.InternalThoughts {
+		snap.InternalThoughts = append(snap.InternalThoughts, ThoughtSnapshot{
+			Timestamp: t.Timestamp.Format(time.RFC3339),
+			Thought:   t.Thought,
+			Type:      t.Type,
+		})
+	}
+
+	for _, a := range inst.State.RecentActions {
+		snap.RecentActions = append(snap.RecentActions, ActionSnapshot{
+			SceneID:    a.SceneID,
+			ActionType: a.ActionType,
+			Content:    a.Content,
+		})
+	}
+
+	if inst.State.Plan != nil {
+		snap.Plan = &PlanSnapshot{
+			Goal:     inst.State.Plan.Goal,
+			Steps:    copySlice(inst.State.Plan.Steps),
+			Priority: inst.State.Plan.Priority,
+			Active:   inst.State.Plan.Active,
+		}
+	}
+
+	return snap
+}
+
+func (m *CharacterManager) SnapshotProposals(ctx context.Context) []ProposalSnapshot {
+	props := m.QueryProposals(ctx)
+	snaps := make([]ProposalSnapshot, 0, len(props))
+	for _, p := range props {
+		snaps = append(snaps, ProposalSnapshot{
+			CharacterID: p.CharacterID,
+			ActionType:  p.ActionType,
+			Content:     p.Content,
+			Priority:    p.Priority,
+		})
+	}
+	return snaps
+}
+
+func copySlice(s []string) []string {
+	if s == nil {
+		return nil
+	}
+	out := make([]string, len(s))
+	copy(out, s)
+	return out
+}
+
 func EnsureAgentsRunning(ctx context.Context, mgr *CharacterManager, characters []*domain.Character) {
 	for _, c := range characters {
 		if existing := mgr.GetAgent(c.CharID); existing != nil {

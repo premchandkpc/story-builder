@@ -173,12 +173,16 @@ cmd/server/
     ├── internal/validation     ─── Canon validators
     │   └── validate.go         ─── ValidateAgainstCanon
     │
-    ├── internal/test           ─── Test helpers
-    │   └── integration/
-    │
-    ├── internal/config        ─── Environment-based config (Port, MongoURI, RedisAddr, AnthropicKey, OpenCodeURL, LogLevel, etc.)
-    │
-    └── internal/log           ─── Structured logging
+	├── internal/trace          ─── OpenTelemetry tracing
+	│   ├── trace.go            ─── Span type alias, StartSpan/End/SetAttribute/SetError wrappers
+	│   └── init.go             ─── InitFromEnv — OTLP exporter + TracerProvider setup
+	│
+	├── internal/test           ─── Test helpers
+	│   └── integration/
+	│
+	├── internal/config        ─── Environment-based config (Port, MongoURI, RedisAddr, AnthropicKey, OpenCodeURL, LogLevel, etc.)
+	│
+	└── internal/log           ─── Structured logging
 ```
 
 ## Frontend Architecture
@@ -463,6 +467,38 @@ MongoDB + Redis → Go API (chi) → React Flow
 - Semantic memory recall (embedding-based top-K per character)
 - Branch-aware summary merging
 - Cross-story canon + character migration
+
+## OpenTelemetry Tracing
+
+`internal/trace/` wraps OpenTelemetry for distributed tracing. All 10 agents + the LLM router create spans:
+
+| Span | Created by | Attributes |
+|------|------------|------------|
+| `orchestrator.Plan` | `orchestrator.go` | sceneId, flowType |
+| `orchestrator.Execute` | `orchestrator.go` | sceneId, maxTurns |
+| `turn.<agent>.<phase>` | `orchestrator.go` | agentType, phase, turnNumber, turnId |
+| `finish.<agent>.<phase>` | `orchestrator.go` | agentType, phase |
+| `llm.Complete` | `router.go` | model, system_len, user_len |
+| `agent.director.<phase>` | `director.go` | sceneId, flowType, turnCount |
+| `agent.character.<charID>.<phase>` | `character_agent.go` | charId, charName, directive |
+| `agent.narrator.<phase>` | `narrator.go` | sceneId |
+| `agent.editor.<phase>` | `editor.go` | — |
+| `agent.canon_guard.<phase>` | `canon_guard.go` | — |
+| `agent.critic.<phase>` | `critic.go` | — |
+| `agent.state_extractor.<phase>` | `state_extractor.go` | — |
+| `agent.world.<phase>` | `world.go` | — |
+| `agent.arc.<phase>` | `arc.go` | — |
+| `agent.memory.<phase>` | `memory_agent.go` | — |
+
+Set `OTEL_EXPORTER_OTLP_ENDPOINT` env var to enable OTLP HTTP export (e.g. `http://localhost:4318/v1/traces`). When unset, the no-op tracer is used and no spans are exported. Service name is `story-builder`.
+
+```go
+// Startup — cmd/server/main.go
+otelShutdown := trace.InitFromEnv(context.Background())
+defer otelShutdown(context.Background())
+```
+
+Spans are created with `trace.StartSpan(ctx, "operation.name")` and ended with `defer trace.End(span)`. Errors are recorded via `trace.SetError(span, err)`. All agent Runners, the orchestrator, and the LLM router are instrumented.
 
 **Infrastructure philosophy:**
 - MongoDB + Redis only (no Kafka, no Qdrant, no Postgres)

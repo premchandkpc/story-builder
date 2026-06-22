@@ -13,12 +13,16 @@ import (
 	"github.com/premchand/story-builder/internal/config"
 	"github.com/premchand/story-builder/internal/log"
 	mgorepo "github.com/premchand/story-builder/internal/repository/mongo"
+	"github.com/premchand/story-builder/internal/trace"
 )
 
 func main() {
 	cfg := config.FromEnv()
 	log.Init(log.Config{Level: cfg.LogLevel})
 	slog.Info("starting story-builder", "port", cfg.Port)
+
+	otelShutdown := trace.InitFromEnv(context.Background())
+	defer otelShutdown(context.Background())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -48,7 +52,7 @@ func main() {
 		deps.outlineSvc, deps.titleSvc,
 		deps.metricsSvc, deps.criticSvc, deps.agentCfgSvc,
 		deps.progressHub, deps.eventBus,
-		deps.agentSvc,
+		deps.agentSvc, deps.agentSvc,
 	)
 
 	srv := api.NewServer(h, deps.rateLimiter)

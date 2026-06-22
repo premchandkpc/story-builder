@@ -8,6 +8,7 @@ import (
 
 	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/llm"
+	"github.com/premchand/story-builder/internal/trace"
 )
 
 func NewCanonGuardSpec(llmClient llm.LLMClient, validateSvc llm.ValidationService) AgentSpec {
@@ -29,6 +30,9 @@ Your job is to verify story truth consistency:
 
 Flag any violations with severity.`,
 		Runner: func(ctx context.Context, input AgentInput) (*AgentOutput, error) {
+			ctx, span := trace.StartSpan(ctx, "agent.canon_guard."+input.Directive)
+			defer trace.End(span)
+
 			violations := runRuleChecks(input)
 
 			llmViolations, err := runLLMCanonCheck(ctx, llmClient, input)

@@ -8,6 +8,7 @@ import (
 
 	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/llm"
+	"github.com/premchand/story-builder/internal/trace"
 )
 
 func NewCharacterAgentSpec(charID string, llmClient llm.LLMClient, proseSvc llm.ProseService, state *CharacterAgentState) AgentSpec {
@@ -46,10 +47,17 @@ func buildCharacterRunner(charID string, llmClient llm.LLMClient, state *Charact
 }
 
 func runCharacterProposal(ctx context.Context, charID string, input AgentInput, llmClient llm.LLMClient, state *CharacterAgentState) (*AgentOutput, error) {
+	ctx, span := trace.StartSpan(ctx, "agent.character."+charID+".propose")
+	defer trace.End(span)
+
 	character := findCharacter(input, charID)
 	if character == nil {
+		trace.SetAttribute(span, "skipped", true)
 		return &AgentOutput{Status: "skip", Content: ""}, nil
 	}
+
+	trace.SetAttribute(span, "charId", charID)
+	trace.SetAttribute(span, "charName", character.Name)
 
 	sceneCtx := buildSceneContext(input)
 
@@ -94,6 +102,7 @@ Keep it 1-3 sentences. This is your character's initiative.`,
 		MaxTokens:   512,
 	})
 	if err != nil {
+		trace.SetError(span, err)
 		return nil, fmt.Errorf("character proposal llm: %w", err)
 	}
 
@@ -112,10 +121,19 @@ Keep it 1-3 sentences. This is your character's initiative.`,
 }
 
 func runCharacterTurn(ctx context.Context, charID string, input AgentInput, llmClient llm.LLMClient, state *CharacterAgentState) (*AgentOutput, error) {
+	ctx, span := trace.StartSpan(ctx, "agent.character."+charID+"."+input.Directive)
+	defer trace.End(span)
+
 	character := findCharacter(input, charID)
 	if character == nil {
-		return nil, fmt.Errorf("character %s not found in context", charID)
+		err := fmt.Errorf("character %s not found in context", charID)
+		trace.SetError(span, err)
+		return nil, err
 	}
+
+	trace.SetAttribute(span, "charId", charID)
+	trace.SetAttribute(span, "charName", character.Name)
+	trace.SetAttribute(span, "directive", input.Directive)
 
 	charState := findCharState(input, charID)
 
@@ -162,6 +180,7 @@ func runCharacterTurn(ctx context.Context, charID string, input AgentInput, llmC
 		MaxTokens:   2048,
 	})
 	if err != nil {
+		trace.SetError(span, err)
 		return nil, fmt.Errorf("character agent llm: %w", err)
 	}
 

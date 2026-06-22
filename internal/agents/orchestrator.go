@@ -282,10 +282,14 @@ func (o *Orchestrator) Execute(ctx context.Context, plan *OrchestrationPlan, age
 			_ = turnRepo.Update(turnCtx, turn)
 		}
 
+		payload := map[string]any{"phase": step.Phase, "turnNumber": i + 1}
+		if step.AgentType == domain.AgentTypeDirector && len(plan.Proposals) > 0 {
+			payload["proposals"] = plan.Proposals
+		}
 		start := time.Now()
 		output, err := spec.Runner(turnCtx, AgentInput{
 			Ctx:       agentCtx,
-			Payload:   map[string]any{"phase": step.Phase, "turnNumber": i + 1},
+			Payload:   payload,
 			Directive: step.Phase,
 		})
 		cancel()

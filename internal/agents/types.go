@@ -197,3 +197,45 @@ func (s *CharacterAgentState) RecordDialogue(line string) {
 		s.RecentDialogue = s.RecentDialogue[len(s.RecentDialogue)-10:]
 	}
 }
+
+type AgentStateSnapshot struct {
+	CharacterID      string              `json:"character_id"`
+	Name             string              `json:"name"`
+	CurrentEmotion   string              `json:"current_emotion,omitempty"`
+	CurrentMood      string              `json:"current_mood,omitempty"`
+	ActiveGoal       string              `json:"active_goal,omitempty"`
+	SubGoals         []string            `json:"sub_goals,omitempty"`
+	Knowledge        []string            `json:"knowledge,omitempty"`
+	KnowledgeGaps    []string            `json:"knowledge_gaps,omitempty"`
+	InternalThoughts []ThoughtSnapshot   `json:"internal_thoughts,omitempty"`
+	RecentActions    []ActionSnapshot    `json:"recent_actions,omitempty"`
+	RecentDialogue   []string            `json:"recent_dialogue,omitempty"`
+	Plan             *PlanSnapshot       `json:"plan,omitempty"`
+	Running          bool                `json:"running"`
+}
+
+type ThoughtSnapshot struct {
+	Timestamp string `json:"timestamp"`
+	Thought   string `json:"thought"`
+	Type      string `json:"type"`
+}
+
+type ActionSnapshot struct {
+	SceneID    string `json:"scene_id,omitempty"`
+	ActionType string `json:"action_type"`
+	Content    string `json:"content"`
+}
+
+type PlanSnapshot struct {
+	Goal     string   `json:"goal"`
+	Steps    []string `json:"steps,omitempty"`
+	Priority int      `json:"priority"`
+	Active   bool     `json:"active"`
+}
+
+type ProposalSnapshot struct {
+	CharacterID string `json:"character_id"`
+	ActionType  string `json:"action_type"`
+	Content     string `json:"content"`
+	Priority    int    `json:"priority"`
+}

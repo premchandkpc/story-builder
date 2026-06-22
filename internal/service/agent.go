@@ -273,6 +273,37 @@ func (s *AgentService) IsAgentScene(scene *domain.Scene) bool {
 	return scene.SceneStructure != nil || scene.FlowType != "" && scene.FlowType != domain.FlowTypeCustom
 }
 
+func (s *AgentService) GetAgentState(ctx context.Context, charID string) (*agents.AgentStateSnapshot, error) {
+	if s.charManager == nil {
+		return nil, fmt.Errorf("character manager not initialized")
+	}
+	snap := s.charManager.SnapshotState(charID)
+	if snap == nil {
+		return nil, fmt.Errorf("character agent %s not found or not running", charID)
+	}
+	return snap, nil
+}
+
+func (s *AgentService) BroadcastEvent(ctx context.Context, storyID, eventType string, data map[string]any) error {
+	if s.charManager == nil {
+		return fmt.Errorf("character manager not initialized")
+	}
+	s.charManager.BroadcastEvent(agents.CharacterEvent{
+		StoryID:   storyID,
+		Type:      agents.CharacterEventType(eventType),
+		Data:      data,
+		Timestamp: time.Now(),
+	})
+	return nil
+}
+
+func (s *AgentService) GetProposals(ctx context.Context, sceneID string) ([]agents.ProposalSnapshot, error) {
+	if s.charManager == nil {
+		return nil, fmt.Errorf("character manager not initialized")
+	}
+	return s.charManager.SnapshotProposals(ctx), nil
+}
+
 func (s *AgentService) RegisterCustomAgent(ctx context.Context, cfg *domain.AgentConfig) error {
 	timeout := time.Duration(cfg.TimeoutMs) * time.Millisecond
 	if timeout <= 0 {

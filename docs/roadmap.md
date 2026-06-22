@@ -173,7 +173,7 @@
    - [x] Budget-related event types (`budget.limit_exceeded`, `budget.warning`, `metrics.updated`)
    - [x] Turn-level metrics (duration, tokens, errors already in SceneTurn model)
    - [ ] Critic score dashboards (data exists, frontend pending)
-   - [ ] Agent run tracing (OpenTelemetry)
+		- [x] Agent run tracing (OpenTelemetry) — 10 agents + LLM router instrumented; OTLP HTTP exporter via OTEL_EXPORTER_OTLP_ENDPOINT
 
 3. **Multi-story orchestration**
    - [ ] Shared world bible across stories
@@ -183,9 +183,9 @@
 4. **Character agent skill & tools**
    - [x] `character-agent` skill created (`.agents/skills/character-agent/SKILL.md`)
    - [x] Auto-loaded on every chat start via AGENTS.md
-   - [ ] CLI tool: `opencode char-agent status <charID>` — inspect running agent state
-   - [ ] CLI tool: `opencode char-agent broadcast <event>` — send event to character agents
-   - [ ] CLI tool: `opencode char-agent proposals <sceneID>` — view autonomous proposals
+		- [x] API endpoint: `GET /api/v1/agents/characters/{charID}/state` — inspect running agent state
+		- [x] API endpoint: `POST /api/v1/agents/characters/broadcast` — send event to character agents
+		- [x] API endpoint: `GET /api/v1/agents/characters/proposals?scene_id=<sceneID>` — view autonomous proposals
 
 5. **Community features**
    - [ ] Export/import agent configs

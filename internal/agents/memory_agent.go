@@ -8,6 +8,7 @@ import (
 
 	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/llm"
+	"github.com/premchand/story-builder/internal/trace"
 )
 
 func NewMemorySpec(llmClient llm.LLMClient) AgentSpec {
@@ -29,6 +30,9 @@ Analyze the latest scene and suggest memory updates:
 Output JSON:
 {"memory_suggestions": [{"character": "string", "type": "event|dialogue|observation|injury|relationship_change", "content": "string", "importance": 0.0-1.0}], "cleanup_needed": bool, "summary": "string"}`,
 		Runner: func(ctx context.Context, input AgentInput) (*AgentOutput, error) {
+			ctx, span := trace.StartSpan(ctx, "agent.memory."+input.Directive)
+			defer trace.End(span)
+
 			userMsg := buildMemoryPrompt(input)
 
 			resp, err := llmClient.Complete(ctx, llm.CompletionRequest{
@@ -40,6 +44,7 @@ Output JSON:
 				ValidateJSON: true,
 			})
 			if err != nil {
+				trace.SetError(span, err)
 				return nil, fmt.Errorf("memory agent llm call: %w", err)
 			}
 
