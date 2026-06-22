@@ -399,7 +399,7 @@ var _ = Describe("Character migration", func() {
 		rec := httptest.NewRecorder()
 		srv.Router.ServeHTTP(rec, httptest.NewRequest("POST",
 			fmt.Sprintf("/api/v1/stories/%s/characters/nonexistent/migrate", target.ID), nil))
-		Expect(rec.Code).To(Equal(http.StatusInternalServerError))
+		Expect(rec.Code).To(Equal(http.StatusNotFound))
 	})
 })
 
