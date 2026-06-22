@@ -150,17 +150,20 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 	agents.RegisterAll(agentRegistry, router, proseSvc, extractSvc, validateSvc)
 	slog.Info("agent registry initialized", "count", len(agentRegistry.List()))
 
+	charManager := agents.NewCharacterManager(agentRegistry, router, proseSvc, eventBus)
+
 	budgetRepo := mgorepo.NewTokenBudgetRepo(db)
 	budgetSvc := service.NewTokenBudgetService(budgetRepo)
 
 	agentOrchestrator := agents.NewOrchestrator(agents.OrchestratorConfig{
-		Registry:  agentRegistry,
-		LLMClient: router,
-		EventBus:  eventBus,
+		Registry:    agentRegistry,
+		LLMClient:   router,
+		EventBus:    eventBus,
+		CharManager: charManager,
 	})
 
 	agentSvc := service.NewAgentService(service.AgentServiceConfig{
-		Registry: agentRegistry, Orchestrator: agentOrchestrator,
+		Registry: agentRegistry, Orchestrator: agentOrchestrator, CharManager: charManager,
 		TurnRepo: turnRepo, ActorRepo: agentRunRepo, CanonRepo: canonDeltaRepo,
 		GenRepo: genRepo, StoryRepo: storyRepo, SceneRepo: sceneRepo,
 		CharRepo: charRepo, StateRepo: stateRepo,

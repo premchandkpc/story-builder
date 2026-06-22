@@ -212,7 +212,7 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
     setGensLoading(true)
     try {
       const gens = await api.generations.list(storyId, nodeId)
-      setGenerations(gens)
+      setGenerations(gens || [])
     } catch {
       setGenerations([])
     } finally {

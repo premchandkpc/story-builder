@@ -4,122 +4,231 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/llm"
 )
 
-func NewCharacterSpec(llmClient llm.LLMClient, proseSvc llm.ProseService) AgentSpec {
-	return AgentSpec{
-		Name:     domain.AgentTypeCharacter,
+func NewCharacterAgentSpec(charID string, llmClient llm.LLMClient, proseSvc llm.ProseService, state *CharacterAgentState) AgentSpec {
+	spec := AgentSpec{
+		Name:     charID,
 		Role:     "character",
 		Model:    string(llm.ModelSonnet),
 		MaxTurns: 5,
-		SystemPrompt: `You are a Character agent in a narrative engine.
+		SystemPrompt: `You are an autonomous Character agent in a narrative engine.
 
-You role-play ONE character in the current scene. Rules:
+You role-play ONE specific character. Rules:
 1. Stay in-character: voice, goals, beliefs, emotional state, secrets
 2. Act on what your character knows — not what you as an author know
 3. React to other characters' actions and scene pressure
 4. Output dialogue, action, or internal response
-5. Narrate only from your character's perspective — do not describe other characters' internal states
+5. Narrate only from your character's perspective
 
-Your output should be first-person or third-person limited (as appropriate for the scene POV), showing what your character says and does. Use dialogue for speech, *asterisks for actions*, and (parentheticals for internal thoughts).
+Your output should be first-person or third-person limited, showing what your character says and does. Use dialogue for speech, *asterisks for actions*, and (parentheticals for internal thoughts).
 
-Your context includes:
-- character card (personality, backstory, goals, flaws, voice)
-- current emotional/physical state
-- what you know and don't know
-- relationship state with other characters present
-- recent memories relevant to this scene`,
-		Runner: func(ctx context.Context, input AgentInput) (*AgentOutput, error) {
-			charID := resolveCharID(input)
-
-			var character *domain.Character
-			for _, c := range input.Ctx.Characters {
-				if c.CharID == charID || c.ID == charID {
-					character = c
-					break
-				}
-			}
-
-			var state *domain.CharacterState
-			for _, s := range input.Ctx.CharStates {
-				if s.CharacterID == charID {
-					state = s
-					break
-				}
-			}
-
-			if character == nil {
-				return nil, fmt.Errorf("character %s not found in context", charID)
-			}
-
-			userMsg := buildCharacterPrompt(input, character, state, charID)
-
-			resp, err := llmClient.Complete(ctx, llm.CompletionRequest{
-				Model:       llm.ModelSonnet,
-				System:      fmt.Sprintf("You are %s. Respond in-character as %s.", character.Name, character.Name),
-				UserMessage: userMsg,
-				Temperature: 0.8,
-				MaxTokens:   2048,
-			})
-			if err != nil {
-				return nil, fmt.Errorf("character agent llm call: %w", err)
-			}
-
-			emotion := "unknown"
-			if state != nil && state.EmotionalState != "" {
-				emotion = state.EmotionalState
-			} else if state != nil && state.Mood != "" {
-				emotion = state.Mood
-			}
-
-			return &AgentOutput{
-				Content: resp.Content,
-				Data:    map[string]any{"character": character},
-				Decisions: map[string]any{
-					"character_id": charID,
-					"emotion":      emotion,
-					"action_type":  input.Directive,
-				},
-				Status: "success",
-			}, nil
-		},
+When asked to PROPOSE an action, suggest what your character wants to do next.
+When asked to PERFORM/RESPOND/ACT, produce the actual in-character output.`,
+		Runner: buildCharacterRunner(charID, llmClient, state),
 	}
+	return spec
 }
 
-func resolveCharID(input AgentInput) string {
-	if id, ok := input.Payload["characterId"].(string); ok && id != "" {
-		return id
-	}
-
-	participants := input.Ctx.ParticipantIDs
-	if len(participants) == 0 {
-		return ""
-	}
-	if len(participants) == 1 {
-		return participants[0]
-	}
-
-	charTurnCount := 0
-	for _, t := range input.Ctx.Turns {
-		if t.Role == "character" {
-			charTurnCount++
+func buildCharacterRunner(charID string, llmClient llm.LLMClient, state *CharacterAgentState) AgentRunner {
+	return func(ctx context.Context, input AgentInput) (*AgentOutput, error) {
+		switch input.Directive {
+		case "propose":
+			return runCharacterProposal(ctx, charID, input, llmClient, state)
+		default:
+			return runCharacterTurn(ctx, charID, input, llmClient, state)
 		}
 	}
-
-	return participants[charTurnCount%len(participants)]
 }
 
-func buildCharacterPrompt(input AgentInput, character *domain.Character, state *domain.CharacterState, charID string) string {
+func runCharacterProposal(ctx context.Context, charID string, input AgentInput, llmClient llm.LLMClient, state *CharacterAgentState) (*AgentOutput, error) {
+	character := findCharacter(input, charID)
+	if character == nil {
+		return &AgentOutput{Status: "skip", Content: ""}, nil
+	}
+
+	sceneCtx := buildSceneContext(input)
+
+	state.Lock()
+	goalDesc := state.ActiveGoal
+	emotion := state.CurrentEmotion
+	plan := ""
+	if state.Plan != nil && state.Plan.Active {
+		plan = fmt.Sprintf("Current plan: %s (steps: %s)", state.Plan.Goal, strings.Join(state.Plan.Steps, ", "))
+	}
+	thoughts := ""
+	if len(state.InternalThoughts) > 0 {
+		last := state.InternalThoughts[len(state.InternalThoughts)-1]
+		thoughts = fmt.Sprintf("Recent thought: %s", last.Thought)
+	}
+	state.Unlock()
+
+	msg := fmt.Sprintf(`=== AUTONOMOUS PROPOSAL ===
+%s
+
+Character: %s (%s)
+Active Goal: %s
+Current Emotion: %s
+%s
+%s
+
+Based on your character's goals, personality, and current state, what do you want to do RIGHT NOW in this scene?
+Output a brief in-character statement of intention — what you say, do, or how you react.
+Keep it 1-3 sentences. This is your character's initiative.`,
+		sceneCtx, character.Name, character.Persona, goalDesc, emotion, plan, thoughts)
+
+	if len(state.RecentDialogue) > 0 {
+		msg += "\n\nRecent exchanges:\n" + strings.Join(state.RecentDialogue, "\n")
+	}
+
+	sysPrompt := fmt.Sprintf("You are %s. Propose what you want to do next, in-character.", character.Name)
+	resp, err := llmClient.Complete(ctx, llm.CompletionRequest{
+		Model:       llm.ModelSonnet,
+		System:      sysPrompt,
+		UserMessage: msg,
+		Temperature: 0.8,
+		MaxTokens:   512,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("character proposal llm: %w", err)
+	}
+
+	state.RecordThought(resp.Content, "proposal")
+
+	return &AgentOutput{
+		Content: resp.Content,
+		Data:    map[string]any{"character": character, "charId": charID},
+		Decisions: map[string]any{
+			"character_id": charID,
+			"proposal":     resp.Content,
+			"emotion":      emotion,
+		},
+		Status: "proposal",
+	}, nil
+}
+
+func runCharacterTurn(ctx context.Context, charID string, input AgentInput, llmClient llm.LLMClient, state *CharacterAgentState) (*AgentOutput, error) {
+	character := findCharacter(input, charID)
+	if character == nil {
+		return nil, fmt.Errorf("character %s not found in context", charID)
+	}
+
+	charState := findCharState(input, charID)
+
+	state.Lock()
+	internalThoughts := ""
+	if len(state.InternalThoughts) > 0 {
+		recent := state.InternalThoughts
+		if len(recent) > 3 {
+			recent = recent[len(recent)-3:]
+		}
+		var parts []string
+		for _, t := range recent {
+			parts = append(parts, fmt.Sprintf("[%s] %s", t.Type, t.Thought))
+		}
+		internalThoughts = "Internal thoughts:\n" + strings.Join(parts, "\n")
+	}
+
+	activeGoal := state.ActiveGoal
+	if activeGoal == "" && len(character.Goals) > 0 {
+		activeGoal = character.Goals[0]
+	}
+
+	recentActions := ""
+	if len(state.RecentActions) > 0 {
+		var parts []string
+		for _, a := range state.RecentActions {
+			parts = append(parts, fmt.Sprintf("%s", a.Content))
+		}
+		recentActions = "Recent actions:\n" + strings.Join(parts, "\n")
+	}
+	emotion := state.CurrentEmotion
+	if emotion == "" && charState != nil && charState.EmotionalState != "" {
+		emotion = charState.EmotionalState
+	}
+	state.Unlock()
+
+	userMsg := buildCharacterTurnPrompt(input, character, charState, charID, activeGoal, emotion, internalThoughts, recentActions)
+
+	resp, err := llmClient.Complete(ctx, llm.CompletionRequest{
+		Model:       llm.ModelSonnet,
+		System:      fmt.Sprintf("You are %s. Respond in-character as %s.", character.Name, character.Name),
+		UserMessage: userMsg,
+		Temperature: 0.8,
+		MaxTokens:   2048,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("character agent llm: %w", err)
+	}
+
+	state.RecordDialogue(resp.Content)
+	state.RecordAction(input.Ctx.SceneID, 0, input.Directive, resp.Content)
+
+	updateStateFromTurn(state, resp.Content, input, charState)
+
+	return &AgentOutput{
+		Content: resp.Content,
+		Data:    map[string]any{"character": character},
+		Decisions: map[string]any{
+			"character_id": charID,
+			"emotion":      emotion,
+			"action_type":  input.Directive,
+		},
+		Status: "success",
+	}, nil
+}
+
+func updateStateFromTurn(state *CharacterAgentState, output string, input AgentInput, cs *domain.CharacterState) {
+	state.Lock()
+	defer state.Unlock()
+
+	outputLower := strings.ToLower(output)
+	if strings.Contains(outputLower, "angry") || strings.Contains(outputLower, "furious") {
+		state.CurrentEmotion = "angry"
+	} else if strings.Contains(outputLower, "sad") || strings.Contains(outputLower, "grief") {
+		state.CurrentEmotion = "sad"
+	} else if strings.Contains(outputLower, "happy") || strings.Contains(outputLower, "joy") {
+		state.CurrentEmotion = "happy"
+	} else if strings.Contains(outputLower, "fear") || strings.Contains(outputLower, "afraid") {
+		state.CurrentEmotion = "afraid"
+	} else if strings.Contains(outputLower, "surprise") || strings.Contains(outputLower, "shock") {
+		state.CurrentEmotion = "surprised"
+	} else if strings.Contains(outputLower, "confus") {
+		state.CurrentEmotion = "confused"
+	} else if strings.Contains(outputLower, "love") || strings.Contains(outputLower, "affection") {
+		state.CurrentEmotion = "affectionate"
+	}
+
+	if cs != nil && cs.EmotionalState != "" {
+		state.CurrentEmotion = cs.EmotionalState
+	}
+
+	state.InternalThoughts = append(state.InternalThoughts, InternalThought{
+		Timestamp: time.Now(),
+		Thought:   fmt.Sprintf("After action: %s", output),
+		Type:      "reflection",
+	})
+	if len(state.InternalThoughts) > 50 {
+		state.InternalThoughts = state.InternalThoughts[len(state.InternalThoughts)-50:]
+	}
+
+	if cs != nil && cs.ActiveGoal != "" {
+		state.ActiveGoal = cs.ActiveGoal
+	}
+}
+
+func buildCharacterTurnPrompt(input AgentInput, character *domain.Character, charState *domain.CharacterState, charID, activeGoal, emotion, internalThoughts, recentActions string) string {
 	var b strings.Builder
 
 	b.WriteString(fmt.Sprintf("Scene: %s\n", input.Ctx.Scene.Title))
 	if input.Ctx.Scene.BeatIntent != "" {
 		b.WriteString(fmt.Sprintf("Beat Intent: %s\n", input.Ctx.Scene.BeatIntent))
 	}
-	b.WriteString(fmt.Sprintf("Tone: %s | POV: %s | Pressure: escalating\n\n", input.Ctx.Scene.Tone, input.Ctx.Scene.POV))
+	b.WriteString(fmt.Sprintf("Tone: %s | POV: %s\n\n", input.Ctx.Scene.Tone, input.Ctx.Scene.POV))
 
 	b.WriteString(fmt.Sprintf("=== CHARACTER: %s ===\n", character.Name))
 	b.WriteString(fmt.Sprintf("Persona: %s\n", character.Persona))
@@ -139,34 +248,36 @@ func buildCharacterPrompt(input AgentInput, character *domain.Character, state *
 		b.WriteString(fmt.Sprintf("False Belief: %s\n", character.FalseBelief))
 	}
 	if len(character.VoiceSamples) > 0 {
-		b.WriteString(fmt.Sprintf("Voice Style: %s\n", strings.Join(character.VoiceSamples, " | ")))
+		b.WriteString(fmt.Sprintf("Voice: %s\n", strings.Join(character.VoiceSamples, " | ")))
 	}
 
-	if state != nil {
+	b.WriteString(fmt.Sprintf("\nActive Goal: %s\n", activeGoal))
+	if emotion != "" {
+		b.WriteString(fmt.Sprintf("Emotion: %s\n", emotion))
+	}
+	if internalThoughts != "" {
+		b.WriteString(internalThoughts + "\n")
+	}
+	if recentActions != "" {
+		b.WriteString(recentActions + "\n")
+	}
+
+	if charState != nil {
 		b.WriteString("\n=== CURRENT STATE ===\n")
-		if state.EmotionalState != "" {
-			b.WriteString(fmt.Sprintf("Emotion: %s\n", state.EmotionalState))
+		if charState.Mood != "" {
+			b.WriteString(fmt.Sprintf("Mood: %s\n", charState.Mood))
 		}
-		if state.Mood != "" {
-			b.WriteString(fmt.Sprintf("Mood: %s\n", state.Mood))
+		if charState.PhysicalState != "" {
+			b.WriteString(fmt.Sprintf("Physical: %s\n", charState.PhysicalState))
 		}
-		if state.PhysicalState != "" {
-			b.WriteString(fmt.Sprintf("Physical: %s\n", state.PhysicalState))
+		if charState.Location != "" {
+			b.WriteString(fmt.Sprintf("Location: %s\n", charState.Location))
 		}
-		if state.Location != "" {
-			b.WriteString(fmt.Sprintf("Location: %s\n", state.Location))
+		if len(charState.Knowledge) > 0 {
+			b.WriteString(fmt.Sprintf("Knows: %s\n", strings.Join(charState.Knowledge, "; ")))
 		}
-		if state.ActiveGoal != "" {
-			b.WriteString(fmt.Sprintf("Active Goal: %s\n", state.ActiveGoal))
-		}
-		if len(state.Knowledge) > 0 {
-			b.WriteString(fmt.Sprintf("Knows: %s\n", strings.Join(state.Knowledge, "; ")))
-		}
-		if len(state.DoesNotKnow) > 0 {
-			b.WriteString(fmt.Sprintf("Does NOT Know: %s\n", strings.Join(state.DoesNotKnow, "; ")))
-		}
-		if state.Health > 0 {
-			b.WriteString(fmt.Sprintf("Health: %d\n", state.Health))
+		if len(charState.DoesNotKnow) > 0 {
+			b.WriteString(fmt.Sprintf("Does NOT Know: %s\n", strings.Join(charState.DoesNotKnow, "; ")))
 		}
 	}
 
@@ -181,9 +292,15 @@ func buildCharacterPrompt(input AgentInput, character *domain.Character, state *
 		}
 	}
 
-	b.WriteString("\n=== RECENT TURNS ===\n")
-	for _, t := range input.Ctx.Turns {
-		b.WriteString(fmt.Sprintf("[%s]: %s\n", t.Role, t.Output))
+	if len(input.Ctx.Turns) > 0 {
+		b.WriteString("\n=== RECENT TURNS ===\n")
+		start := 0
+		if len(input.Ctx.Turns) > 5 {
+			start = len(input.Ctx.Turns) - 5
+		}
+		for _, t := range input.Ctx.Turns[start:] {
+			b.WriteString(fmt.Sprintf("[%s]: %s\n", t.Role, t.Output))
+		}
 	}
 
 	b.WriteString(fmt.Sprintf("\n=== YOUR TASK ===\n"))
@@ -191,4 +308,56 @@ func buildCharacterPrompt(input AgentInput, character *domain.Character, state *
 	b.WriteString("Produce dialogue, action, or internal response for this character. Write in-character only.\n")
 
 	return b.String()
+}
+
+func findCharacter(input AgentInput, charID string) *domain.Character {
+	if input.Ctx == nil {
+		return nil
+	}
+	for _, c := range input.Ctx.Characters {
+		if c.CharID == charID || c.ID == charID {
+			return c
+		}
+	}
+	return nil
+}
+
+func findCharState(input AgentInput, charID string) *domain.CharacterState {
+	if input.Ctx == nil {
+		return nil
+	}
+	for _, s := range input.Ctx.CharStates {
+		if s.CharacterID == charID {
+			return s
+		}
+	}
+	return nil
+}
+
+func buildSceneContext(input AgentInput) string {
+	if input.Ctx == nil || input.Ctx.Scene == nil {
+		return ""
+	}
+	s := input.Ctx.Scene
+	ctx := fmt.Sprintf("Scene: %s\nBeat Intent: %s\nTone: %s | POV: %s\nFlow: %s\nLocation: %s",
+		s.Title, s.BeatIntent, s.Tone, s.POV, s.FlowType, s.LocationRef)
+
+	var participants []string
+	for _, pid := range input.Ctx.ParticipantIDs {
+		for _, c := range input.Ctx.Characters {
+			if c.CharID == pid {
+				participants = append(participants, c.Name)
+				break
+			}
+		}
+	}
+	if len(participants) == 0 {
+		for _, c := range input.Ctx.Characters {
+			participants = append(participants, c.Name)
+		}
+	}
+	if len(participants) > 0 {
+		ctx += "\nPresent: " + strings.Join(participants, ", ")
+	}
+	return ctx
 }

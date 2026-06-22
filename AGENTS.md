@@ -1,7 +1,7 @@
 # Story Builder
 
 ## Auto-loaded skills
-On every chat start, load ALL available skills: agents-sdk, caveman*, compare-models, customize-opencode, Debug Issue, Explore Codebase, find-skills, frontend-design, Refactor Safely, Review Changes, skill-creator.
+On every chat start, load ALL available skills: agents-sdk, caveman*, character-agent, compare-models, customize-opencode, Debug Issue, Explore Codebase, find-skills, frontend-design, Refactor Safely, Review Changes, skill-creator.
 
 Full-stack story graph editor with DAG-based plot structure and LLM-generated prose.
 
@@ -82,6 +82,24 @@ Context compression for all LLM calls. Go backend wraps LLMClient with `Compress
 # Start headroom proxy separately, then set:
 export HEADROOM_BASE_URL=http://localhost:8787
 ```
+
+## Character Agents
+
+Every character in the story is its own autonomous agent (not a generic "character" agent spec). Design principles:
+
+- **Per-character AgentSpec**: Each character gets its own registered `AgentSpec` with its identity baked in via closure. Registered under the character's ID (`charId`), not `"character"`.
+- **Persistent state**: `CharacterAgentState` holds emotion, goals, knowledge, internal monologue, action history, and plan in-memory across turns within a scene.
+- **Autonomous proposals**: Before the Director plans, `CharacterManager.QueryProposals()` asks all character agents what they want to do. Their proposals influence the turn order.
+- **Event-driven goroutines**: Each character agent runs a goroutine with an event loop, receiving `CharacterEvent`s (scene_start, turn_complete, character_action, scene_end).
+- **Lifecycle**: `AgentService.GenerateScene()` → `EnsureAgentsRunning()` spawns agents → orchestrator runs → `StopAll()` cleans up.
+
+Key types:
+- `CharacterManager` (`internal/agents/character_manager.go`) — lifecycle manager
+- `CharacterAgentState` (`internal/agents/types.go`) — persistent per-character state
+- `CharacterEvent` — event-driven communication between orchestrator and character agents
+- `CharacterProposal` — autonomous action suggestion from a character agent
+
+See `.agents/skills/character-agent/SKILL.md` for full workflow.
 
 ## Building
 

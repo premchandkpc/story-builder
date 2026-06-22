@@ -64,12 +64,16 @@
    - [x] Outputs JSON turn plan with pressure, escalation, who acts, end_scene
    - [x] Falls back to hardcoded decisions on LLM failure
 
-2. **Character Agent**
+2. **Character Agent** — evolved to per-character autonomous agents:
    - [x] Real LLM call via `LLMClient.Complete()` (sonnet, 0.8 temp)
    - [x] Reads character card (persona, traits, goals, flaws, voice, backstory)
    - [x] Reads current emotional/physical state, knowledge, active goal
    - [x] Reads relevant memories (top 5) for context
-   - [x] Selects character from payload or auto-rotates through participants
+   - [x] Per-character `AgentSpec` — identity baked in via closure, registered under `charId`
+   - [x] Persistent `CharacterAgentState` — emotion, goals, thoughts, plan, dialogue held in-memory across turns
+   - [x] Autonomous proposals — `CharacterManager.QueryProposals()` asks all chars what they want
+   - [x] Event-driven goroutines — each char runs event loop receiving `CharacterEvent`s
+   - [x] `CharacterManager` lifecycle — `StartAgent`/`StopAll` wired into `AgentService.GenerateScene()`
    - [x] Builds structured prompt with scene context + character data + prev turns
 
 3. **Narrator Agent**
@@ -95,9 +99,10 @@
    - [x] `AgentService` in `internal/service/agent.go` — builds context, runs orchestrator
    - [x] `GenerationService.Generate()` routes scenes with `SceneStructure` or `FlowType` to agent orchestrator
    - [x] `RegisterAll()` convenience in `internal/agents/register.go`
-   - [x] All 10 agents registered in `init.go` via `agentRegistry`
-   - [x] Orchestrator wired with registry + LLM router + event bus
+   - [x] All agents registered in `init.go` via `agentRegistry` + `CharacterManager`
+   - [x] Orchestrator wired with registry + LLM router + event bus + CharacterManager
    - [x] AgentService wired into `appDependencies` + passed through to API handlers
+   - [x] Per-character autonomous agents with persistent state, proposals, event loops
    - [ ] Hybrid: pipeline for generate, agents for orchestration within (deferred)
 
 ## Phase 3: Editorial Agents (Month 3)
@@ -175,7 +180,14 @@
    - [ ] Cross-story timeline
    - [ ] Character migration between stories
 
-4. **Community features**
+4. **Character agent skill & tools**
+   - [x] `character-agent` skill created (`.agents/skills/character-agent/SKILL.md`)
+   - [x] Auto-loaded on every chat start via AGENTS.md
+   - [ ] CLI tool: `opencode char-agent status <charID>` — inspect running agent state
+   - [ ] CLI tool: `opencode char-agent broadcast <event>` — send event to character agents
+   - [ ] CLI tool: `opencode char-agent proposals <sceneID>` — view autonomous proposals
+
+5. **Community features**
    - [ ] Export/import agent configs
    - [ ] Custom agent definitions via API
    - [ ] Agent marketplace (prompt templates)
@@ -197,7 +209,7 @@
 
 ## Risk Areas
 
-1. **LLM cost**: Character agent × N participants × M turns = expensive. Mitigation: turn limits, prompt caching, cheaper model for routine turns.
+1. **LLM cost**: Per-character agents × N participants × M turns = expensive (each character turn + proposal is an LLM call). Mitigation: turn limits, prompt caching, cheaper model for routine turns, proposal culling (only top-K proposals used).
 2. **Prompt drift**: 10 agents × evolving prompts = chaos. Mitigation: prompt registry in `internal/prompt/`, versioned templates, golden prompt tests.
 3. **State inconsistency**: Multiple agents reading/writing state concurrently. Mitigation: orchestrator serializes turns, in-flight locks per scene, append-only state.
 4. **Frontend complexity**: Turn playback, agent debug panels, graph editing. Mitigation: progressive disclosure, ship basic turn list first.

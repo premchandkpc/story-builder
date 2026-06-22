@@ -48,17 +48,19 @@ func (r *AgentRegistry) List() []AgentSpec {
 }
 
 type OrchestratorConfig struct {
-	Registry   *AgentRegistry
-	LLMClient  llm.LLMClient
-	EventBus   events.Bus
-	Timeouts   map[string]time.Duration
+	Registry    *AgentRegistry
+	LLMClient   llm.LLMClient
+	EventBus    events.Bus
+	Timeouts    map[string]time.Duration
+	CharManager *CharacterManager
 }
 
 type Orchestrator struct {
-	registry  *AgentRegistry
-	llm       llm.LLMClient
-	eventBus  events.Bus
-	timeouts  map[string]time.Duration
+	registry    *AgentRegistry
+	llm         llm.LLMClient
+	eventBus    events.Bus
+	timeouts    map[string]time.Duration
+	charManager *CharacterManager
 }
 
 func NewOrchestrator(cfg OrchestratorConfig) *Orchestrator {
@@ -78,10 +80,11 @@ func NewOrchestrator(cfg OrchestratorConfig) *Orchestrator {
 		}
 	}
 	return &Orchestrator{
-		registry: cfg.Registry,
-		llm:      cfg.LLMClient,
-		eventBus: cfg.EventBus,
-		timeouts: timeouts,
+		registry:    cfg.Registry,
+		llm:         cfg.LLMClient,
+		eventBus:    cfg.EventBus,
+		timeouts:    timeouts,
+		charManager: cfg.CharManager,
 	}
 }
 
@@ -94,43 +97,76 @@ func (o *Orchestrator) Plan(ctx context.Context, scene *domain.Scene) (*Orchestr
 	}
 	defer trace.End(planSpan)
 
-	plan := &OrchestrationPlan{
-		SceneID:  scene.ID,
-		MaxTurns: scene.MaxTurns,
+	var proposals []CharacterProposal
+	if o.charManager != nil {
+		proposals = o.charManager.QueryProposals(ctx)
+		if len(proposals) > 0 {
+			slog.Info("orchestrator: collected character proposals",
+				"count", len(proposals))
+			for _, p := range proposals {
+				slog.Debug("orchestrator: proposal", "charId", p.CharacterID, "action", p.ActionType)
+			}
+		}
 	}
+
+	plan := &OrchestrationPlan{
+		SceneID:   scene.ID,
+		MaxTurns:  scene.MaxTurns,
+		Proposals: proposals,
+	}
+
+	charAgentIDs := gatherCharacterAgentIDs(scene, proposals)
 
 	switch scene.FlowType {
 	case domain.FlowTypeMonologue:
 		plan.TurnOrder = []TurnStep{
 			{AgentType: domain.AgentTypeDirector, Phase: "plan", Required: true, Blocking: true},
-			{AgentType: domain.AgentTypeCharacter, Phase: "perform", Required: true, Blocking: true},
-			{AgentType: domain.AgentTypeNarrator, Phase: "narrate", Required: true, Blocking: true},
-			{AgentType: domain.AgentTypeEditor, Phase: "refine", Required: false, Blocking: true},
-			{AgentType: domain.AgentTypeCanonGuard, Phase: "validate", Required: false, Blocking: true},
 		}
+		for _, cid := range charAgentIDs {
+			plan.TurnOrder = append(plan.TurnOrder, TurnStep{AgentType: cid, Phase: "perform", Required: true, Blocking: false})
+		}
+		plan.TurnOrder = append(plan.TurnOrder,
+			TurnStep{AgentType: domain.AgentTypeNarrator, Phase: "narrate", Required: true, Blocking: true},
+			TurnStep{AgentType: domain.AgentTypeEditor, Phase: "refine", Required: false, Blocking: true},
+			TurnStep{AgentType: domain.AgentTypeCanonGuard, Phase: "validate", Required: false, Blocking: true},
+		)
 	case domain.FlowTypeDialogue:
 		plan.TurnOrder = []TurnStep{
 			{AgentType: domain.AgentTypeDirector, Phase: "plan", Required: true, Blocking: true},
-			{AgentType: domain.AgentTypeCharacter, Phase: "perform", Required: true, Blocking: false},
-			{AgentType: domain.AgentTypeCharacter, Phase: "respond", Required: true, Blocking: false},
-			{AgentType: domain.AgentTypeNarrator, Phase: "narrate", Required: true, Blocking: true},
-			{AgentType: domain.AgentTypeEditor, Phase: "refine", Required: false, Blocking: true},
-			{AgentType: domain.AgentTypeCanonGuard, Phase: "validate", Required: false, Blocking: true},
 		}
+		for _, cid := range charAgentIDs {
+			plan.TurnOrder = append(plan.TurnOrder, TurnStep{AgentType: cid, Phase: "perform", Required: true, Blocking: false})
+		}
+		for _, cid := range charAgentIDs {
+			plan.TurnOrder = append(plan.TurnOrder, TurnStep{AgentType: cid, Phase: "respond", Required: true, Blocking: false})
+		}
+		plan.TurnOrder = append(plan.TurnOrder,
+			TurnStep{AgentType: domain.AgentTypeNarrator, Phase: "narrate", Required: true, Blocking: true},
+			TurnStep{AgentType: domain.AgentTypeEditor, Phase: "refine", Required: false, Blocking: true},
+			TurnStep{AgentType: domain.AgentTypeCanonGuard, Phase: "validate", Required: false, Blocking: true},
+		)
 	case domain.FlowTypeRoundRobin:
 		plan.TurnOrder = []TurnStep{
 			{AgentType: domain.AgentTypeDirector, Phase: "plan", Required: true, Blocking: true},
-			{AgentType: domain.AgentTypeCharacter, Phase: "perform", Required: true, Blocking: false},
-			{AgentType: domain.AgentTypeNarrator, Phase: "narrate", Required: true, Blocking: true},
-			{AgentType: domain.AgentTypeCanonGuard, Phase: "validate-step", Required: false, Blocking: true},
 		}
+		for _, cid := range charAgentIDs {
+			plan.TurnOrder = append(plan.TurnOrder, TurnStep{AgentType: cid, Phase: "perform", Required: true, Blocking: false})
+		}
+		plan.TurnOrder = append(plan.TurnOrder,
+			TurnStep{AgentType: domain.AgentTypeNarrator, Phase: "narrate", Required: true, Blocking: true},
+			TurnStep{AgentType: domain.AgentTypeCanonGuard, Phase: "validate-step", Required: false, Blocking: true},
+		)
 	case domain.FlowTypeAction:
 		plan.TurnOrder = []TurnStep{
 			{AgentType: domain.AgentTypeDirector, Phase: "plan", Required: true, Blocking: true},
-			{AgentType: domain.AgentTypeCharacter, Phase: "act", Required: true, Blocking: false},
-			{AgentType: domain.AgentTypeNarrator, Phase: "describe", Required: true, Blocking: true},
-			{AgentType: domain.AgentTypeEditor, Phase: "pace", Required: false, Blocking: true},
 		}
+		for _, cid := range charAgentIDs {
+			plan.TurnOrder = append(plan.TurnOrder, TurnStep{AgentType: cid, Phase: "act", Required: true, Blocking: false})
+		}
+		plan.TurnOrder = append(plan.TurnOrder,
+			TurnStep{AgentType: domain.AgentTypeNarrator, Phase: "describe", Required: true, Blocking: true},
+			TurnStep{AgentType: domain.AgentTypeEditor, Phase: "pace", Required: false, Blocking: true},
+		)
 	case domain.FlowTypeSilent:
 		plan.TurnOrder = []TurnStep{
 			{AgentType: domain.AgentTypeDirector, Phase: "plan", Required: true, Blocking: true},
@@ -139,13 +175,38 @@ func (o *Orchestrator) Plan(ctx context.Context, scene *domain.Scene) (*Orchestr
 	default:
 		plan.TurnOrder = []TurnStep{
 			{AgentType: domain.AgentTypeDirector, Phase: "plan", Required: true, Blocking: true},
-			{AgentType: domain.AgentTypeCharacter, Phase: "perform", Required: true, Blocking: false},
-			{AgentType: domain.AgentTypeNarrator, Phase: "narrate", Required: true, Blocking: true},
-			{AgentType: domain.AgentTypeEditor, Phase: "refine", Required: false, Blocking: true},
-			{AgentType: domain.AgentTypeCanonGuard, Phase: "validate", Required: false, Blocking: true},
 		}
+		for _, cid := range charAgentIDs {
+			plan.TurnOrder = append(plan.TurnOrder, TurnStep{AgentType: cid, Phase: "perform", Required: true, Blocking: false})
+		}
+		plan.TurnOrder = append(plan.TurnOrder,
+			TurnStep{AgentType: domain.AgentTypeNarrator, Phase: "narrate", Required: true, Blocking: true},
+			TurnStep{AgentType: domain.AgentTypeEditor, Phase: "refine", Required: false, Blocking: true},
+			TurnStep{AgentType: domain.AgentTypeCanonGuard, Phase: "validate", Required: false, Blocking: true},
+		)
 	}
 	return plan, nil
+}
+
+func gatherCharacterAgentIDs(scene *domain.Scene, proposals []CharacterProposal) []string {
+	seen := map[string]bool{}
+	var ids []string
+
+	for _, pid := range scene.Participants {
+		if !seen[pid] {
+			seen[pid] = true
+			ids = append(ids, pid)
+		}
+	}
+
+	for _, p := range proposals {
+		if !seen[p.CharacterID] {
+			seen[p.CharacterID] = true
+			ids = append(ids, p.CharacterID)
+		}
+	}
+
+	return ids
 }
 
 func (o *Orchestrator) Execute(ctx context.Context, plan *OrchestrationPlan, agentCtx *AgentContext, turnRepo SceneTurnRepository) (*OrchestrationResult, error) {
@@ -157,6 +218,21 @@ func (o *Orchestrator) Execute(ctx context.Context, plan *OrchestrationPlan, age
 		trace.SetAttribute(execSpan, "maxTurns", plan.MaxTurns)
 	}
 	defer trace.End(execSpan)
+
+	if o.charManager != nil {
+		o.charManager.BroadcastEvent(CharacterEvent{
+			Type:      EventSceneStart,
+			StoryID:   agentCtx.StoryID,
+			SceneID:   plan.SceneID,
+			Data: map[string]any{
+				"scene_title": agentCtx.Scene.Title,
+				"beat_intent": agentCtx.Scene.BeatIntent,
+				"pov":         agentCtx.Scene.POV,
+				"tone":        agentCtx.Scene.Tone,
+			},
+			Timestamp: time.Now(),
+		})
+	}
 
 	for i, step := range plan.TurnOrder {
 		spec, ok := o.registry.Get(step.AgentType)
@@ -237,6 +313,28 @@ func (o *Orchestrator) Execute(ctx context.Context, plan *OrchestrationPlan, age
 		}
 		result.Turns = append(result.Turns, turn)
 
+		if o.charManager != nil {
+			evtType := EventTurnComplete
+			isCharacter := spec.Role == "character"
+			if isCharacter {
+				evtType = EventCharAction
+			}
+			o.charManager.BroadcastEvent(CharacterEvent{
+				Type:      evtType,
+				StoryID:   agentCtx.StoryID,
+				SceneID:   plan.SceneID,
+				TurnID:    turn.ID,
+				Data: map[string]any{
+					"agentType": step.AgentType,
+					"phase":     step.Phase,
+					"content":   output.Content,
+					"role":      spec.Role,
+					"emotion":   extractEmotion(output),
+				},
+				Timestamp: time.Now(),
+			})
+		}
+
 		if o.eventBus != nil {
 			_ = o.eventBus.Publish(ctx, events.Event{
 				Type:    events.EventAgentTurnCompleted,
@@ -252,6 +350,18 @@ func (o *Orchestrator) Execute(ctx context.Context, plan *OrchestrationPlan, age
 		}
 	}
 
+	if o.charManager != nil {
+		o.charManager.BroadcastEvent(CharacterEvent{
+			Type:    EventSceneEnd,
+			StoryID: agentCtx.StoryID,
+			SceneID: plan.SceneID,
+			Data: map[string]any{
+				"turn_count": len(result.Turns),
+			},
+			Timestamp: time.Now(),
+		})
+	}
+
 	if critic, ok := o.registry.Get(domain.AgentTypeCritic); ok {
 		criticCtx, cancel := context.WithTimeout(ctx, o.timeouts[domain.AgentTypeCritic])
 		defer cancel()
@@ -264,6 +374,16 @@ func (o *Orchestrator) Execute(ctx context.Context, plan *OrchestrationPlan, age
 	}
 
 	return result, nil
+}
+
+func extractEmotion(output *AgentOutput) string {
+	if output == nil {
+		return ""
+	}
+	if e, ok := output.Decisions["emotion"].(string); ok {
+		return e
+	}
+	return ""
 }
 
 func (o *Orchestrator) RunFinish(ctx context.Context, sceneID string, agentCtx *AgentContext, turnRepo SceneTurnRepository) error {

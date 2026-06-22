@@ -7,46 +7,6 @@ import (
 	"github.com/premchand/story-builder/internal/llm"
 )
 
-func TestResolveCharID_fromPayload(t *testing.T) {
-	in := AgentInput{
-		Payload: map[string]any{"characterId": "char_2"},
-		Ctx:     &AgentContext{ParticipantIDs: []string{"char_1", "char_2"}},
-	}
-	if got := resolveCharID(in); got != "char_2" {
-		t.Errorf("resolveCharID = %q, want %q", got, "char_2")
-	}
-}
-
-func TestResolveCharID_singleParticipant(t *testing.T) {
-	in := AgentInput{
-		Ctx: &AgentContext{ParticipantIDs: []string{"char_1"}},
-	}
-	if got := resolveCharID(in); got != "char_1" {
-		t.Errorf("resolveCharID = %q, want %q", got, "char_1")
-	}
-}
-
-func TestResolveCharID_empty(t *testing.T) {
-	in := AgentInput{Ctx: &AgentContext{}}
-	if got := resolveCharID(in); got != "" {
-		t.Errorf("resolveCharID = %q, want empty", got)
-	}
-}
-
-func TestResolveCharID_rotates(t *testing.T) {
-	in := AgentInput{
-		Ctx: &AgentContext{
-			ParticipantIDs: []string{"char_a", "char_b"},
-			Turns: []*domain.SceneTurn{
-				{Role: "character", Number: 1},
-			},
-		},
-	}
-	if got := resolveCharID(in); got != "char_b" {
-		t.Errorf("resolveCharID = %q, want %q (second participant)", got, "char_b")
-	}
-}
-
 func TestExtractFact_empty(t *testing.T) {
 	if got := extractFact(llm.StateDelta{Character: "bob"}); got != "" {
 		t.Errorf("extractFact = %q, want empty", got)

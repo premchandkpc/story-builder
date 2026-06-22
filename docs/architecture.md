@@ -449,13 +449,14 @@ MongoDB + Redis → Go API (chi) → React Flow
 ```
 
 **Phase 3 — Agent Orchestration (implemented):**
-- 10 runtime narrative agents registered in `internal/agents/` (P0 agents: Director, Character, Narrator, CanonGuard, StateExtract; P1: Editor, Critic, World, Arc, Memory)
-- Director agent calls `LLMClient.Complete()` with structured JSON parsing; others are stubs awaiting P1 wiring
+- 10 runtime narrative agents registered in `internal/agents/` (Director, Narrator, CanonGuard, Editor, Critic, StateExtract, World, Arc, Memory) — all fully wired with real LLM calls
+- **Per-character autonomous agents** — each character gets its own `AgentSpec` (registered under `charId`), persistent in-memory `CharacterAgentState` (emotion, goals, thoughts, plan), autonomous proposal system (`QueryProposals`), and event-driven goroutine loop (`CharacterManager`)
+- Director agent calls `LLMClient.Complete()` with structured JSON parsing
 - `AgentService` in `internal/service/agent.go` — orchestrator-based scene generation with context assembly
 - Pipeline hybrid: agent path for structured scenes, worker path for simple scenes
-- Turn/Lore/Canon repository interfaces + MongoDB implementations in Phase 1.3
+- Turn/Lore/Canon repository interfaces + MongoDB implementations
 - Turn-level agent runs with role-specific system prompts
-- API endpoints for turns, deltas, and agent-run queries (Phase 1.4)
+- API endpoints for turns, deltas, and agent-run queries
 
 **Phase 4 — Narrative Intelligence:**
 - Sequential generation: whole acts, not individual scenes

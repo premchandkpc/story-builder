@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/premchand/story-builder/internal/domain"
 )
 
 // V2GenerateNode handles POST /api/v1/stories/{storyID}/nodes/{nodeID}/generate.
@@ -25,6 +26,9 @@ func (h *Handlers) V2ListNodeGenerations(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	if gens == nil {
+		gens = []*domain.Generation{}
 	}
 	writeJSON(w, http.StatusOK, gens)
 }

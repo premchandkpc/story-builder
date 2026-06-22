@@ -16,6 +16,7 @@ import (
 type AgentServiceConfig struct {
 	Registry     *agents.AgentRegistry
 	Orchestrator *agents.Orchestrator
+	CharManager  *agents.CharacterManager
 	TurnRepo     scene.TurnRepository
 	ActorRepo    scene.ActorRepository
 	CanonRepo    scene.CanonDeltaRepository
@@ -35,6 +36,7 @@ type AgentServiceConfig struct {
 type AgentService struct {
 	registry     *agents.AgentRegistry
 	orchestrator *agents.Orchestrator
+	charManager  *agents.CharacterManager
 	turnRepo     scene.TurnRepository
 	actorRepo    scene.ActorRepository
 	canonRepo    scene.CanonDeltaRepository
@@ -53,7 +55,7 @@ type AgentService struct {
 
 func NewAgentService(cfg AgentServiceConfig) *AgentService {
 	return &AgentService{
-		registry: cfg.Registry, orchestrator: cfg.Orchestrator,
+		registry: cfg.Registry, orchestrator: cfg.Orchestrator, charManager: cfg.CharManager,
 		turnRepo: cfg.TurnRepo, actorRepo: cfg.ActorRepo, canonRepo: cfg.CanonRepo,
 		genRepo: cfg.GenRepo, storyRepo: cfg.StoryRepo, sceneRepo: cfg.SceneRepo,
 		charRepo: cfg.CharRepo, stateRepo: cfg.StateRepo, bibleRepo: cfg.BibleRepo,
@@ -92,6 +94,13 @@ func (s *AgentService) GenerateScene(ctx context.Context, sceneID string) (*doma
 	if err != nil {
 		s.genRepo.Update(ctx, &domain.Generation{ID: gen.ID, Status: domain.GenStatusFailed, Error: err.Error()})
 		return nil, fmt.Errorf("build context: %w", err)
+	}
+
+	if s.charManager != nil {
+		agents.EnsureAgentsRunning(ctx, s.charManager, agentCtx.Characters)
+		defer func() {
+			s.charManager.StopAll()
+		}()
 	}
 
 	plan, err := s.orchestrator.Plan(ctx, scene)
@@ -216,6 +225,13 @@ func (s *AgentService) GenerateSceneHybrid(ctx context.Context, scene *domain.Sc
 	agentCtx, err := s.buildContext(ctx, scene)
 	if err != nil {
 		return "", fmt.Errorf("build context: %w", err)
+	}
+
+	if s.charManager != nil {
+		agents.EnsureAgentsRunning(ctx, s.charManager, agentCtx.Characters)
+		defer func() {
+			s.charManager.StopAll()
+		}()
 	}
 
 	plan, err := s.orchestrator.Plan(ctx, scene)

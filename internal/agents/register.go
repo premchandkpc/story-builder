@@ -5,7 +5,6 @@ import "github.com/premchand/story-builder/internal/llm"
 func RegisterAll(registry *AgentRegistry, llmClient llm.LLMClient, proseSvc llm.ProseService, extractSvc llm.ExtractionService, validateSvc llm.ValidationService) {
 	specs := []AgentSpec{
 		NewDirectorSpec(llmClient, proseSvc),
-		NewCharacterSpec(llmClient, proseSvc),
 		NewNarratorSpec(llmClient, proseSvc),
 		NewCanonGuardSpec(llmClient, validateSvc),
 		NewEditorSpec(llmClient),
@@ -18,4 +17,9 @@ func RegisterAll(registry *AgentRegistry, llmClient llm.LLMClient, proseSvc llm.
 	for _, spec := range specs {
 		registry.Register(spec)
 	}
+}
+
+func RegisterCharacterAgent(registry *AgentRegistry, charID string, llmClient llm.LLMClient, proseSvc llm.ProseService, state *CharacterAgentState) {
+	spec := NewCharacterAgentSpec(charID, llmClient, proseSvc, state)
+	registry.Register(spec)
 }
