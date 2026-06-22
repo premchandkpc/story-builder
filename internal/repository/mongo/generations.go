@@ -50,6 +50,15 @@ func (r *GenerationRepo) Update(ctx context.Context, g *domain.Generation) error
 	return err
 }
 
+func (r *GenerationRepo) FindByContextHash(ctx context.Context, storyID, hash string) (*domain.Generation, error) {
+	var g domain.Generation
+	err := r.coll.FindOne(ctx, bson.M{"storyId": storyID, "contextHash": hash, "accepted": true}).Decode(&g)
+	if err == mongo.ErrNoDocuments {
+		return nil, nil
+	}
+	return &g, err
+}
+
 func (r *GenerationRepo) ListByScene(ctx context.Context, sceneID string) ([]*domain.Generation, error) {
 	cursor, err := r.coll.Find(ctx, bson.M{"sceneId": sceneID}, options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}}))
 	if err != nil {

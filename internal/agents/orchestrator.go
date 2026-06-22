@@ -48,19 +48,21 @@ func (r *AgentRegistry) List() []AgentSpec {
 }
 
 type OrchestratorConfig struct {
-	Registry    *AgentRegistry
-	LLMClient   llm.LLMClient
-	EventBus    events.Bus
-	Timeouts    map[string]time.Duration
-	CharManager *CharacterManager
+	Registry      *AgentRegistry
+	LLMClient     llm.LLMClient
+	EventBus      events.Bus
+	Timeouts      map[string]time.Duration
+	CharManager   *CharacterManager
+	BudgetChecker TokenBudgetChecker
 }
 
 type Orchestrator struct {
-	registry    *AgentRegistry
-	llm         llm.LLMClient
-	eventBus    events.Bus
-	timeouts    map[string]time.Duration
-	charManager *CharacterManager
+	registry      *AgentRegistry
+	llm           llm.LLMClient
+	eventBus      events.Bus
+	timeouts      map[string]time.Duration
+	charManager   *CharacterManager
+	budgetChecker TokenBudgetChecker
 }
 
 func NewOrchestrator(cfg OrchestratorConfig) *Orchestrator {
@@ -80,11 +82,12 @@ func NewOrchestrator(cfg OrchestratorConfig) *Orchestrator {
 		}
 	}
 	return &Orchestrator{
-		registry:    cfg.Registry,
-		llm:         cfg.LLMClient,
-		eventBus:    cfg.EventBus,
-		timeouts:    timeouts,
-		charManager: cfg.CharManager,
+		registry:      cfg.Registry,
+		llm:           cfg.LLMClient,
+		eventBus:      cfg.EventBus,
+		timeouts:      timeouts,
+		charManager:   cfg.CharManager,
+		budgetChecker: cfg.BudgetChecker,
 	}
 }
 
@@ -286,6 +289,22 @@ func (o *Orchestrator) Execute(ctx context.Context, plan *OrchestrationPlan, age
 		if step.AgentType == domain.AgentTypeDirector && len(plan.Proposals) > 0 {
 			payload["proposals"] = plan.Proposals
 		}
+
+		if o.budgetChecker != nil {
+			promptEst, compEst := agentBudgetEstimate(step.AgentType, spec.Model)
+			if err := o.budgetChecker.CheckAndConsume(turnCtx, agentCtx.StoryID, spec.Model, step.AgentType, promptEst, compEst); err != nil {
+				cancel()
+				turn.Status = domain.TurnStatusFailed
+				turn.Error = err.Error()
+				trace.SetError(turnSpan, err)
+				if turnRepo != nil {
+					_ = turnRepo.Update(ctx, turn)
+				}
+				trace.End(turnSpan)
+				return nil, fmt.Errorf("budget exceeded for %s: %w", step.AgentType, err)
+			}
+		}
+
 		start := time.Now()
 		output, err := spec.Runner(turnCtx, AgentInput{
 			Ctx:       agentCtx,
@@ -380,6 +399,25 @@ func (o *Orchestrator) Execute(ctx context.Context, plan *OrchestrationPlan, age
 	return result, nil
 }
 
+func agentBudgetEstimate(agentType, model string) (promptTokens, completionTokens int) {
+	switch agentType {
+	case domain.AgentTypeDirector:
+		return 3000, 1500
+	case domain.AgentTypeCharacter:
+		return 1500, 500
+	case domain.AgentTypeNarrator:
+		return 2000, 1000
+	case domain.AgentTypeEditor, domain.AgentTypeWorld, domain.AgentTypeArc:
+		return 1500, 500
+	case domain.AgentTypeCanonGuard, domain.AgentTypeCritic:
+		return 1000, 300
+	case domain.AgentTypeStateExtract, domain.AgentTypeMemory:
+		return 1000, 500
+	default:
+		return 1000, 500
+	}
+}
+
 func extractEmotion(output *AgentOutput) string {
 	if output == nil {
 		return ""
@@ -435,6 +473,17 @@ func (o *Orchestrator) RunFinish(ctx context.Context, sceneID string, agentCtx *
 			timeout = 30 * time.Second
 		}
 		sCtx, cancel := context.WithTimeout(stepCtx, timeout)
+
+		if o.budgetChecker != nil {
+			promptEst, compEst := agentBudgetEstimate(step.AgentType, spec.Model)
+			if err := o.budgetChecker.CheckAndConsume(sCtx, agentCtx.StoryID, spec.Model, step.AgentType, promptEst, compEst); err != nil {
+				cancel()
+				trace.SetError(stepSpan, err)
+				trace.End(stepSpan)
+				return fmt.Errorf("budget exceeded for %s: %w", step.AgentType, err)
+			}
+		}
+
 		output, err := spec.Runner(sCtx, AgentInput{
 			Ctx: agentCtx, Directive: step.Phase,
 		})

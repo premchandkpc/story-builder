@@ -198,4 +198,30 @@ export const api = {
     list: (storyId: string) =>
       request<CriticScoreData[]>(`/stories/${storyId}/critic-scores`),
   },
+
+  // Bible — world building + cross-story sharing
+  // ============================================
+  bible: {
+    get: (storyId: string) =>
+      request<StoryBible | null>(`/stories/${storyId}/bible`).catch(() => null),
+    generate: (storyId: string) =>
+      request<StoryBible>(`/stories/${storyId}/bible/generate`, { method: "POST" }),
+    update: (storyId: string, bible: Partial<StoryBible>) =>
+      request<StoryBible>(`/stories/${storyId}/bible`, {
+        method: "PUT",
+        body: JSON.stringify(bible),
+      }),
+    listReferencing: (storyId: string) =>
+      request<StoryBible[]>(`/stories/${storyId}/bibles/referencing`),
+    link: (storyId: string, bibleId: string) =>
+      request<{ status: string }>(`/stories/${storyId}/bibles/link`, {
+        method: "POST",
+        body: JSON.stringify({ bibleId }),
+      }),
+    unlink: (storyId: string, bibleId: string) =>
+      request<{ status: string }>(`/stories/${storyId}/bibles/unlink`, {
+        method: "POST",
+        body: JSON.stringify({ bibleId }),
+      }),
+  },
 }

@@ -74,7 +74,7 @@ func (s *AgentService) GenerateScene(ctx context.Context, sceneID string) (*doma
 	}
 
 	if s.budgetSvc != nil {
-		if err := s.budgetSvc.CheckAndConsume(ctx, scene.StoryID, "agent-orchestrator", "agent", 5000); err != nil {
+		if err := s.budgetSvc.CheckAndConsume(ctx, scene.StoryID, "claude-sonnet", "agent-scene-overhead", 3000, 2000); err != nil {
 			return nil, fmt.Errorf("budget check: %w", err)
 		}
 	}

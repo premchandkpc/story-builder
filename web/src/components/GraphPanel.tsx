@@ -8,6 +8,7 @@ import GenerationList from "./GenerationList"
 import TurnTimeline from "./TurnTimeline"
 import AgentRunPanel from "./AgentRunPanel"
 import LlmMetricsDashboard from "./LlmMetricsDashboard"
+import CriticScoreDashboard from "./CriticScoreDashboard"
 
 interface GraphPanelProps {
   storyId: string
@@ -17,8 +18,8 @@ interface GraphPanelProps {
   selectedEdge: Edge | null
   onClose: () => void
   onAddNode: () => void
-  activeTab: "edit" | "info" | "generations" | "turns" | "agents"
-  setActiveTab: (tab: "edit" | "info" | "generations" | "turns" | "agents") => void
+  activeTab: "edit" | "info" | "generations" | "turns" | "agents" | "critic"
+  setActiveTab: (tab: "edit" | "info" | "generations" | "turns" | "agents" | "critic") => void
   form: { beat_intent: string; pov: string; tone: string; target_words: number }
   onFormChange: (form: { beat_intent: string; pov: string; tone: string; target_words: number }) => void
   confirmingGenerate: boolean
@@ -138,14 +139,19 @@ export default function GraphPanel({
       )
     }
 
+    if (selectedNode && activeTab === "critic") {
+      return <CriticScoreDashboard storyId={storyId} />
+    }
+
     if (selectedEdge) {
       return <EdgeInfoPanel selectedEdge={selectedEdge} onDelete={onDeleteEdge} />
     }
 
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
-        <div style={{ flex: 1, overflowY: "auto" }}>
+        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 20 }}>
           <LlmMetricsDashboard storyId={storyId} />
+          <CriticScoreDashboard storyId={storyId} />
         </div>
         <div style={{
           padding: "14px 16px", textAlign: "center",
@@ -252,7 +258,7 @@ export default function GraphPanel({
 
       {(selectedNode || selectedEdge) && (
         <div style={{ display: "flex", borderBottom: "1px solid var(--border)", padding: "0 16px", gap: 0 }}>
-          {selectedNode && (["edit", "info", "generations", "turns", "agents"] as const).map((tab) => (
+          {selectedNode && (["edit", "info", "generations", "turns", "agents", "critic"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -265,7 +271,7 @@ export default function GraphPanel({
                 if (activeTab !== tab) e.currentTarget.style.color = "var(--text-dim)"
               }}
             >
-              {tab === "edit" ? "Edit" : tab === "info" ? "Info" : tab === "generations" ? "Gen" : tab === "turns" ? "Turns" : "Agents"}
+              {tab === "edit" ? "Edit" : tab === "info" ? "Info" : tab === "generations" ? "Gen" : tab === "turns" ? "Turns" : tab === "agents" ? "Agents" : "Critic"}
             </button>
           ))}
         </div>

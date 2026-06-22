@@ -30,7 +30,22 @@ func NewBibleService(bibleRepo repository.BibleRepository, storyRepo repository.
 }
 
 func (s *BibleService) Get(ctx context.Context, storyID string) (*domain.StoryBible, error) {
-	return s.bibleRepo.GetByStory(ctx, storyID)
+	bible, err := s.bibleRepo.GetByStory(ctx, storyID)
+	if err != nil {
+		return nil, err
+	}
+	if bible != nil {
+		return bible, nil
+	}
+	// Fall back to first shared bible.
+	shared, err := s.bibleRepo.ListByReferencingStory(ctx, storyID)
+	if err != nil {
+		return nil, err
+	}
+	if len(shared) > 0 {
+		return shared[0], nil
+	}
+	return nil, nil
 }
 
 func (s *BibleService) Generate(ctx context.Context, storyID string) (*domain.StoryBible, error) {

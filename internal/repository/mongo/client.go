@@ -75,6 +75,7 @@ func EnsureIndexes(ctx context.Context, db *mongo.Database) error {
 		"generations": {
 			{Keys: bson.D{{Key: "sceneId", Value: 1}, {Key: "createdAt", Value: -1}}},
 			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "createdAt", Value: -1}}},
+			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "contextHash", Value: 1}, {Key: "accepted", Value: 1}}},
 		},
 		"summaries": {
 			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "level", Value: 1}, {Key: "createdAt", Value: -1}}},

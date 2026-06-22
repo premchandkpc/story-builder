@@ -19,12 +19,14 @@ func NewTokenBudgetService(repo repository.TokenBudgetRepository) *TokenBudgetSe
 }
 
 var defaultBudgetLimits = map[string]int{
-	"claude-sonnet": 100000,
-	"claude-haiku":  500000,
-	"local-7b":      1000000,
+	"claude-sonnet":      100000,
+	"claude-haiku":       500000,
+	"local-7b":           1000000,
 }
 
-func (s *TokenBudgetService) CheckAndConsume(ctx context.Context, storyID, model, agentType string, tokens int) error {
+func (s *TokenBudgetService) CheckAndConsume(ctx context.Context, storyID, model, agentType string, promptTokens, completionTokens int) error {
+	totalTokens := promptTokens + completionTokens
+
 	tb, err := s.repo.Get(ctx, storyID)
 	if err != nil {
 		return fmt.Errorf("get token budget: %w", err)
@@ -45,13 +47,15 @@ func (s *TokenBudgetService) CheckAndConsume(ctx context.Context, storyID, model
 		}
 	}
 
-	if tb.BudgetUsed+ tokens > tb.BudgetLimit {
+	if tb.BudgetUsed+totalTokens > tb.BudgetLimit {
 		return fmt.Errorf("token budget exceeded: %d/%d for story %s model %s",
 			tb.BudgetUsed, tb.BudgetLimit, storyID, model)
 	}
 
-	tb.BudgetUsed += tokens
-	tb.PromptTokens += tokens
+	tb.BudgetUsed += totalTokens
+	tb.PromptTokens += promptTokens
+	tb.CompletionTokens += completionTokens
+	tb.TotalTokens += totalTokens
 	tb.TurnCount++
 	tb.UpdatedAt = time.Now()
 

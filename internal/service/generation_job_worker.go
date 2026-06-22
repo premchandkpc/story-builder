@@ -330,11 +330,48 @@ func (w *GenerationJobWorker) runPipeline(ctx context.Context, gen *domain.Gener
 				}
 			}
 		}
+		var contextHash string
 		if h, err := cc.Hash(); err == nil {
+			contextHash = h
 			gen.ContextHash = h
 		}
 		gen.PromptSnapshot = cc.BuildScenePromptSnapshot()
 		_ = w.cfg.GenRepo.Update(ctx, gen)
+
+		// Context-hash dedup: if an accepted generation with the same hash exists,
+		// skip the LLM call and reuse its output. This avoids re-generating identical
+		// context (same characters, states, lore, beat intent, tone, etc.).
+		if contextHash != "" {
+			existing, err := w.cfg.GenRepo.FindByContextHash(ctx, scene.StoryID, contextHash)
+			if err == nil && existing != nil && existing.Output != "" && existing.ID != gen.ID {
+				slog.Info("context hash cache hit, reusing generation",
+					"sceneId", scene.ID, "genId", gen.ID, "existingGenId", existing.ID,
+					"contextHash", contextHash)
+				gen.Output = existing.Output
+				gen.PromptTokens = existing.PromptTokens
+				gen.CompletionTokens = existing.CompletionTokens
+				gen.TotalTokens = existing.TotalTokens
+				gen.Status = domain.GenStatusSuccess
+				gen.StepStatus = map[string]string{
+					domain.StepGenerate:     "cached",
+					domain.StepExtract:      "skipped",
+					domain.StepMemory:       "skipped",
+					domain.StepTimeline:     "skipped",
+					domain.StepSummary:      "skipped",
+					domain.StepValidate:     "skipped",
+				}
+				_ = w.cfg.GenRepo.Update(ctx, gen)
+				scene.GeneratedContent = gen.Output
+				_ = w.cfg.SceneRepo.Update(ctx, scene)
+				job.Status = domain.JobStatusDone
+				_ = w.cfg.JobRepo.Update(ctx, job)
+				w.publishEvent(ctx, events.Event{
+					Type: events.EventPipelineComplete, StoryID: scene.StoryID, SceneID: scene.ID, GenID: gen.ID,
+					Data: map[string]any{"status": domain.GenStatusSuccess, "cached": true},
+				})
+				return
+			}
+		}
 	} else {
 		params = llm.PromptParams{
 			BeatIntent:  scene.BeatIntent,

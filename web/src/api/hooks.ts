@@ -16,7 +16,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 // useNavigate: React Router hook to programmatically navigate between pages
 import { useNavigate } from "react-router-dom"
 import { api } from "./client"
-import type { CriticScoreData, Story, StoryStats, SceneTurn, AgentRun, LlmMetrics } from "./types"
+import type { CriticScoreData, Story, StoryStats, SceneTurn, AgentRun, LlmMetrics, StoryBible } from "./types"
 
 // ---- useStories() ----
 // Custom hook that fetches the list of all stories.
@@ -172,5 +172,60 @@ export function useCriticScores(storyId: string) {
     queryFn: () => api.critic.list(storyId),
     enabled: !!storyId,
     refetchInterval: 30_000,
+  })
+}
+
+// ---- Bible Hooks ----
+export function useBible(storyId: string) {
+  return useQuery<StoryBible | null>({
+    queryKey: ["bible", storyId],
+    queryFn: () => api.bible.get(storyId),
+    enabled: !!storyId,
+  })
+}
+
+export function useGenerateBible(storyId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.bible.generate(storyId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["bible", storyId] }),
+  })
+}
+
+export function useUpdateBible(storyId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (bible: Partial<StoryBible>) => api.bible.update(storyId, bible),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["bible", storyId] }),
+  })
+}
+
+export function useReferencingBibles(storyId: string) {
+  return useQuery<StoryBible[]>({
+    queryKey: ["referencingBibles", storyId],
+    queryFn: () => api.bible.listReferencing(storyId),
+    enabled: !!storyId,
+  })
+}
+
+export function useLinkBible(storyId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (bibleId: string) => api.bible.link(storyId, bibleId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bible", storyId] })
+      qc.invalidateQueries({ queryKey: ["referencingBibles", storyId] })
+    },
+  })
+}
+
+export function useUnlinkBible(storyId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (bibleId: string) => api.bible.unlink(storyId, bibleId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bible", storyId] })
+      qc.invalidateQueries({ queryKey: ["referencingBibles", storyId] })
+    },
   })
 }

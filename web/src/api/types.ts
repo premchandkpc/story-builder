@@ -114,6 +114,23 @@ export interface Topology {
   topological_order: string[]
 }
 
+export interface StoryBible {
+  id: string
+  story_id: string
+  title: string
+  world: string
+  dimensions?: { name: string; description: string; physics?: string; timeFlow?: string }[]
+  world_rules?: { category: string; description: string; strictness: string }[]
+  magic_systems?: { name: string; source: string; cost: string; limitations?: string[]; users?: string[] }[]
+  factions?: { name: string; goal: string; resources?: string; members?: string[]; relations?: string }[]
+  cultures?: { name: string; values?: string[]; customs?: string[]; technology?: string; government?: string }[]
+  tone?: string
+  central_theme?: string
+  narrative_voice?: string
+  reference_stories?: string[]
+  created_at: string
+}
+
 export interface CreateCharacterPayload {
   name: string
   persona?: string

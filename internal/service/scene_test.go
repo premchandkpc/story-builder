@@ -207,6 +207,17 @@ func (m *mockGenRepo) SetStepStatus(_ context.Context, genID, step, status strin
 	return nil
 }
 
+func (m *mockGenRepo) FindByContextHash(_ context.Context, storyID, hash string) (*domain.Generation, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, g := range m.gens {
+		if g.ContextHash == hash && g.Accepted {
+			return g, nil
+		}
+	}
+	return nil, nil
+}
+
 func (m *mockGenRepo) SetAccepted(_ context.Context, sceneID, genID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

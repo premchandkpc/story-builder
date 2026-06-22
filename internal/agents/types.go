@@ -239,3 +239,7 @@ type ProposalSnapshot struct {
 	Content     string `json:"content"`
 	Priority    int    `json:"priority"`
 }
+
+type TokenBudgetChecker interface {
+	CheckAndConsume(ctx context.Context, storyID, model, agentType string, promptTokens, completionTokens int) error
+}

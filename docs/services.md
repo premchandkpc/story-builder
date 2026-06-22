@@ -444,6 +444,39 @@ AgentService builds `AgentContext` via a context builder, runs orchestrator Plan
 
 ---
 
+## Token Budget Service
+
+`internal/service/token_budget.go` — Per-story, per-model cumulative token tracking:
+
+| Method | Description |
+|--------|-------------|
+| `CheckAndConsume(ctx, storyID, model, agentType, promptTokens, completionTokens)` | Checks budget limit, increments cumulative totals (BudgetUsed, PromptTokens, CompletionTokens, TotalTokens, TurnCount), emits warning at ≥80% usage |
+| `GetUsage(ctx, storyID)` | Returns current `*domain.TokenBudget` for a story |
+
+Per-agent budget enforcement runs in `Orchestrator` before each agent turn via `TokenBudgetChecker` interface:
+
+```go
+type TokenBudgetChecker interface {
+    CheckAndConsume(ctx context.Context, storyID, model, agentType string, promptTokens, completionTokens int) error
+}
+```
+
+The orchestrator passes this interface via `OrchestratorConfig.BudgetChecker`. Service-layer `TokenBudgetService` implements it. Per-agent token estimates:
+
+| Agent | Prompt Est. | Completion Est. |
+|-------|-------------|-----------------|
+| Director | 3000 | 1500 |
+| Character | 1500 | 500 |
+| Narrator | 2000 | 1000 |
+| Editor/World/Arc | 1500 | 500 |
+| CanonGuard/Critic | 1000 | 300 |
+| StateExtract/Memory | 1000 | 500 |
+| Default | 1000 | 500 |
+
+Default budget limits by model: claude-sonnet=100k, claude-haiku=500k, local-7b=1M tokens.
+
+---
+
 ## Workers
 
 Workers in `internal/worker/` are goroutine-based. Each implements a `Work` method:

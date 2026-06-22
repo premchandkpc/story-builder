@@ -156,10 +156,11 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 	budgetSvc := service.NewTokenBudgetService(budgetRepo)
 
 	agentOrchestrator := agents.NewOrchestrator(agents.OrchestratorConfig{
-		Registry:    agentRegistry,
-		LLMClient:   router,
-		EventBus:    eventBus,
-		CharManager: charManager,
+		Registry:      agentRegistry,
+		LLMClient:     router,
+		EventBus:      eventBus,
+		CharManager:   charManager,
+		BudgetChecker: budgetSvc,
 	})
 
 	agentSvc := service.NewAgentService(service.AgentServiceConfig{

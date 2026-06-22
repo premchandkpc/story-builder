@@ -70,7 +70,7 @@ func (s *GenerationService) Generate(ctx context.Context, sceneID string) (*doma
 
 	if s.budgetSvc != nil {
 		model := string(llm.ModelSonnet)
-		if err := s.budgetSvc.CheckAndConsume(ctx, scene.StoryID, model, "generation", 1000); err != nil {
+		if err := s.budgetSvc.CheckAndConsume(ctx, scene.StoryID, model, "generation", 1000, 0); err != nil {
 			s.genInFlight.Delete(sceneID)
 			return nil, fmt.Errorf("budget check: %w", err)
 		}
