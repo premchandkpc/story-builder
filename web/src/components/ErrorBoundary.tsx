@@ -31,10 +31,11 @@ export default class ErrorBoundary extends Component<Props, State> {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          minHeight: 200,
+          minHeight: "100dvh",
           padding: 40,
           gap: 12,
           textAlign: "center",
+          background: "var(--bg)",
         }}>
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--error)" strokeWidth="1.5" strokeLinecap="round">
             <circle cx="12" cy="12" r="10" />

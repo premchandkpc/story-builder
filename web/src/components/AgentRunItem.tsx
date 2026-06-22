@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { memo, useState } from "react"
 import type { AgentRun } from "../api/types"
 
 const agentColors: Record<string, string> = {
@@ -20,7 +20,7 @@ interface AgentRunItemProps {
   index: number
 }
 
-export default function AgentRunItem({ run, index }: AgentRunItemProps) {
+const AgentRunItem = memo(function AgentRunItem({ run, index }: AgentRunItemProps) {
   const [expanded, setExpanded] = useState(false)
   const color = agentColors[run.agent_type] || "var(--text-muted)"
   const isFailed = run.status === "failed" || !!run.error
@@ -134,4 +134,6 @@ export default function AgentRunItem({ run, index }: AgentRunItemProps) {
       )}
     </div>
   )
-}
+})
+
+export default AgentRunItem

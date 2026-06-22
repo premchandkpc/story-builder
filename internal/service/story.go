@@ -309,11 +309,17 @@ func (s *EdgeService) DeleteByID(ctx context.Context, edgeID string) error {
 }
 
 type CharacterService struct {
-	charRepo repository.CharacterRepository
+	charRepo  repository.CharacterRepository
+	stateRepo repository.CharacterStateRepository
+	memRepo   repository.MemoryRepository
 }
 
-func NewCharacterService(charRepo repository.CharacterRepository) *CharacterService {
-	return &CharacterService{charRepo: charRepo}
+func NewCharacterService(
+	charRepo repository.CharacterRepository,
+	stateRepo repository.CharacterStateRepository,
+	memRepo repository.MemoryRepository,
+) *CharacterService {
+	return &CharacterService{charRepo: charRepo, stateRepo: stateRepo, memRepo: memRepo}
 }
 
 func (s *CharacterService) Create(ctx context.Context, c *domain.Character) (*domain.Character, error) {
@@ -427,8 +433,49 @@ func (s *CharacterService) MigrateCharacter(ctx context.Context, charID, targetS
 		CreatedAt:      time.Now(),
 	}
 	if err := s.charRepo.Create(ctx, migrated); err != nil {
-		return nil, fmt.Errorf("migrate character: %w", err)
+		return nil, fmt.Errorf("migrate character definition: %w", err)
 	}
+	if migrated.CharID == "" {
+		migrated.CharID = migrated.ID
+	}
+
+	// Copy character states to target story
+	srcCharID := char.CharID
+	dstCharID := migrated.CharID
+	if s.stateRepo != nil {
+		states, err := s.stateRepo.ListByCharacter(ctx, srcCharID)
+		if err != nil {
+			return nil, fmt.Errorf("list character states: %w", err)
+		}
+		for _, st := range states {
+			cp := *st
+			cp.CharacterID = dstCharID
+			cp.StoryID = targetStoryID
+			cp.CreatedAt = time.Now()
+			if err := s.stateRepo.Append(ctx, &cp); err != nil {
+				return nil, fmt.Errorf("migrate character state: %w", err)
+			}
+		}
+	}
+
+	// Copy character memories to target story
+	if s.memRepo != nil {
+		mems, err := s.memRepo.ListByCharacter(ctx, srcCharID)
+		if err != nil {
+			return nil, fmt.Errorf("list character memories: %w", err)
+		}
+		for _, m := range mems {
+			cp := *m
+			cp.ID = ""
+			cp.CharacterID = dstCharID
+			cp.StoryID = targetStoryID
+			cp.CreatedAt = time.Now()
+			if err := s.memRepo.Create(ctx, &cp); err != nil {
+				return nil, fmt.Errorf("migrate character memory: %w", err)
+			}
+		}
+	}
+
 	return migrated, nil
 }
 

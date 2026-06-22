@@ -1,5 +1,5 @@
+import { memo, useState } from "react"
 import type { SceneTurn } from "../api/types"
-import { useState } from "react"
 import { slideUpStyle } from "../api/types"
 
 const roleColors: Record<string, string> = {
@@ -34,7 +34,7 @@ interface TurnItemProps {
   compact?: boolean
 }
 
-export default function TurnItem({ turn, index, compact }: TurnItemProps) {
+const TurnItem = memo(function TurnItem({ turn, index, compact }: TurnItemProps) {
   const [expanded, setExpanded] = useState(false)
   const roleColor = roleColors[turn.role] || "var(--text-muted)"
   const isAccepted = turn.status === "done"
@@ -163,4 +163,6 @@ export default function TurnItem({ turn, index, compact }: TurnItemProps) {
       )}
     </div>
   )
-}
+})
+
+export default TurnItem

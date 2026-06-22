@@ -1,3 +1,5 @@
+import { memo } from "react"
+
 interface StatCardProps {
   label: string
   value: string
@@ -5,7 +7,7 @@ interface StatCardProps {
   delay?: number
 }
 
-export default function StatCard({ label, value, color, delay = 0 }: StatCardProps) {
+const StatCard = memo(function StatCard({ label, value, color, delay = 0 }: StatCardProps) {
   return (
     <div
       className="card-hover"
@@ -36,4 +38,6 @@ export default function StatCard({ label, value, color, delay = 0 }: StatCardPro
       </div>
     </div>
   )
-}
+})
+
+export default StatCard

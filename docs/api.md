@@ -384,7 +384,7 @@ Get node-level summary.
 
 ### `GET /api/v1/generations/{genID}/status`
 
-Get generation status with token usage and timing.
+Get a single generation with status, token usage, and timing. Consumed by `api.generations.get(storyId, nodeId, genId)` in the frontend client.
 
 **Response 200:**
 ```json

@@ -52,6 +52,8 @@ export interface SceneNodeData extends Record<string, unknown> {
   pov: string
   tone: string
   targetWords: number
+  characterRefs?: string[]
+  wordCount?: number
 }
 
 export interface SceneStructure {
@@ -94,9 +96,16 @@ export interface Generation {
   prompt_snapshot: string
   output: string
   model: string
+  status: string
   accepted: boolean
+  error?: string
+  step_status?: Record<string, string>
   critic_score?: number
   critic_summary?: string
+  prompt_tokens?: number
+  completion_tokens?: number
+  total_tokens?: number
+  duration_ms?: number
   created_at: string
 }
 

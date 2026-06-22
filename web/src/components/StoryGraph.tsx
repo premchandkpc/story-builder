@@ -19,7 +19,17 @@ import "@xyflow/react/dist/style.css"
 import SceneNode from "./SceneNode"
 import GraphPanel from "./GraphPanel"
 import { api } from "../api/client"
-import type { GraphNode, GraphEdge, EdgeType, Generation, SceneNodeData } from "../api/types"
+import {
+  useTopology,
+  useGenerationStatusPolling,
+  useCreateNode,
+  useUpdateNode,
+  useDeleteNode,
+  useCreateEdge,
+  useDeleteEdge,
+  useUpdateNodePosition,
+} from "../api/hooks"
+import type { GraphNode, GraphEdge, EdgeType, SceneNodeData } from "../api/types"
 import { spinnerStyle } from "../api/types"
 import { useToast } from "./Toast"
 
@@ -51,6 +61,8 @@ function toReactFlowNodes(
           pov: n.pov || "",
           tone: n.tone || "",
           targetWords: n.target_words,
+          characterRefs: n.character_refs || [],
+          wordCount: 0,
         },
       }
     }
@@ -71,6 +83,8 @@ function toReactFlowNodes(
         pov: n.pov || "",
         tone: n.tone || "",
         targetWords: n.target_words,
+        characterRefs: n.character_refs || [],
+        wordCount: 0,
       },
     }
   })
@@ -100,10 +114,9 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
   const [edges, setEdges, onEdgesChange] = useEdgesState([] as Edge[])
   const [selectedNode, setSelectedNode] = useState<Node<SceneNodeData> | null>(null)
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null)
-  const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<"edit" | "info" | "generations" | "turns" | "agents">("edit")
-  const [generations, setGenerations] = useState<Generation[]>([])
-  const [gensLoading, setGensLoading] = useState(false)
+  const { generations, isLoading: gensLoading, refetch: refetchGens, hasPending: gensPending, isError: gensError }
+    = useGenerationStatusPolling(storyId, selectedNode?.id || null, !!selectedNode)
   const [pendingEdgeType, setPendingEdgeType] = useState<EdgeType>(
     () => (localStorage.getItem("edgeType") as EdgeType) || "seq",
   )
@@ -116,48 +129,52 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
     target_words: 300,
   })
 
-  const loadGraphData = useCallback(async () => {
-    return await api.topology.get(storyId)
-  }, [storyId])
+  // Mutation hooks
+  const createNodeMutation = useCreateNode(storyId)
+  const updateNodeMutation = useUpdateNode(storyId)
+  const deleteNodeMutation = useDeleteNode(storyId)
+  const createEdgeMutation = useCreateEdge(storyId)
+  const deleteEdgeMutation = useDeleteEdge(storyId)
+  const updatePositionMutation = useUpdateNodePosition(storyId)
+
+  const topo = useTopology(storyId)
 
   useEffect(() => {
-    let cancelled = false
-    loadGraphData()
-      .then((topo) => {
-        if (cancelled) return
-        setNodes(toReactFlowNodes(topo.nodes || []))
-        setEdges(toReactFlowEdges(topo.edges || []))
-      })
-      .catch((err) => {
-        showError("Failed to load graph")
-        console.error("fetch graph:", err)
-      })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [loadGraphData, setNodes, setEdges, showError])
+    if (!topo.data) return
+    setNodes(toReactFlowNodes(topo.data.nodes || []))
+    setEdges(toReactFlowEdges(topo.data.edges || []))
+  }, [topo.data, setNodes, setEdges])
 
   useEffect(() => {
     localStorage.setItem("edgeType", pendingEdgeType)
   }, [pendingEdgeType])
 
-  const fetchGraph = useCallback(async () => {
-    const topo = await loadGraphData()
-    setNodes(toReactFlowNodes(topo.nodes || []))
-    setEdges(toReactFlowEdges(topo.edges || []))
-  }, [loadGraphData, setNodes, setEdges])
-
   const deleteSelectedNode = useCallback(async () => {
     if (!selectedNode) return
+    // Optimistic: remove node from local state
+    const prevNodes = nodes
+    const prevEdges = edges
+    setNodes((nds) => nds.filter((n) => n.id !== selectedNode.id))
+    setEdges((eds) => eds.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id))
+    setSelectedNode(null)
     try {
-      await api.nodes.delete(storyId, selectedNode.id)
+      await deleteNodeMutation.mutateAsync(selectedNode.id)
       toast("Scene deleted", "success")
-      setSelectedNode(null)
-      await fetchGraph()
     } catch (err) {
-      showError("Failed to delete scene")
+      // Rollback local state
+      setNodes(prevNodes)
+      setEdges(prevEdges)
+      const msg = err instanceof Error ? err.message : ""
+      if (msg.includes("409") || msg.includes("in use") || msg.includes("connected")) {
+        showError("Remove all edges connected to this scene first.")
+      } else if (msg.includes("404")) {
+        showError("Scene was already deleted.")
+      } else {
+        showError("Failed to delete scene")
+      }
       console.error("delete node:", err)
     }
-  }, [storyId, selectedNode, fetchGraph, toast, showError])
+  }, [selectedNode, nodes, edges, deleteNodeMutation, toast, showError])
 
   const deleteFnRef = useRef<() => Promise<void>>(deleteSelectedNode)
   useEffect(() => {
@@ -182,15 +199,14 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
     async (connection: Connection) => {
       if (!connection.source || !connection.target) return
       const edgeType = pendingEdgeType
-      try {
-        const created = await api.edges.create(storyId, {
-          from_node: connection.source,
-          to_node: connection.target,
-          edge_type: edgeType,
-        })
-        setEdges((eds: Edge[]) => addEdge({
-          ...connection,
-          id: created.id,
+      const tempId = `temp-edge-${Date.now()}`
+      // Optimistic: add edge immediately
+      const prevEdges = edges
+      setEdges((eds) =>
+        addEdge({
+          id: tempId,
+          source: connection.source!,
+          target: connection.target!,
           label: edgeType === "seq" ? "" : edgeType,
           style: {
             stroke: edgeType === "fork" ? "#c9734a" : edgeType === "join" ? "#d4a853" : "#8888a0",
@@ -198,53 +214,75 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
             strokeDasharray: edgeType === "choice" ? "5 5" : undefined,
           },
           labelStyle: { fill: "#8888a0", fontSize: 10 },
-        }, eds))
+        }, eds),
+      )
+      try {
+        const created = await createEdgeMutation.mutateAsync({
+          from_node: connection.source,
+          to_node: connection.target,
+          edge_type: edgeType,
+        })
+        // Replace temp edge with real one
+        setEdges((eds) =>
+          eds.map((e) =>
+            e.id === tempId
+              ? { ...e, id: created.id, selected: false }
+              : e,
+          ),
+        )
         toast("Edge created", "success")
       } catch (err) {
-        showError("Failed to create edge")
+        // Rollback
+        setEdges(prevEdges)
+        const msg = err instanceof Error ? err.message : ""
+        if (msg.includes("409") || msg.includes("already exists") || msg.includes("duplicate")) {
+          showError("Connection already exists between these nodes")
+        } else if (msg.includes("400")) {
+          showError("Invalid connection. Check edge type or direction.")
+        } else {
+          showError("Failed to create edge")
+        }
         console.error("create edge:", err)
       }
     },
-    [storyId, setEdges, pendingEdgeType, toast, showError],
+    [storyId, edges, setEdges, pendingEdgeType, createEdgeMutation, toast, showError],
   )
-
-  const loadGenerations = useCallback(async (nodeId: string) => {
-    setGensLoading(true)
-    try {
-      const gens = await api.generations.list(storyId, nodeId)
-      setGenerations(gens || [])
-    } catch {
-      setGenerations([])
-    } finally {
-      setGensLoading(false)
-    }
-  }, [storyId])
 
   const acceptGeneration = useCallback(async (nodeId: string, genId: string) => {
     try {
       await api.generations.accept(storyId, nodeId, genId)
       toast("Generation accepted", "success")
-      await loadGenerations(nodeId)
-      await fetchGraph()
+      await refetchGens()
     } catch (err) {
       showError("Failed to accept generation")
       console.error("accept:", err)
     }
-  }, [storyId, loadGenerations, fetchGraph, toast, showError])
+  }, [storyId, refetchGens, toast, showError])
 
   const generate = useCallback(async () => {
     if (!selectedNode) return
     setConfirmingGenerate(false)
+    const genTimeout = setTimeout(() => {
+      showError("Generation request timed out after 5 minutes.")
+    }, 300_000)
     try {
       await api.generations.generate(storyId, selectedNode.id)
+      clearTimeout(genTimeout)
       toast("Generation started (async)", "success")
-      setTimeout(() => loadGenerations(selectedNode.id), 1500)
-      await fetchGraph()
+      await refetchGens()
     } catch (err) {
-      showError("Failed to start generation")
+      clearTimeout(genTimeout)
+      const msg = err instanceof Error ? err.message : ""
+      if (msg.includes("timeout") || msg.includes("abort")) {
+        showError("Generation request timed out. Check server and try again.")
+      } else if (msg.includes("429")) {
+        showError("Rate limited. Wait a moment and retry.")
+      } else {
+        showError("Failed to start generation")
+      }
       console.error("generate:", err)
     }
-  }, [storyId, selectedNode, loadGenerations, fetchGraph, toast, showError])
+  }, [storyId, selectedNode, refetchGens, toast, showError])
 
   const onNodeClick = useCallback((_: unknown, node: Node) => {
     setSelectedEdge(null)
@@ -258,8 +296,7 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
       tone: d.tone || "",
       target_words: d.targetWords || 300,
     })
-    loadGenerations(node.id)
-  }, [loadGenerations])
+  }, [])
 
   const onEdgeClick = useCallback((_: unknown, edge: Edge) => {
     setSelectedNode(null)
@@ -267,15 +304,40 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
     setActiveTab("edit")
   }, [])
 
+  /** Track node positions before drag for rollback on save failure. */
+  const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map())
+
+  const onNodeDragStart = useCallback((_event: any, node: Node) => {
+    nodePositionsRef.current.set(node.id, { ...node.position })
+  }, [])
+
   const onNodeDragEnd: OnNodeDrag = useCallback(
     async (_event: any, node: Node) => {
       try {
-        await api.nodes.updatePosition(storyId, node.id, node.position.x, node.position.y)
+        await updatePositionMutation.mutateAsync({
+          nodeId: node.id,
+          x: node.position.x,
+          y: node.position.y,
+        })
+        nodePositionsRef.current.delete(node.id)
       } catch (err) {
+        // Rollback to pre-drag position
+        const prev = nodePositionsRef.current.get(node.id)
+        if (prev) {
+          setNodes((nds) =>
+            nds.map((n) =>
+              n.id === node.id
+                ? { ...n, position: prev, data: { ...n.data } }
+                : n,
+            ),
+          )
+          nodePositionsRef.current.delete(node.id)
+        }
+        showError("Failed to save position. Node snapped back.")
         console.error("persist position:", err)
       }
     },
-    [storyId],
+    [updatePositionMutation, setNodes, showError],
   )
 
   const onPaneClick = useCallback(() => {
@@ -285,8 +347,28 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
   }, [])
 
   const addNode = useCallback(async () => {
+    const tempId = `temp-${Date.now()}`
+    // Optimistic: add temp node immediately
+    const tempNode: Node<SceneNodeData> = {
+      id: tempId,
+      type: "scene",
+      position: { x: 100 + nodes.length * 30, y: 100 + nodes.length * 30 },
+      data: {
+        label: "New scene",
+        title: "",
+        status: "draft",
+        beatIntent: "New scene",
+        pov: "third-person",
+        tone: "neutral",
+        targetWords: 300,
+        characterRefs: [],
+        wordCount: 0,
+      },
+    }
+    const prevNodes = nodes
+    setNodes((nds) => [...nds, tempNode])
     try {
-      await api.nodes.create(storyId, {
+      await createNodeMutation.mutateAsync({
         beat_intent: "New scene",
         character_refs: [],
         location_ref: null,
@@ -295,44 +377,72 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
         target_words: 300,
       })
       toast("Scene added", "success")
-      await fetchGraph()
     } catch (err) {
+      // Rollback
+      setNodes(prevNodes)
       showError("Failed to add scene")
       console.error("add node:", err)
     }
-  }, [storyId, fetchGraph, toast, showError])
+  }, [storyId, nodes, createNodeMutation, toast, showError])
 
   const updateNode = useCallback(async () => {
     if (!selectedNode) return
-    try {
-      await api.nodes.update(storyId, selectedNode.id, {
-        beat_intent: form.beat_intent,
-        character_refs: [],
+    // Optimistic: update node in local state immediately
+    const prevNode = nodes.find((n) => n.id === selectedNode.id)
+    const updatedNode: Node<SceneNodeData> = {
+      ...selectedNode,
+      data: {
+        ...selectedNode.data,
+        beatIntent: form.beat_intent,
         pov: form.pov,
         tone: form.tone,
-        target_words: form.target_words,
+        targetWords: form.target_words,
+      },
+    }
+    setNodes((nds) => nds.map((n) => (n.id === selectedNode.id ? updatedNode : n)))
+    setSelectedNode(updatedNode)
+    try {
+      await updateNodeMutation.mutateAsync({
+        nodeId: selectedNode.id,
+        data: {
+          beat_intent: form.beat_intent,
+          character_refs: [],
+          pov: form.pov,
+          tone: form.tone,
+          target_words: form.target_words,
+        },
       })
       toast("Scene saved", "success")
-      await fetchGraph()
       setSelectedNode(null)
     } catch (err) {
+      // Rollback
+      if (prevNode) {
+        setNodes((nds) => nds.map((n) => (n.id === prevNode.id ? prevNode : n)))
+        setSelectedNode(prevNode)
+      }
       showError("Failed to save scene")
       console.error("update node:", err)
     }
-  }, [storyId, selectedNode, form, fetchGraph, toast, showError])
+  }, [storyId, selectedNode, nodes, form, updateNodeMutation, toast, showError])
 
   const deleteEdge = useCallback(async () => {
     if (!selectedEdge) return
+    // Optimistic: remove edge from local state
+    const prevEdgeId = selectedEdge.id
+    const prevEdges = edges
+    setEdges((eds) => eds.filter((e) => e.id !== prevEdgeId))
+    setSelectedEdge(null)
     try {
-      await api.edges.deleteById(storyId, selectedEdge.id)
+      await deleteEdgeMutation.mutateAsync(prevEdgeId)
       toast("Edge deleted", "success")
-      setSelectedEdge(null)
-      await fetchGraph()
     } catch (err) {
+      // Rollback
+      const restored = prevEdges.find((e) => e.id === prevEdgeId)
+      if (restored) setEdges((eds) => [...eds, restored])
       showError("Failed to delete edge")
       console.error("delete edge:", err)
     }
-  }, [storyId, selectedEdge, fetchGraph, toast, showError])
+  }, [selectedEdge, edges, deleteEdgeMutation, toast, showError])
 
   const handleClose = useCallback(() => {
     setSelectedNode(null)
@@ -342,13 +452,52 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
 
   const handleTabChange = useCallback((tab: "edit" | "info" | "generations" | "turns" | "agents") => {
     setActiveTab(tab)
-    if (tab === "generations" && selectedNode) loadGenerations(selectedNode.id)
-  }, [selectedNode, loadGenerations])
+    if (tab === "generations" && selectedNode) refetchGens()
+  }, [selectedNode, refetchGens])
 
   return (
     <div style={{ display: "flex", height: "calc(100vh - 49px)", position: "relative" }}>
       <div style={{ flex: 1, position: "relative" }}>
-        {loading && (
+        {topo.isError && !topo.isLoading && (
+          <div style={{
+            position: "absolute", inset: 0, zIndex: 10,
+            display: "flex", flexDirection: "column", gap: 14,
+            alignItems: "center", justifyContent: "center",
+            background: "rgba(196,164,108,0.5)",
+            backdropFilter: "blur(3px)",
+          }}>
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none"
+              stroke="var(--error)" strokeWidth="1.5" strokeLinecap="round">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 8v4M12 16h.01" />
+            </svg>
+            <span style={{ fontSize: 14, color: "var(--error)", fontWeight: 600, fontFamily: "var(--font-heading)" }}>
+              Failed to load graph
+            </span>
+            <span style={{ fontSize: 12, color: "#5c4a2e", maxWidth: 300, textAlign: "center" }}>
+              {(topo.error instanceof Error ? topo.error.message : "").includes("timeout") ? "Request timed out. Check your connection." :
+               (topo.error instanceof Error ? topo.error.message : "").includes("500") ? "Server error. We've logged it." :
+               (topo.error instanceof Error ? topo.error.message : "").includes("404") ? "Story was deleted." :
+               "Cannot reach server. Check connection."}
+            </span>
+            <button
+              onClick={() => topo.refetch()}
+              style={{
+                marginTop: 4, padding: "8px 20px",
+                background: "#5c4a2e", color: "#f5f0e8",
+                border: "none", borderRadius: "var(--radius-md)",
+                cursor: "pointer", fontWeight: 600, fontSize: 13,
+                transition: "background var(--transition-base)",
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = "#6d5940"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "#5c4a2e"}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {topo.isLoading && (
           <div style={{
             position: "absolute", inset: 0, zIndex: 10,
             display: "flex", alignItems: "center", justifyContent: "center",
@@ -359,7 +508,7 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
           </div>
         )}
 
-        {!loading && nodes.length === 0 && (
+        {!topo.isLoading && nodes.length === 0 && (
           <div style={{
             position: "absolute", inset: 0, zIndex: 5,
             display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
@@ -396,6 +545,7 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeClick={onNodeClick}
+          onNodeDragStart={onNodeDragStart}
           onNodeDragStop={onNodeDragEnd}
           onEdgeClick={onEdgeClick}
           onPaneClick={onPaneClick}
@@ -445,6 +595,9 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
         onDeleteEdge={deleteEdge}
         generations={generations}
         gensLoading={gensLoading}
+        gensPending={gensPending}
+        gensError={gensError}
+        onRetryGens={refetchGens}
         onAcceptGeneration={acceptGeneration}
         pendingEdgeType={pendingEdgeType}
         setPendingEdgeType={setPendingEdgeType}

@@ -80,6 +80,8 @@ type StoryHandler struct {
 
 ### Character Service
 
+Dependencies: `CharacterRepository`, `CharacterStateRepository`, `MemoryRepository` (state + mem repos optional — nil-safe, migration skips states/memories when nil).
+
 | Method | Description |
 |---|---|
 | `Create(storyID, name, ...)` | Creates a version-1 character definition (immutable log) |
@@ -87,6 +89,7 @@ type StoryHandler struct {
 | `GetLatest(charID)` | Gets latest version by logical character ID |
 | `Update(character)` | Loads latest by `charID`, merges non-zero fields from patch into existing document, then creates new versioned document (immutable append). Merge + versioning discipline lives in service layer, not handler. |
 | `List(storyID)` | Lists characters in a story |
+| `MigrateCharacter(charID, targetStoryID)` | Copies character definition, all states, and all memories to target story. Sets `MigratedFrom` + `MigratedAt`. Creates new character (version 1) in target story. |
 | `UpdateState(characterID, sceneID, state)` | Appends a state snapshot |
 | `GetState(characterID, sceneID)` | Gets state at a specific scene |
 | `GetStateHistory(characterID)` | Gets all state changes (event-sourced) |

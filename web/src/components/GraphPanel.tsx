@@ -11,6 +11,7 @@ import LlmMetricsDashboard from "./LlmMetricsDashboard"
 import CriticScoreDashboard from "./CriticScoreDashboard"
 import BiblePanel from "./BiblePanel"
 import TimelineView from "./TimelineView"
+import CharacterListPanel from "./CharacterListPanel"
 
 interface GraphPanelProps {
   storyId: string
@@ -32,6 +33,9 @@ interface GraphPanelProps {
   onDeleteEdge: () => void
   generations: Generation[]
   gensLoading: boolean
+  gensPending?: boolean
+  gensError?: boolean
+  onRetryGens?: () => void
   onAcceptGeneration: (nodeId: string, genId: string) => void
   pendingEdgeType: EdgeType
   setPendingEdgeType: (t: EdgeType) => void
@@ -79,7 +83,7 @@ export default function GraphPanel({
   form, onFormChange,
   confirmingGenerate, setConfirmingGenerate,
   onSave, onGenerate, onDeleteNode, onDeleteEdge,
-  generations, gensLoading, onAcceptGeneration,
+  generations, gensLoading, gensPending, gensError, onRetryGens, onAcceptGeneration,
   pendingEdgeType, setPendingEdgeType,
 }: GraphPanelProps) {
   const selectedNodeData = selectedNode?.data as SceneNodeData | undefined
@@ -107,6 +111,9 @@ export default function GraphPanel({
           gensLoading={gensLoading}
           selectedNodeId={selectedNode.id}
           onAccept={onAcceptGeneration}
+          hasPending={gensPending}
+          onRetry={onRetryGens}
+          isError={gensError}
         />
       )
     }
@@ -154,6 +161,7 @@ export default function GraphPanel({
         <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 20 }}>
           <TimelineView storyId={storyId} />
           <BiblePanel storyId={storyId} />
+          <CharacterListPanel storyId={storyId} />
           <LlmMetricsDashboard storyId={storyId} />
           <CriticScoreDashboard storyId={storyId} />
         </div>

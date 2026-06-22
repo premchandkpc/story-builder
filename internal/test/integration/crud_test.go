@@ -320,7 +320,7 @@ func TestIntegration_Characters(t *testing.T) {
 
 	storyRepo := mgorepo.NewStoryRepo(testDB)
 	charRepo := mgorepo.NewCharacterRepo(testDB)
-	svc := service.NewCharacterService(charRepo)
+	svc := service.NewCharacterService(charRepo, nil, nil)
 	ctx := context.Background()
 
 	story := &domain.Story{Title: "Char Test", Status: domain.StoryStatusDraft}

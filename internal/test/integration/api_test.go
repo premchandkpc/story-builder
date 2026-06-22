@@ -72,7 +72,7 @@ func buildServer(t *testing.T) (*api.Server, *mgorepo.StoryRepo) {
 		service.NewStoryService(storyRepo, deleter),
 		service.NewSceneService(sceneRepo, edgeRepo, genRepo),
 		service.NewEdgeService(edgeRepo),
-		service.NewCharacterService(charRepo),
+		service.NewCharacterService(charRepo, stateRepo, memRepo),
 		genSvc, genSvc,
 		service.NewTimelineService(tlRepo),
 		service.NewSummaryService(sumRepo),

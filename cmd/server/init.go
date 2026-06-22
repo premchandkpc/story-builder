@@ -135,7 +135,7 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 	})
 	sceneSvc := service.NewSceneService(sceneRepo, edgeRepo, genRepo)
 	edgeSvc := service.NewEdgeService(edgeRepo)
-	charSvc := service.NewCharacterService(charRepo)
+	charSvc := service.NewCharacterService(charRepo, stateRepo, memRepo)
 	locSvc := service.NewLocationService(locRepo)
 
 	contextBldr := service.NewContextBuilder(bibleRepo, storyRepo, charRepo, stateRepo, locRepo, memRepo, sumRepo, tlRepo)

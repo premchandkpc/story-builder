@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { memo, useEffect, useState } from "react"
 import { simulateCompression, type CompressStats } from "../api/compress"
 
 interface Props {
@@ -7,7 +7,7 @@ interface Props {
   model: string
 }
 
-export default function CompressionStats({ system, userMessage, model }: Props) {
+export default memo(function CompressionStats({ system, userMessage, model }: Props) {
   const [stats, setStats] = useState<CompressStats | null | "loading">(null)
 
   useEffect(() => {
@@ -41,4 +41,4 @@ export default function CompressionStats({ system, userMessage, model }: Props) 
       )}
     </div>
   )
-}
+})

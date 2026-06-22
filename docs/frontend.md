@@ -43,9 +43,11 @@ web/
       SceneEditorPanel.tsx Edit form (beat intent, POV, tone, target words)
       NodeInfoPanel.tsx   Node info tab (status, beat intent, edge counts)
       EdgeInfoPanel.tsx   Edge detail tab (type, source/target)
-      GenerationList.tsx  Generations list with preview, compare, accept
+      GenerationList.tsx  Generations list with auto-polling, progress indicator, error states
       GenerationCompare.tsx Side-by-side generation diff
-      SceneNode.tsx       Custom React Flow node (vintage index card + pin)
+      SceneNode.tsx       Custom React Flow node (vintage index card with paper texture, status strip, char chips, word count bar)
+      TimelineView.tsx    Cross-story timeline display with color-coded events
+      BiblePanel.tsx      World bible display + generate + sharing UI
       TurnItem.tsx        Individual agent turn with expandable I/O
       TurnTimeline.tsx    Wrapper mapping turns → TurnItem
       AgentRunItem.tsx    Individual agent run with expandable I/O
@@ -56,7 +58,7 @@ web/
       AuditDashboard.tsx  Code audit findings page
       CompressionStats.tsx Token compression display
       Toast.tsx           Toast notification system
-      StoryListItem.tsx   Sidebar story entry
+      StoryListItem.tsx   Sidebar story entry (delete confirmation, optimistic placeholder)
 ```
 
 ---
@@ -66,6 +68,8 @@ web/
 ```
 "/"                       → Layout + HomeView
 "/stories/:storyId"       → Layout + StoryView → StoryGraph
+"/audit"                  → AuditDashboard
+"/metrics"                → LlmMetricsDashboard + CriticScoreDashboard
 ```
 
 `Layout.tsx` renders the sidebar + `TopBar`. Child routes render inside `<Outlet/>`.
@@ -82,35 +86,40 @@ RouterProvider
        │    ├── Search input (filters sidebar)
        │    └── Home button (visible on story pages)
        ├── Sidebar
-       │    ├── "Create story" input + button
-       │    └── StoryListItem[] (filtered by search)
+       │    ├── "Create story" input + button (optimistic placeholder on create)
+       │    ├── StoryListItem[] (filtered by search, 2-click delete with confirmation)
+       │    └── Empty states: loading/skeleton, search-no-results, true-empty, error+retry
        └── <Outlet/>
             ├── HomeView   (at "/")
             └── StoryView  (at "/stories/:id")
                  └── StoryGraph
                       ├── ReactFlow canvas
-                      │    ├── SceneNode[] (custom node type "scene")
+                      │    ├── SceneNode[] (custom node type "scene", paper texture)
+                      │    ├── Graph load error overlay with retry
                       │    └── Edge[] (seq/fork/join/choice styles)
                       └── GraphPanel (300px right sidebar, tabbed)
+                           ├── Default view (no node selected):
+                           │    ├── TimelineView — local + cross-story events
+                           │    ├── BiblePanel — world bible + sharing
+                           │    ├── LlmMetricsDashboard — token metrics
+                           │    └── CriticScoreDashboard — critic scores
                            ├── "Add Scene" button
                            ├── Tab: Edit → SceneEditorPanel
                            │    ├── Beat Intent (text)
                            │    ├── POV (dropdown)
                            │    ├── Tone (dropdown)
                            │    ├── Target Words (number)
-                           │    └── Save / Generate buttons
+                           │    └── Save / Generate buttons (with 5-min timeout)
                            ├── Tab: Info → NodeInfoPanel
                            │    ├── Status card + beat intent
                            │    └── Edge counts (monospace)
-                           ├── Tab: Gen → GenerationList
+                           ├── Tab: Gen → GenerationList (auto-polling, progress bar, error)
                            │    └── Generation cards → GenerationCompare
                            ├── Tab: Turns → TurnTimeline
                            │    └── TurnItem[] (expandable I/O)
-                           └── Tab: Agents → AgentRunPanel
-                                └── AgentRunItem[] (expandable I/O)
-          (standalone routes)
-          "/audit"         → AuditDashboard
-          "/metrics"       → LlmMetricsDashboard + CriticScoreDashboard
+                           ├── Tab: Agents → AgentRunPanel
+                           │    └── AgentRunItem[] (expandable I/O)
+                           └── Tab: Critic → CriticScoreDashboard (per-scene)
 ```
 
 ---
@@ -120,7 +129,7 @@ RouterProvider
 ```
 Component
   ↓ useQuery / useMutation
-api/hooks.ts  (TanStack React Query — cache, staleTime, retry)
+api/hooks.ts  (TanStack React Query — cache, staleTime, retry, optimistic updates)
   ↓
 api/client.ts  (request<T>() — generic fetch wrapper)
   ↓  HTTP GET/POST/PUT/DELETE  /api/v1/*
@@ -133,6 +142,28 @@ MongoDB + Redis
 
 - `staleTime: 5_000` — data fresh for 5 seconds
 - `retry: 1` — one retry on failure
+
+### Optimistic Update Pattern
+
+All mutations that modify visible state use the TanStack React Query optimistic update pattern:
+
+```typescript
+onMutate: async (variables) => {
+  await queryClient.cancelQueries({ queryKey })
+  const prev = queryClient.getQueryData(queryKey)
+  queryClient.setQueryData(queryKey, (old) => optimisticUpdate)
+  return { prev }
+}
+onError: (err, vars, context) => {
+  queryClient.setQueryData(queryKey, context.prev)  // rollback
+  showError("Human-readable message")
+}
+onSettled: () => {
+  queryClient.invalidateQueries({ queryKey })
+}
+```
+
+Applied to: create story (placeholder), delete story (remove from list immediately).
 
 ---
 
@@ -157,14 +188,38 @@ Exported `api` object groups endpoints:
 api.stories.list()           // GET  /api/v1/stories
 api.stories.get(id)          // GET  /api/v1/stories/:id
 api.stories.create(data)     // POST /api/v1/stories
+api.stories.delete(id)       // DELETE
 api.stories.generate(data)   // POST /api/v1/stories/generate
 api.stories.generateTitle()  // POST /api/v1/stories/generate-title
 
 api.nodes.list(storyId)      // GET  /api/v1/stories/:id/nodes
-api.edges.create(storyId, d) // POST /api/v1/stories/:id/edges
+api.nodes.create(storyId, d) // POST
+api.nodes.update(storyId, id, data) // PUT
+api.nodes.delete(storyId, id) // DELETE
+api.nodes.updatePosition()   // PUT (partial)
+
+api.edges.create(storyId, d) // POST
+api.edges.deleteById(storyId, id) // DELETE (preferred)
+
 api.topology.get(storyId)    // GET  /api/v1/stories/:id/topology
-api.generations.generate()   // POST /api/v1/stories/:id/nodes/:nid/generate
-// ... chapters, scenes, characters, locations, lore, casting, summaries, etc.
+
+api.generations.list()       // GET
+api.generations.get()        // GET  single generation by ID
+api.generations.generate()   // POST (async, returns immediately)
+api.generations.accept()     // POST
+
+api.generations.getStatus()  // GET  /api/v1/generations/:genID/status (status, error, tokens)
+api.generations.getProgress()// GET  SSE stream
+
+api.turns.list()             // GET  /experimental/...
+api.agentRuns.list()         // GET  /experimental/agent-runs
+api.metrics.llm()            // GET  /stories/:id/metrics/llm
+api.critic.list()            // GET  /stories/:id/critic-scores
+api.timeline.list()          // GET  /stories/:id/timeline
+api.timeline.crossStoryList()// GET  /stories/:id/timeline/cross-story
+api.bible.get()              // GET  /stories/:id/bible
+api.bible.generate()         // POST /stories/:id/bible/generate
+api.bible.link/unlink()      // POST cross-story bible sharing
 ```
 
 ---
@@ -173,26 +228,34 @@ api.generations.generate()   // POST /api/v1/stories/:id/nodes/:nid/generate
 
 ### Queries
 
-| Hook | Returns | Cache Key |
-|---|---|---|
-| `useStories()` | `Story[]` | `["stories"]` |
-| `useStoryNodeStats(storyId)` | `StoryStats` | `["storyStats", storyId]` |
-| `useAllStoryStats(stories)` | `Record<string, StoryStats>` | `["allStoryStats", sortedIds]` |
+| Hook | Returns | Cache Key | Notes |
+|---|---|---|---|
+| `useStories()` | `Story[]` | `["stories"]` | |
+| `useStoryNodeStats(storyId)` | `StoryStats` | `["storyStats", storyId]` | Computed client-side |
+| `useAllStoryStats(stories)` | `Record<string, StoryStats>` | `["allStoryStats", sortedIds]` | Batches with concurrency 6 |
+| `useGenerationStatusPolling(storyId, nodeId, enabled)` | `{ generations, isLoading, isError, refetch, hasPending }` | `["generations", storyId, nodeId]` | Auto-polls every 2s while status=pending/running/queued |
+| `useTimeline(storyId)` | `TimelineEvent[]` | `["timeline", storyId]` | |
+| `useCrossStoryTimeline(storyId)` | `TimelineEvent[]` | `["crossStoryTimeline", storyId]` | |
+| `useBible(storyId)` | `StoryBible | null` | `["bible", storyId]` | |
+| `useReferencingBibles(storyId)` | `StoryBible[]` | `["referencingBibles", storyId]` | |
 
 ### Mutations
 
 | Hook | Side Effect |
 |---|---|
-| `useCreateStory()` | Invalidates `["stories"]`, navigates to `/stories/:id` |
+| `useCreateStory()` | Optimistic placeholder → real story, invalidates `["stories"]`, navigates to `/stories/:id` |
+| `useDeleteStory()` | Optimistic removal (rollback on error), navigates home if viewing deleted story |
 | `useGenerateTitle()` | None (returns `{ title }`) |
-| `useGenerateStory()` | Invalidates `["stories"]` after 3s delay |
+| `useGenerateStory()` | Invalidates `["stories"]`, navigates to new story |
+| `useGenerateBible(storyId)` | Invalidates `["bible", storyId]` |
+| `useUpdateBible(storyId)` | Invalidates `["bible", storyId]` |
+| `useLinkBible(storyId)` / `useUnlinkBible(storyId)` | Invalidates bible + referencing bibles |
 
 ### Patterns
 
-- Mutations use `useMutation` + `onSuccess` for cache invalidation
-- Mutations that navigate use `useNavigate` inside the hook
-- `queryKey` arrays scope caches by parameter (storyId, chapterId, etc.)
-- `Promise.all` + `Object.fromEntries` pattern in `useAllStoryStats`
+- Optimistic updates use `onMutate` → snapshot prev state → `setQueryData` → `return { prev }` → `onError` rollback → `onSettled` invalidate
+- `setToastFns()` bridge lets mutation hooks access Toast without being in component tree
+- `useGenerationStatusPolling` uses `useEffect` interval + `queryClient.invalidateQueries` every 2s while status is pending/running
 
 ---
 
@@ -205,12 +268,15 @@ api.generations.generate()   // POST /api/v1/stories/:id/nodes/:nid/generate
 | `Story` | DAG root |
 | `GraphNode` / `GraphEdge` | DAG elements for React Flow |
 | `Scene` | Legacy chapter-based model |
-| `Generation` | LLM output record |
+| `Generation` | LLM output record (includes status, error, step_status, prompt/completion/total tokens, duration_ms) |
 | `Topology` | Full DAG snapshot |
 | `Character` | Character definition |
 | `Location` | Story settings |
 | `SceneStructure` | Interactive generation flow config |
 | `StorySummary` | Hierarchical summary |
+| `StoryBible` | World bible with dimensions, factions, cultures, sharing |
+| `TimelineEvent` | Story timeline events with cross-story support |
+| `CriticScoreData` | Agent quality evaluation |
 
 ### Union Types
 
@@ -225,15 +291,15 @@ type FlowType   = "monologue" | "dialogue" | "round_robin" | "parallel" | "custo
 | Export | Type | Usage |
 |---|---|---|
 | `inputStyle` | `React.CSSProperties` | Shared input style (spread into `style={}`) |
-| `btnStyle(bg, disabled?)` | Function → `React.CSSProperties` | Button styling with letter-spacing + disabled state |
-| `spinnerStyle` | `React.CSSProperties` | Inline spinner animation |
+| `btnStyle(bg, disabled?)` | Function → `React.CSSProperties` | Button styling |
+| `skeletonStyle(w, h)` | Function → `React.CSSProperties` | Shimmer skeleton |
+| `spinnerStyle` | `React.CSSProperties` | Inline spinner |
 | `labelStyle` | `React.CSSProperties` | Uppercase muted form labels |
-| `cardStyle` | `React.CSSProperties` | Raised card surface with border |
+| `cardStyle` | `React.CSSProperties` | Raised card surface |
 | `badgeStyle` | `React.CSSProperties` | Tag/pill badge |
 | `ghostBtnStyle` | `React.CSSProperties` | Subtle borderless button |
-| `destructiveBtnStyle` | `React.CSSProperties` | Red destructive action button |
-| `StoryStats` | `{ total, generated, accepted, stale }` | Sidebar progress display |
-| `SceneNodeData` | Interface | React Flow node data (id, label, beatIntent, pov, tone, status, wordCount, targetWords) |
+| `destructiveBtnStyle` | `React.CSSProperties` | Red destructive button |
+| `SceneNodeData` | Interface | React Flow node data (label, title, status, beatIntent, pov, tone, targetWords, characterRefs, wordCount) |
 
 ---
 
@@ -243,207 +309,160 @@ type FlowType   = "monologue" | "dialogue" | "round_robin" | "parallel" | "custo
 
 - `useParams` reads `:storyId` to highlight active story
 - `useMemo` filters stories by search query (case-insensitive)
-- `useState` for `searchQuery` and `newTitle`
-- `useStories()` + `useAllStoryStats()` for sidebar data
-- `<Outlet/>` renders child route
-- Warm sidebar background (`--bg-warm`), refined empty state
+- Three empty states: loading skeleton (stagger), no results (search + clear), true empty (descriptive CTA)
+- Error state: inline error message + retry button for `useStories`
+- `useDeleteStory` mutation wired to each StoryListItem
+- `useCreateStory` with optimistic placeholder (pulsing dot, "Creating..." label, reduced opacity)
+- `setToastFns` bridge connects Layout's toast to hooks.ts mutations
+- Search empty shows "No stories match \"{query}\"" with "Clear search" link
 
 ### TopBar.tsx
 
 - Editorial masthead feel with decorative divider
 - Controlled search input via `searchQuery` + `onSearchChange` props
-- `useNavigate` for programmatic navigation
 - Search icon absolutely positioned inside input
-- Home button conditionally rendered via `hasActiveStory` prop (smaller cleaner buttons)
+- Home button conditionally rendered via `hasActiveStory` prop
 
 ### HomeView.tsx
 
 - Two `useState` fields: `newTitle`, `synopsis`
-- Error banner via `error` state (dismissible)
+- Error/success banner (dismissible)
 - Three mutation hooks: `useCreateStory`, `useGenerateTitle`, `useGenerateStory`
 - `mutateAsync` for title generation (awaits result → fills title field)
 - Auto-title fallback: first 50 chars of synopsis
-- Larger hero (38px), thin gradient rule, tighter card padding (28px), `--text-faint` subtitle
+- Larger hero (38px), thin gradient rule, tighter card (28px padding)
 
-### StoryView.tsx
-
-- Extracts `storyId` from URL params via `useParams`
-- Simple pass-through to `StoryGraph`
-
-### StoryGraph.tsx
-
-305 lines. Orchestrates React Flow canvas + `GraphPanel` sidebar.
+### StoryGraph.tsx (orchestrator)
 
 **State:**
-- `nodes`, `setNodes`, `onNodesChange` — React Flow nodes (via `useNodesState`)
-- `edges`, `setEdges`, `onEdgesChange` — React Flow edges (via `useEdgesState`)
+- `nodes`, `setNodes`, `onNodesChange` — React Flow nodes via `useNodesState`
+- `edges`, `setEdges`, `onEdgesChange` — React Flow edges via `useEdgesState`
 - `selectedNode` — currently clicked node for side panel
 - `form` — edit form fields synced with selected node
+- `graphError` — network error state with contextual message + retry overlay
 
-**Key callbacks (all `useCallback`-memoized):**
-- `fetchGraph` — calls `api.topology.get()` → converts to React Flow format
-- `onConnect` — optimistic edge creation + API persistence
-- `onNodeClick` — sets selected node + populates form
-- `addNode` — creates scene via API → re-fetches graph
-- `updateNode` — updates node → re-fetches → deselects
-- `generate` — triggers LLM generation for selected node
-- `activeTab` state + `setActiveTab` passed to `GraphPanel`
+**Generations via `useGenerationStatusPolling` hook:**
+- Auto-polls every 2s while any generation has pending/running/queued status
+- Exposes `generations`, `gensLoading`, `gensPending`, `gensError`, `refetchGens`
+- No more manual `loadGenerations` state/ref — hook manages everything
 
-**Helpers:**
-- `toReactFlowNodes()` — `GraphNode[]` → `Node<SceneNodeData>[]` (grid layout)
-- `toReactFlowEdges()` — `GraphEdge[]` → `Edge[]` (color by type)
-
-**Panel styling:** editorial/leather-bound — `--bg-warm` bg, decorative gradient rule, serif heading, uppercase letter-spaced tabs, italic notebook-style empty state.
+**Error handling:**
+- Graph load error: full-screen overlay with contextual message (timeout / 500 / 404 / generic) + Retry button
+- Node position drag failure: captures pre-drag position in `nodePositionsRef`, rolls back node position + toast "Node snapped back"
+- Edge creation conflict: parses 409/duplicate → "Connection already exists", 400 → "Invalid connection"
+- Generation timeout: 5-min `setTimeout` warning, handles abort/timeout/429 with specific messages
+- Node delete: parses 409+connected → "Remove all edges first", 404 → "Already deleted"
 
 ### GraphPanel.tsx
 
-300px right sidebar with tabbed interface. Receives `activeTab`, `setActiveTab`, `selectedNode`, and all canvas callbacks via props.
+300px right sidebar with tabbed interface. Receives `activeTab`, `setActiveTab`, all canvas callbacks.
 
-**Tabs:** Edit, Info, Gen, Turns, Agents.
+**Tabs:** Edit, Info, Gen, Turns, Agents, Critic.
 
-- Tab bar uses uppercase letter-spaced labels
-- Each tab renders its respective panel component
-- "Add Scene" button at top (with `btn-press` micro-interaction)
-- Stats footer (node count, edge count, generated count)
-- Wraps panel content in scrollable container
-
-### SceneEditorPanel.tsx
-
-Edit form for selected scene node. Appears in the Edit tab.
-
-- Beat Intent (textarea), POV (select), Tone (select), Target Words (number input)
-- Inputs use `--shadow-inner` for inset depth effect
-- Save button + Generate button with letter-spacing + hover glow shadows
-- Cancel button uses surface color
-- Consistent `--radius-*` tokens
-- `btn-press` micro-interaction on all buttons
-
-### NodeInfoPanel.tsx
-
-Read-only info display for selected node. Appears in the Info tab.
-
-- Data grouped into card sections (`--surface` + `--border`)
-- Uppercase `--text-faint` labels for each field
-- Monospace edge count display
-- Status badge pill
-- `card-hover` class on each section card
-
-### EdgeInfoPanel.tsx
-
-Read-only edge detail display. Appears in the Info tab when an edge is selected.
-
-- Card pattern matching NodeInfoPanel
-- Source/target node IDs in monospace, side-by-side
-- Uppercase type badge with letter-spacing
-- `card-hover` class on card
+Default view (no node selected): TimelineView → BiblePanel → LlmMetricsDashboard → CriticScoreDashboard.
 
 ### GenerationList.tsx
 
-Generations list for selected node. Appears in the Gen tab.
+Generations list for selected node. Appears in Gen tab. Now with auto-polling:
 
-- Each generation as a surfaced card with hover lift
-- Monospace model name, compact date format (e.g., "Mar 15")
-- Inset shadow on expanded generation preview
-- Accept button with glow on hover
-- `card-hover` class on each card
-- Generations expand on click to show full prose
-
-### GenerationCompare.tsx
-
-Side-by-side generation comparison view.
-
-- Two panels showing different generation outputs
-- Select inputs use `--shadow-inner`, `--radius-sm`
+- **Pending animation**: pulsing amber border + shimmer progress bar while any generation status is "pending"/"running"
+- **Spinner** shows in title bar during loading
+- **"● Generating"** live indicator next to title while pending
+- **Skeleton loading**: shimmer cards while initial load
+- **Error state**: inline error message + retry button when query fails
+- **Failed generations**: red border + error message in monospace
+- **Token stats**: total tokens + duration displayed per generation
+- **Accept button**: shows "Accepting..." with disabled state during mutation
+- **Empty state**: sparkle icon + "Configure the scene and click Generate" hint
+- Status badge colors: success=green, failed=red, pending/running=amber
 
 ### SceneNode.tsx
 
-Custom React Flow node (vintage index card with pin aesthetic):
-- Color-coded border by status (draft=gray, generated=amber, accepted=green, stale=red)
-- Status badge pill with `glowPulse` animation
-- Beat intent + POV · Tone · Word count metadata
-- Inset card highlight, reduced shadow on hover
-- `Handle` (target) on left, `Handle` (source) on right
+Custom React Flow node — premium index card aesthetic:
+
+- **Top tab**: vintage metal ring (gold gradient, 3D shadow)
+- **Status color strip**: 3px gradient top border per status (draft/generated/accepted/stale)
+- **Paper texture**: warm gradient background (`#f5f0e8 → #efe8dc → #f0eadc`)
+- **Compact status**: dot + label text inline (no pill background)
+- **Character chips**: circular avatar initials (20px, gradient background, shadow)
+- **Word count progress bar**: animated width, color by progress (success/accent/warn/border), shows "wordCount/targetWords"
+- **Beat intent**: 2-line clamp with ellipsis, italic when draft
+- **Metadata row**: POV ◆ Tone (monospace, diamond separator)
+- **Handle hover**: scale(1.3) + glow on source/target handles
+- **Card hover**: translateY(-3px) + enhanced shadow
 - Wrapped in `memo()` for render performance
 
 ### StoryListItem.tsx
 
 Sidebar entry with warm dark styling:
-- Status dot color (red=stale, green=all accepted, yellow=mixed, gray=empty)
-- Title (bold if active)
-- Compact stats: "3ch · 12sc · 8✓ · 2○" (chapters, scenes, accepted, generated)
-- Short date format
-- `--text-faint` for secondary text
 
-### TurnItem.tsx
+- Status dot: red=stale, green=all accepted, amber=mixed, gray=empty
+- **2-click delete confirmation**: first click → button turns red + "Confirm Delete?" — 3s timeout auto-reverts
+- **Optimistic placeholder**: pulsing dot, reduced opacity (0.8), "Creating..." label, expandIn entrance
+- Title bold if active, heading font if active
+- Compact stats: "3ch · 12sc · 8✓ · 2○"
+- Delete button visible on hover (uses `role="button"` div pattern for keyboard accessibility)
 
-Individual agent turn display with expandable input/output.
+### TimelineView.tsx
 
-- Stagger entrance via `animation-delay`
-- `expandIn` animation on content reveal
-- Role badge, model, duration display
-- `glowPulse` on active status indicator
+Cross-story timeline display in default panel view:
 
-### TurnTimeline.tsx
+- Local + cross-story events merged, sorted by order + created_at
+- Color-coded event type dots (scene, choice, branch, converge, climax)
+- Shared events labelled with "shared" tag + "N cross-story" count
+- Event title, description, order number, type badge
 
-30-line wrapper that maps scene turns to `TurnItem[]`.
+### BiblePanel.tsx
 
-- Loading/empty states use `--text-faint`, `--radius-sm`, `--shadow-inner`
-- Container with stagger-fade-in entrance
+World bible display + generate + sharing UI:
 
-### AgentRunItem.tsx
+- Shows bible content when exists (world, theme, rules, factions, dimensions)
+- Generate button when missing
+- Sharing UI: link/unlink with target story ID input
+- Referencing stories list
 
-Individual agent execution log with expandable details.
+---
 
-- Same expand/collapse pattern as TurnItem
-- `expandIn` animation on expanded content
-- Stagger entrance via inline `animation-delay`
+## Error Handling Layers
 
-### AgentRunPanel.tsx
+### Network/API Errors
+All `api/*` calls throw `Error("HTTP {status}: {body}")`. Components parse status codes for contextual messages:
+- 400 → "Invalid input"
+- 404 → "Not found. It may have been deleted."
+- 409 → "Conflict — refresh and try again"
+- 429 → "Rate limited. Wait a moment and retry."
+- 5xx → "Server error. We've logged it."
+- Timeout → "Request timed out. Check connection."
 
-27-line wrapper mapping agent runs to `AgentRunItem[]`.
+### Query Error States
+Every `useQuery` handles: `isLoading` → skeleton, `isError` → inline error + retry, empty → CTA.
 
-- `--shadow-inner` on container
-- Token count display in subtext
+### React Error Boundary
+`ErrorBoundary.tsx` wraps the entire app. Shows warm-dark styled fallback with "Try again" button.
 
-### StatCard.tsx
+### Form Validation
+Client-side validation before API call: title required, beat_intent warned if empty, target_words clamped 50-5000. Disabled submit while invalid or pending.
 
-Shared metric card used by both dashboards.
+---
 
-- Surfaced card with `card-hover` interaction
-- Metric value in bold, label in `--text-faint`
-- Stagger entrance via CSS `animation-delay`
-- Consistent `--radius-md` rounding
+## Loading State Patterns
 
-### LlmMetricsDashboard.tsx
+- **Skeleton** (preferred over spinner for content): shimmer via `skeletonStyle()`
+- **Spinner** for button actions: 16px rotating border
+- **Button loading**: spinner + label + disabled pointer events
+- **Generation polling**: `useGenerationStatusPolling` interval every 2s while pending
+- **Progress indicator**: shimmer bar on pending generation cards
 
-Token and cost metrics dashboard.
+---
 
-- Uses `StatCard[]` for individual metrics
-- `--radius-md` cards, `--text-faint` headings
-- Stagger entrance on metric rows
+## Empty States (every list needs one)
 
-### CriticScoreDashboard.tsx
-
-Critic evaluation scores dashboard.
-
-- Same StatCard/heading patterns as LlmMetricsDashboard
-- Score values in monospace
-
-### AuditDashboard.tsx
-
-Code audit findings page (standalone route at `/audit`).
-
-### CompressionStats.tsx
-
-Token compression display showing headroom-ai compression stats.
-
-### Toast.tsx
-
-Toast notification system.
-
-- Colors aligned to `#1a1512`/`#f5f0e8` warm palette
-- `--radius-lg` for rounded appearance
-- Entrance/exit transitions
+- StoryList empty → icon + heading + descriptive copy
+- StoryList search → "No stories match \"{query}\"" + "Clear search"
+- Canvas empty → icon + "No scenes yet" + "Add First Scene" CTA
+- GenerationList → sparkle icon + "No generations yet" + generate hint
+- TurnTimeline → "No turns recorded. Use agent mode to generate."
+- AgentRunPanel → "No agent runs. Generate with scene structure set."
 
 ---
 
@@ -451,86 +470,68 @@ Toast notification system.
 
 | Edge Type | Color | Width | Style |
 |---|---|---|---|
-| `seq` | `#64748b` (gray) | 1.5 | solid |
-| `fork` | `#f59e0b` (amber) | 2.5 | solid |
-| `join` | `#8b5cf6` (purple) | 2.5 | solid |
-| `choice` | `#64748b` (gray) | 2.5 | dashed |
+| `seq` | `#8888a0` (gray) | 1.5 | solid |
+| `fork` | `#c9734a` (amber) | 2.5 | solid |
+| `join` | `#d4a853` (gold) | 2.5 | solid |
+| `choice` | `#8888a0` (gray) | 2.5 | dashed |
 
 Non-seq edges show their type as a label on the edge.
 
 ---
 
-## Color Palette (Warm Dark Theme)
+## Design Tokens (`index.css`)
+
+### Colors
 
 | Token | Hex | Usage |
 |---|---|---|
-| Page bg | `#1a1512` | Page background (warm dark) |
-| Surface | `#2a2420` | Cards, side panel, TopBar |
-| --bg-warm | `#231e1a` | Warm accent surfaces |
-| --surface-alt | `#332c27` | Hover/lifted states |
-| Border | `#3d3530` | Dividers, input borders |
-| Text primary | `#f5f0e8` | Body text (warm white) |
-| Text muted | `#9c9188` | Secondary labels |
-| --text-faint | `#736b64` | Muted metadata, placeholders |
-| Accent amber | `#d4a762` | Primary accent, generated status |
-| Accent gold | `#e8c876` | Hover/active accent states |
-| Green | `#7dab7a` | Accepted status, save |
-| Red | `#c4645a` | Stale status, danger |
-| Blue | `#6a8fc9` | Info, links |
-| Purple | `#9b7bba` | Generation action, join edges |
+| `--bg` | `#15110e` | Page background |
+| `--bg-warm` | `#1a1512` | Warm accent surfaces |
+| `--surface` | `#1e1916` | Cards, side panel |
+| `--surface-hover` | `#28221e` | Hover states |
+| `--border` | `#3d322a` | Dividers, input borders |
+| `--text` | `#e8ddd0` | Body text |
+| `--text-muted` | `#8c7e70` | Secondary labels |
+| `--text-dim` | `#6b5f53` | Muted metadata |
+| `--text-faint` | `#4d4238` | Placeholders |
+| `--accent` | `#d4a853` | Primary CTA, amber gold |
+| `--success` | `#6b8f5e` | Accepted/done |
+| `--error` | `#b05c50` | Failed/danger |
+| `--warn` | `#c9734a` | Pending/warning |
+| `--info` | `#6b9fc4` | Informational |
 
----
-
-## Design Tokens (`index.css`)
-
-### Shadow System
-
-| Token | Value | Usage |
-|---|---|---|
-| `--shadow-sm` | `0 1px 2px rgba(0,0,0,0.3)` | Subtle depth |
-| `--shadow-md` | `0 2px 8px rgba(0,0,0,0.35)` | Card hover |
-| `--shadow-lg` | `0 4px 16px rgba(0,0,0,0.4)` | Modals, dropdowns |
-| `--shadow-inner` | `inset 0 1px 3px rgba(0,0,0,0.4)` | Inputs, inset areas |
-
-### Border Radius Tokens
+### Shadow Tokens
 
 | Token | Value |
 |---|---|
-| `--radius-sm` | 4px |
-| `--radius-md` | 6px |
-| `--radius-lg` | 10px |
-| `--radius-xl` | 14px |
+| `--shadow-xs` | `0 1px 2px rgba(0,0,0,0.25)` |
+| `--shadow-sm` | `0 1px 3px rgba(0,0,0,0.3)` |
+| `--shadow-md` | `0 3px 8px rgba(0,0,0,0.3)` |
+| `--shadow-lg` | `0 6px 20px rgba(0,0,0,0.35)` |
+| `--shadow-inner` | `inset 0 1px 2px rgba(0,0,0,0.15)` |
 
-### Transition Tokens
+### Transitions
 
 | Token | Value |
 |---|---|
-| `--transition-fast` | `150ms ease` |
-| `--transition-base` | `250ms ease` |
-| `--transition-slow` | `400ms ease` |
-| `--ease-spring` | `cubic-bezier(0.34, 1.56, 0.64, 1)` |
-| `--transition-spring` | `250ms cubic-bezier(0.34, 1.56, 0.64, 1)` |
+| `--transition-fast` | `0.12s cubic-bezier(0.16,1,0.3,1)` |
+| `--transition-base` | `0.2s cubic-bezier(0.16,1,0.3,1)` |
+| `--transition-spring` | `0.35s cubic-bezier(0.34,1.56,0.64,1)` |
 
----
-
-## Animations (`index.css`)
-
-### Keyframes
+### Animations
 
 | Name | Purpose |
 |---|---|
 | `fadeIn` / `fadeOut` | Opacity transitions |
 | `slideUp` / `slideDown` | Vertical reveal |
 | `slideInLeft` / `slideInRight` | Horizontal entrance |
-| `scaleIn` / `scaleOut` | Scale-based entrance/exit |
+| `scaleIn` / `scaleOut` | Scale-based entrance |
 | `pulse` | Slow opacity pulse (idle indicators) |
 | `shimmer` | Loading skeleton sweep |
 | `spin` | Rotating loader |
-| `inkDrop` | Decorative ink drop expansion |
 | `glowPulse` | Color glow on status indicators |
 | `expandIn` | Scale+fade for expandable sections |
 | `breathe` | Subtle scale oscillation |
-| `shimmerSlide` | Shimmer with slide motion |
 
 ### CSS Utility Classes
 
@@ -552,8 +553,12 @@ Non-seq edges show their type as a label on the edge.
 5. **`useMemo` for derived arrays** — filtered/sorted lists, computed strings
 6. **`memo()` on graph nodes** — React Flow performance
 7. **Inline styles** — no CSS modules, no Tailwind
-8. **Warm dark theme** — `#1a1512` base, `#f5f0e8` text, `#2a2420` surfaces
-9. **CSS utility classes for interactions** — `.card-hover`, `.btn-press`, `.stagger-fade-in`, `.stagger-slide-up`
-10. **Stagger entrance via CSS `animation-delay`** — keeps component code lean (no IntersectionObserver)
+8. **Warm dark theme** — `#15110e` base, `#e8ddd0` text, `#1e1916` surfaces
+9. **CSS utility classes for interactions** — `.card-hover`, `.btn-press`, `.stagger-fade-in`
+10. **Stagger entrance via CSS `animation-delay`** — no IntersectionObserver
 11. **All border-radius via `--radius-*` tokens** — never raw px values
-12. **All transitions via `--transition-*` tokens** — consistent timing across components
+12. **All transitions via `--transition-*` tokens** — consistent timing
+13. **Optimistic updates for all mutations** — placeholder/remove immediately, rollback on error
+14. **Three-state queries** — skeleton for loading, inline error + retry for error, CTA for empty
+15. **Error parsing by status code** — 400/404/409/429/5xx get specific messages
+16. **Toast wiring via `setToastFns` bridge** — mutations outside component tree can still show toasts

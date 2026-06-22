@@ -65,6 +65,10 @@ export const api = {
       request<Character>("/characters", { method: "POST", body: JSON.stringify(data) }),
     update: (id: string, data: CreateCharacterPayload) =>
       request<Character>(`/characters/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    migrate: (storyId: string, charId: string) =>
+      request<Character>(`/stories/${storyId}/characters/${charId}/migrate`, { method: "POST" }),
+    listByStory: (storyId: string) =>
+      request<Character[]>(`/stories/${storyId}/characters`),
   },
 
   // ==========================================
@@ -156,6 +160,8 @@ export const api = {
   generations: {
     list:     (storyId: string, nodeId: string) =>
       request<Generation[]>(`/stories/${storyId}/nodes/${nodeId}/generations`),
+    get:      (storyId: string, nodeId: string, genId: string) =>
+      request<Generation>(`/stories/${storyId}/nodes/${nodeId}/generations/${genId}`),
     generate: (storyId: string, nodeId: string) =>
       request<Generation>(`/stories/${storyId}/nodes/${nodeId}/generate`, { method: "POST" }),
     accept:   (storyId: string, nodeId: string, generationId: string) =>

@@ -46,6 +46,13 @@ func (m *mockBibleRepo) GetByStory(ctx context.Context, storyID string) (*domain
 	return m.byStory[storyID], nil
 }
 
+func (m *mockBibleRepo) ListByReferencingStory(ctx context.Context, storyID string) ([]*domain.StoryBible, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return nil, nil
+}
+
 func (m *mockBibleRepo) Update(ctx context.Context, b *domain.StoryBible) error {
 	if m.err != nil {
 		return m.err

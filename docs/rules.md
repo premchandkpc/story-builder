@@ -95,6 +95,11 @@ internal/
 9. **`useCallback` for handlers passed to child components.** Prevents unnecessary re-renders.
 10. **`useMemo` for derived data.** Only recompute when dependencies change.
 11. **Warm dark theme throughout.** Background `#1a1512`, text `#f5f0e8`, surfaces `#2a2420`, borders `#3d3530`.
+12. **Optimistic updates for all mutations.** Use TanStack React Query pattern: `onMutate` saves snapshot + sets optimistic data, returns snapshot, `onError` rolls back, `onSettled` invalidates. Use `setToastFns` bridge for toasts from outside component tree.
+13. **Generation polling uses `setInterval` + `queryClient.invalidateQueries`** (not `refetchInterval`). Only poll while explicitly enabled (node selected + pending gens). 2s interval.
+14. **Four error handling layers:** (1) network/API errors → parse status code → specific message, (2) React Error Boundary with fallback UI, (3) every `useQuery` handles isLoading/isError/empty, (4) client-side form validation before API call.
+15. **`memo()` on all list items** — not just React Flow nodes. Every item returned from `.map()` should be `memo()`'d.
+16. **Position drag rollback.** Capture `nodePositionsRef` on drag start, revert via `setNodes` on save failure, show toast "Failed to save position. Node snapped back."
 
 ## Testing Priority
 

@@ -12,11 +12,12 @@
 // useQuery: fetches and caches data (GET requests)
 // useMutation: sends changes (POST/PUT/DELETE) and can invalidate caches
 // useQueryClient: gives access to the query cache for invalidation
+import { useEffect, useRef } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 // useNavigate: React Router hook to programmatically navigate between pages
 import { useNavigate } from "react-router-dom"
 import { api } from "./client"
-import type { CriticScoreData, Story, StoryStats, SceneTurn, AgentRun, LlmMetrics, StoryBible, TimelineEvent } from "./types"
+import type { Character, CriticScoreData, Story, StoryStats, SceneTurn, AgentRun, LlmMetrics, StoryBible, TimelineEvent, Generation, GraphNode, GraphEdge, Topology } from "./types"
 
 // ---- useStories() ----
 // Custom hook that fetches the list of all stories.
@@ -82,17 +83,79 @@ export function useAllStoryStats(stories: Story[]) {
 
 // ---- useCreateStory() ----
 // Mutation: creates a new story, then navigates to its detail page.
-// onSuccess:
-//   1. Invalidates the "stories" cache so the sidebar refreshes
-//   2. Navigates to the new story's page using React Router
+// Uses optimistic update: adds placeholder story to cache immediately.
 export function useCreateStory() {
   const queryClient = useQueryClient()
-  const navigate = useNavigate()       // hook for programmatic navigation
+  const navigate = useNavigate()
+  const { success, error: showError } = useToastExternal()
+
   return useMutation({
     mutationFn: (title: string) => api.stories.create({ title }),
-    onSuccess: (story) => {
+    onMutate: async (title) => {
+      await queryClient.cancelQueries({ queryKey: ["stories"] })
+      const prev = queryClient.getQueryData<Story[]>(["stories"])
+      const placeholder: Story = {
+        id: `new-${Date.now()}`,
+        title,
+        canon_pins: {},
+        createdAt: new Date().toISOString(),
+      }
+      queryClient.setQueryData<Story[]>(["stories"], (old) => [...(old || []), placeholder])
+      return { prev }
+    },
+    onSuccess: (story, _title, context) => {
+      // Replace placeholder with real story
+      queryClient.setQueryData<Story[]>(["stories"], (old) =>
+        (old || []).map((s) => s.id.startsWith("new-") ? story : s),
+      )
+      success("Story created")
+      navigate(`/stories/${story.id}`)
+    },
+    onError: (_err, _title, context) => {
+      if (context?.prev) queryClient.setQueryData(["stories"], context.prev)
+      showError("Failed to create story")
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["stories"] })
-      navigate(`/stories/${story.id}`)  // redirect to the new story
+    },
+  })
+}
+
+/** Access toast from outside a component context — used inside mutations. */
+let toastFns: { success: (m: string) => void; error: (m: string) => void } | null = null
+export function setToastFns(fns: typeof toastFns) { toastFns = fns }
+function useToastExternal() {
+  return toastFns || { success: () => {}, error: () => {} }
+}
+
+// ---- useDeleteStory() ----
+// Mutation: deletes a story with optimistic removal + rollback on error.
+export function useDeleteStory() {
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const { error: showError } = useToastExternal()
+
+  return useMutation({
+    mutationFn: (storyId: string) => api.stories.delete(storyId),
+    onMutate: async (storyId) => {
+      await queryClient.cancelQueries({ queryKey: ["stories"] })
+      const prev = queryClient.getQueryData<Story[]>(["stories"])
+      queryClient.setQueryData<Story[]>(["stories"], (old) =>
+        (old || []).filter((s) => s.id !== storyId),
+      )
+      return { prev }
+    },
+    onSuccess: (_data, storyId) => {
+      // If user is viewing the deleted story, navigate home
+      const currentPath = window.location.pathname
+      if (currentPath.includes(storyId)) navigate("/")
+    },
+    onError: (_err, _storyId, context) => {
+      if (context?.prev) queryClient.setQueryData(["stories"], context.prev)
+      showError("Failed to delete story")
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["stories"] })
     },
   })
 }
@@ -119,6 +182,222 @@ export function useGenerateStory() {
       if (result?.story_id) {
         navigate(`/stories/${result.story_id}`)
       }
+    },
+  })
+}
+
+// ---- Topology Hooks ----
+const TOPOLOGY_KEY = (storyId: string) => ["topology", storyId] as const
+
+export function useTopology(storyId: string) {
+  return useQuery<Topology>({
+    queryKey: TOPOLOGY_KEY(storyId),
+    queryFn: () => api.topology.get(storyId),
+    enabled: !!storyId,
+  })
+}
+
+export function useCreateNode(storyId: string) {
+  const qc = useQueryClient()
+  const key = TOPOLOGY_KEY(storyId)
+  const { error: showError } = useToastExternal()
+  return useMutation({
+    mutationFn: (data: Partial<{
+      beat_intent: string; character_refs: string[]; location_ref: string | null;
+      pov: string; tone: string; target_words: number;
+    }>) => api.nodes.create(storyId, data),
+    onMutate: async () => {
+      await qc.cancelQueries({ queryKey: key })
+      const prev = qc.getQueryData<Topology>(key)
+      if (!prev) return { prev: null }
+      const tempNode: GraphNode = {
+        id: `temp-${Date.now()}`,
+        story_id: storyId,
+        title: "",
+        status: "draft" as const,
+        beat_intent: "New scene",
+        character_refs: [],
+        location_ref: null,
+        pov: "third-person",
+        tone: "neutral",
+        target_words: 300,
+        position: { x: 100, y: 100 },
+      }
+      qc.setQueryData<Topology>(key, (old) => old ? { ...old, nodes: [...old.nodes, tempNode] } : old)
+      return { prev }
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev)
+      showError("Failed to add scene")
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: key }),
+  })
+}
+
+export function useUpdateNode(storyId: string) {
+  const qc = useQueryClient()
+  const key = TOPOLOGY_KEY(storyId)
+  const { error: showError } = useToastExternal()
+  return useMutation({
+    mutationFn: ({ nodeId, data }: { nodeId: string; data: Record<string, unknown> }) =>
+      api.nodes.update(storyId, nodeId, data),
+    onMutate: async ({ nodeId, data }) => {
+      await qc.cancelQueries({ queryKey: key })
+      const prev = qc.getQueryData<Topology>(key)
+      if (!prev) return { prev: null }
+      qc.setQueryData<Topology>(key, (old) => {
+        if (!old) return old
+        return {
+          ...old,
+          nodes: old.nodes.map((n) =>
+            n.id === nodeId ? { ...n, ...data } as GraphNode : n,
+          ),
+        }
+      })
+      return { prev }
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev)
+      showError("Failed to save scene")
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: key }),
+  })
+}
+
+export function useDeleteNode(storyId: string) {
+  const qc = useQueryClient()
+  const key = TOPOLOGY_KEY(storyId)
+  const { error: showError } = useToastExternal()
+  return useMutation({
+    mutationFn: (nodeId: string) => api.nodes.delete(storyId, nodeId),
+    onMutate: async (nodeId) => {
+      await qc.cancelQueries({ queryKey: key })
+      const prev = qc.getQueryData<Topology>(key)
+      if (!prev) return { prev: null }
+      qc.setQueryData<Topology>(key, (old) => {
+        if (!old) return old
+        return {
+          ...old,
+          nodes: old.nodes.filter((n) => n.id !== nodeId),
+          edges: old.edges.filter((e) => e.from_node !== nodeId && e.to_node !== nodeId),
+        }
+      })
+      return { prev }
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev)
+      showError("Failed to delete scene")
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: key }),
+  })
+}
+
+export function useCreateEdge(storyId: string) {
+  const qc = useQueryClient()
+  const key = TOPOLOGY_KEY(storyId)
+  const { error: showError } = useToastExternal()
+  return useMutation({
+    mutationFn: (data: { from_node: string; to_node: string; edge_type: string }) =>
+      api.edges.create(storyId, data),
+    onMutate: async (data) => {
+      await qc.cancelQueries({ queryKey: key })
+      const prev = qc.getQueryData<Topology>(key)
+      if (!prev) return { prev: null }
+      const tempEdge: GraphEdge = {
+        id: `temp-edge-${Date.now()}`,
+        from_node: data.from_node,
+        to_node: data.to_node,
+        edge_type: data.edge_type as import("./types").EdgeType,
+        story_id: storyId,
+      }
+      qc.setQueryData<Topology>(key, (old) => {
+        if (!old) return old
+        return { ...old, edges: [...old.edges, tempEdge] }
+      })
+      return { prev }
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev)
+      showError("Failed to create edge")
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: key }),
+  })
+}
+
+export function useDeleteEdge(storyId: string) {
+  const qc = useQueryClient()
+  const key = TOPOLOGY_KEY(storyId)
+  const { error: showError } = useToastExternal()
+  return useMutation({
+    mutationFn: (edgeId: string) => api.edges.deleteById(storyId, edgeId),
+    onMutate: async (edgeId) => {
+      await qc.cancelQueries({ queryKey: key })
+      const prev = qc.getQueryData<Topology>(key)
+      if (!prev) return { prev: null }
+      qc.setQueryData<Topology>(key, (old) => {
+        if (!old) return old
+        return { ...old, edges: old.edges.filter((e) => e.id !== edgeId) }
+      })
+      return { prev }
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev)
+      showError("Failed to delete edge")
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: key }),
+  })
+}
+
+export function useUpdateNodePosition(storyId: string) {
+  const qc = useQueryClient()
+  const key = TOPOLOGY_KEY(storyId)
+  const { error: showError } = useToastExternal()
+  return useMutation({
+    mutationFn: ({ nodeId, x, y }: { nodeId: string; x: number; y: number }) =>
+      api.nodes.updatePosition(storyId, nodeId, x, y),
+    onMutate: async ({ nodeId, x, y }) => {
+      await qc.cancelQueries({ queryKey: key })
+      const prev = qc.getQueryData<Topology>(key)
+      if (!prev) return { prev: null }
+      qc.setQueryData<Topology>(key, (old) => {
+        if (!old) return old
+        return {
+          ...old,
+          nodes: old.nodes.map((n) =>
+            n.id === nodeId ? { ...n, position: { x, y } } as GraphNode : n,
+          ),
+        }
+      })
+      return { prev }
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev)
+      showError("Failed to save position")
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: key }),
+  })
+}
+
+// ---- Character Hooks ----
+export function useCharacters(storyId: string) {
+  return useQuery<Character[]>({
+    queryKey: ["characters", storyId],
+    queryFn: () => api.characters.listByStory(storyId),
+    enabled: !!storyId,
+  })
+}
+
+export function useMigrateCharacter(storyId: string) {
+  const qc = useQueryClient()
+  const { success, error: showError } = useToastExternal()
+  return useMutation({
+    mutationFn: (charId: string) => api.characters.migrate(storyId, charId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["characters", storyId] })
+      success("Character migrated to this story")
+    },
+    onError: () => {
+      showError("Failed to migrate character")
     },
   })
 }
@@ -162,6 +441,39 @@ export function useLlmMetrics(storyId: string) {
     enabled: !!storyId,
     refetchInterval: 30_000,
   })
+}
+
+// ---- useGenerationStatusPolling(storyId, nodeId) ----
+// Polls generations every 2s while enabled, skips invalidation when no pending gens.
+export function useGenerationStatusPolling(storyId: string, nodeId: string | null, enabled = false) {
+  const queryClient = useQueryClient()
+  const queryKey = ["generations", storyId, nodeId]
+
+  const { data: generations = [], isLoading, isError, refetch } = useQuery<Generation[]>({
+    queryKey,
+    queryFn: () => api.generations.list(storyId, nodeId!),
+    enabled: !!nodeId,
+    staleTime: 1000,
+  })
+
+  const hasPending = generations.some((g) =>
+    g.status === "pending" || g.status === "running" || g.status === "queued"
+  )
+
+  // Track hasPending in ref so the interval callback sees latest value
+  const hasPendingRef = useRef(hasPending)
+  hasPendingRef.current = hasPending
+
+  useEffect(() => {
+    if (!enabled || !nodeId) return
+    const interval = setInterval(async () => {
+      if (!hasPendingRef.current) return
+      await queryClient.invalidateQueries({ queryKey })
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [enabled, nodeId, queryClient])
+
+  return { generations, isLoading, isError, refetch, hasPending }
 }
 
 // ---- useCriticScores(storyId) ----
