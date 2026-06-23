@@ -343,7 +343,7 @@ func (m *mockJobRepo) Update(_ context.Context, j *domain.Job) error {
 	return nil
 }
 
-func (m *mockJobRepo) PickPending(_ context.Context, _ string, _ time.Duration) (*domain.Job, error) {
+func (m *mockJobRepo) PickPending(_ context.Context, _ string, _ time.Duration, _ string) (*domain.Job, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, j := range m.jobs {
@@ -369,6 +369,18 @@ func (m *mockJobRepo) ListStuck(_ context.Context, _ time.Duration) ([]*domain.J
 		}
 	}
 	return stuck, nil
+}
+
+func (m *mockJobRepo) Heartbeat(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *mockJobRepo) ListByStatus(_ context.Context, _ string) ([]*domain.Job, error) {
+	return nil, nil
+}
+
+func (m *mockJobRepo) IncrementAttempt(_ context.Context, _ string) error {
+	return nil
 }
 
 // ── Mock CharacterRepository ──────────────────────────────────────────

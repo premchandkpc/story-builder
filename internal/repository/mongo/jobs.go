@@ -48,7 +48,7 @@ func (r *JobRepo) Update(ctx context.Context, j *domain.Job) error {
 	return err
 }
 
-func (r *JobRepo) PickPending(ctx context.Context, jobType string, leaseTime time.Duration) (*domain.Job, error) {
+func (r *JobRepo) PickPending(ctx context.Context, jobType string, leaseTime time.Duration, workerID string) (*domain.Job, error) {
 	now := time.Now()
 	leaseUntil := now.Add(leaseTime)
 
@@ -62,11 +62,13 @@ func (r *JobRepo) PickPending(ctx context.Context, jobType string, leaseTime tim
 	}
 	update := bson.M{
 		"$set": bson.M{
-			"status":     domain.JobStatusRunning,
-			"leaseUntil": leaseUntil,
-			"updatedAt":  now,
+			"status":      domain.JobStatusRunning,
+			"leaseUntil":  leaseUntil,
+			"heartbeatAt": now,
+			"workerId":    workerID,
+			"updatedAt":   now,
 		},
-		"$inc": bson.M{"attempts": 1},
+		"$inc": bson.M{"attempts": 1, "version": 1},
 	}
 
 	var j domain.Job
@@ -77,6 +79,35 @@ func (r *JobRepo) PickPending(ctx context.Context, jobType string, leaseTime tim
 		return nil, nil
 	}
 	return &j, err
+}
+
+func (r *JobRepo) Heartbeat(ctx context.Context, id string) error {
+	now := time.Now()
+	_, err := r.coll.UpdateOne(ctx,
+		bson.M{"_id": id},
+		bson.M{"$set": bson.M{"heartbeatAt": now, "updatedAt": now}},
+	)
+	return err
+}
+
+func (r *JobRepo) ListByStatus(ctx context.Context, status string) ([]*domain.Job, error) {
+	cursor, err := r.coll.Find(ctx, bson.M{"status": status})
+	if err != nil {
+		return nil, err
+	}
+	var jobs []*domain.Job
+	if err := cursor.All(ctx, &jobs); err != nil {
+		return nil, err
+	}
+	return jobs, nil
+}
+
+func (r *JobRepo) IncrementAttempt(ctx context.Context, id string) error {
+	_, err := r.coll.UpdateOne(ctx,
+		bson.M{"_id": id},
+		bson.M{"$inc": bson.M{"attempts": 1, "version": 1}},
+	)
+	return err
 }
 
 func (r *JobRepo) ListPending(ctx context.Context) ([]*domain.Job, error) {

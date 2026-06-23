@@ -59,6 +59,8 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 	turnRepo := mgorepo.NewSceneTurnRepo(db)
 	agentRunRepo := mgorepo.NewAgentRunRepo(db)
 	canonDeltaRepo := mgorepo.NewCanonDeltaRepo(db)
+	runRepo := mgorepo.NewRunRepo(db)
+	stepRepo := mgorepo.NewRunStepRepo(db)
 
 	// LLM clients and router
 	var anthropic llm.LLMClient
@@ -179,7 +181,8 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 
 	progressHub := api.NewProgressHub()
 	genJobWorker := service.NewGenerationJobWorker(service.GenerationJobWorkerConfig{
-		JobRepo: jobRepo, GenRepo: genRepo, SceneRepo: sceneRepo,
+		JobRepo: jobRepo, RunRepo: runRepo, StepRepo: stepRepo,
+		GenRepo: genRepo, SceneRepo: sceneRepo,
 		StoryRepo: storyRepo, CharRepo: charRepo, StateRepo: stateRepo,
 		EdgeRepo: edgeRepo, BibleRepo: bibleRepo, MemRepo: memRepo, TlRepo: tlRepo,
 		SumRepo: sumRepo, LocRepo: locRepo,
@@ -188,6 +191,8 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 		ContextBldr: contextBldr, EventBus: eventBus,
 		EmbeddingSvc: embedSvc, SceneValidator: sceneValidator,
 		Progress: progressHub, AgentSvc: agentSvc,
+		PollInterval: 5 * time.Second,
+		LeaseTime:    5 * time.Minute,
 	})
 
 	tlSvc := service.NewTimelineService(tlRepo)

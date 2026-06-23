@@ -108,6 +108,7 @@ func EnsureIndexes(ctx context.Context, db *mongo.Database) error {
 		"jobs": {
 			{Keys: bson.D{{Key: "type", Value: 1}, {Key: "status", Value: 1}}},
 			{Keys: bson.D{{Key: "status", Value: 1}, {Key: "updatedAt", Value: 1}}},
+			{Keys: bson.D{{Key: "status", Value: 1}, {Key: "heartbeatAt", Value: 1}}},
 		},
 		"token_budgets": {
 			{Keys: bson.D{{Key: "storyId", Value: 1}}, Options: options.Index().SetUnique(true)},
@@ -128,6 +129,10 @@ func EnsureIndexes(ctx context.Context, db *mongo.Database) error {
 			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "createdAt", Value: -1}}},
 			{Keys: bson.D{{Key: "sceneId", Value: 1}, {Key: "createdAt", Value: -1}}},
 			{Keys: bson.D{{Key: "eventType", Value: 1}}},
+		},
+		"scene_locks": {
+			{Keys: bson.D{{Key: "sceneId", Value: 1}}, Options: options.Index().SetUnique(true)},
+			{Keys: bson.D{{Key: "ttl", Value: 1}}, Options: options.Index().SetExpireAfterSeconds(0)},
 		},
 	}
 

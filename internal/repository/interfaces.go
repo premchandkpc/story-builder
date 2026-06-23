@@ -116,9 +116,18 @@ type JobRepository interface {
 	Create(ctx context.Context, j *domain.Job) error
 	Get(ctx context.Context, id string) (*domain.Job, error)
 	Update(ctx context.Context, j *domain.Job) error
-	PickPending(ctx context.Context, jobType string, leaseTime time.Duration) (*domain.Job, error)
+	PickPending(ctx context.Context, jobType string, leaseTime time.Duration, workerID string) (*domain.Job, error)
 	ListPending(ctx context.Context) ([]*domain.Job, error)
 	ListStuck(ctx context.Context, threshold time.Duration) ([]*domain.Job, error)
+	Heartbeat(ctx context.Context, id string) error
+	ListByStatus(ctx context.Context, status string) ([]*domain.Job, error)
+	IncrementAttempt(ctx context.Context, id string) error
+}
+
+type SceneLockRepository interface {
+	Acquire(ctx context.Context, lock *domain.SceneLock) (bool, error)
+	Release(ctx context.Context, sceneID string) error
+	Get(ctx context.Context, sceneID string) (*domain.SceneLock, error)
 }
 
 type RunRepository interface {

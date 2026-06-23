@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"sync"
 	"time"
 
 	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/events"
 	"github.com/premchand/story-builder/internal/llm"
+	"github.com/premchand/story-builder/internal/orchestration"
 	"github.com/premchand/story-builder/internal/repository"
 	"github.com/premchand/story-builder/internal/validation"
 	"github.com/premchand/story-builder/internal/worker"
@@ -18,6 +18,8 @@ import (
 
 type GenerationJobWorkerConfig struct {
 	JobRepo        repository.JobRepository
+	RunRepo        repository.RunRepository
+	StepRepo       repository.RunStepRepository
 	GenRepo        repository.GenerationRepository
 	SceneRepo      repository.SceneRepository
 	StoryRepo      repository.StoryRepository
@@ -44,253 +46,150 @@ type GenerationJobWorkerConfig struct {
 }
 
 type GenerationJobWorker struct {
-	cfg    GenerationJobWorkerConfig
-	stopCh chan struct{}
-	wg     sync.WaitGroup
-	genInFlight sync.Map
+	worker *orchestration.Worker
 }
 
 func NewGenerationJobWorker(cfg GenerationJobWorkerConfig) *GenerationJobWorker {
-	if cfg.PollInterval == 0 {
-		cfg.PollInterval = 2 * time.Second
-	}
-	if cfg.LeaseTime == 0 {
-		cfg.LeaseTime = 5 * time.Minute
-	}
-	return &GenerationJobWorker{
-		cfg:    cfg,
-		stopCh: make(chan struct{}),
-	}
+	recorder := orchestration.NewRunRecorder(cfg.RunRepo, cfg.StepRepo)
+	pipe := buildGenerateScenePipeline(cfg)
+	wrk := orchestration.NewWorker(orchestration.WorkerConfig{
+		JobRepo:           cfg.JobRepo,
+		Recorder:          recorder,
+		Pipelines:         []*orchestration.PipelineDef{pipe},
+		PollInterval:      cfg.PollInterval,
+		LeaseTime:         cfg.LeaseTime,
+		HeartbeatInterval: 30 * time.Second,
+		MaxConcurrency:    3,
+	})
+	return &GenerationJobWorker{worker: wrk}
 }
 
 func (w *GenerationJobWorker) Start() {
-	w.wg.Add(1)
-	go w.loop()
-	slog.Info("generation job worker started", "pollInterval", w.cfg.PollInterval)
+	w.worker.Start()
 }
 
 func (w *GenerationJobWorker) Stop() {
-	close(w.stopCh)
-	w.wg.Wait()
-	slog.Info("generation job worker stopped")
+	w.worker.Stop()
 }
 
-func (w *GenerationJobWorker) loop() {
-	defer w.wg.Done()
-
-	w.recoverStuckJobs()
-
-	for {
-		select {
-		case <-w.stopCh:
-			return
-		case <-time.After(w.cfg.PollInterval):
-			w.processNext()
-		}
+func buildGenerateScenePipeline(cfg GenerationJobWorkerConfig) *orchestration.PipelineDef {
+	return &orchestration.PipelineDef{
+		Name:    "generate_scene",
+		JobType: domain.JobTypeGenerateScene,
+		RunType: domain.RunTypeGenerateScene,
+		Steps: []orchestration.StepDef{
+			{
+				Name: "generate", Critical: true, MaxRetries: 3,
+				Timeout: 4 * time.Minute, Model: "claude-sonnet",
+				Run: func(ctx context.Context, sc *orchestration.StepContext) error {
+					return runGenerateStep(ctx, sc, cfg)
+				},
+			},
+			{
+				Name: "extract", Critical: true, MaxRetries: 3,
+				Timeout: 2 * time.Minute, Model: "local-7b",
+				Run: func(ctx context.Context, sc *orchestration.StepContext) error {
+					return runExtractStep(ctx, sc, cfg)
+				},
+			},
+			{
+				Name: "memory", Critical: false, MaxRetries: 0,
+				Timeout: 1 * time.Minute, Model: "local-7b",
+				Run: func(ctx context.Context, sc *orchestration.StepContext) error {
+					return runMemoryStep(ctx, sc, cfg)
+				},
+			},
+			{
+				Name: "timeline", Critical: false, MaxRetries: 0,
+				Timeout: 30 * time.Second,
+				Run: func(ctx context.Context, sc *orchestration.StepContext) error {
+					return runTimelineStep(ctx, sc, cfg)
+				},
+			},
+			{
+				Name: "summary", Critical: false, MaxRetries: 0,
+				Timeout: 1 * time.Minute, Model: "local-7b",
+				Run: func(ctx context.Context, sc *orchestration.StepContext) error {
+					return runSummaryStep(ctx, sc, cfg)
+				},
+			},
+			{
+				Name: "validate", Critical: false, MaxRetries: 0,
+				Timeout: 1 * time.Minute, Model: "claude-haiku",
+				Run: func(ctx context.Context, sc *orchestration.StepContext) error {
+					return runValidateStep(ctx, sc, cfg)
+				},
+			},
+		},
 	}
 }
 
-func (w *GenerationJobWorker) recoverStuckJobs() {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	stuck, err := w.cfg.JobRepo.ListStuck(ctx, w.cfg.LeaseTime*2)
-	if err != nil {
-		slog.Warn("failed to list stuck jobs", "error", err)
-		return
-	}
-	for _, j := range stuck {
-		j.Status = domain.JobStatusFailed
-		j.Error = "stuck (worker restart or crash)"
-		if err := w.cfg.JobRepo.Update(ctx, j); err != nil {
-			slog.Error("failed to mark stuck job as failed", "jobId", j.ID, "error", err)
-		} else {
-			slog.Warn("marked stuck job as failed", "jobId", j.ID, "genId", j.GenID)
+func getSceneText(ctx context.Context, genRepo repository.GenerationRepository, scene *domain.Scene, genID string) string {
+	sceneText, _ := func() (string, error) {
+		g, err := genRepo.Get(ctx, genID)
+		if err != nil || g == nil {
+			return "", err
 		}
-
-		if j.GenID != "" {
-			if gen, err := w.cfg.GenRepo.Get(ctx, j.GenID); err == nil && gen != nil {
-				gen.Status = domain.GenStatusFailed
-				gen.Error = "worker restart during generation"
-				_ = w.cfg.GenRepo.Update(ctx, gen)
-			}
-		}
-	}
-}
-
-func (w *GenerationJobWorker) processNext() {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	job, err := w.cfg.JobRepo.PickPending(ctx, domain.JobTypeGenerateScene, w.cfg.LeaseTime)
-	if err != nil {
-		slog.Error("failed to pick pending job", "error", err)
-		return
-	}
-	if job == nil {
-		return
-	}
-
-	slog.Info("picked generation job", "jobId", job.ID, "sceneId", job.SceneID, "attempt", job.Attempts)
-
-	go func() {
-		if _, loaded := w.genInFlight.LoadOrStore(job.SceneID, true); loaded {
-			slog.Warn("generation already in flight for scene, skipping job", "sceneId", job.SceneID, "jobId", job.ID)
-			w.failJob(job, "generation already in flight")
-			return
-		}
-		defer w.genInFlight.Delete(job.SceneID)
-
-		pCtx, pCancel := context.WithTimeout(context.Background(), w.cfg.LeaseTime)
-		defer pCancel()
-
-		start := time.Now()
-		gen, err := w.cfg.GenRepo.Get(pCtx, job.GenID)
-		if err != nil || gen == nil {
-			w.failJob(job, fmt.Sprintf("generation not found: %v", err))
-			return
-		}
-
-		gen.Status = domain.GenStatusRunning
-		_ = w.cfg.GenRepo.Update(pCtx, gen)
-
-		scene, err := w.cfg.SceneRepo.Get(pCtx, job.SceneID)
-		if err != nil || scene == nil {
-			w.failJob(job, fmt.Sprintf("scene not found: %v", err))
-			gen.Status = domain.GenStatusFailed
-			gen.Error = "scene not found"
-			_ = w.cfg.GenRepo.Update(pCtx, gen)
-			return
-		}
-
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("pipeline panic", "genId", gen.ID, "jobId", job.ID, "recover", r)
-				gen.Status = domain.GenStatusFailed
-				gen.Error = fmt.Sprintf("pipeline panic: %v", r)
-				_ = w.cfg.GenRepo.Update(context.Background(), gen)
-				w.failJob(job, fmt.Sprintf("pipeline panic: %v", r))
-			}
-		}()
-
-		w.runPipeline(pCtx, gen, scene, job)
-
-		elapsed := time.Since(start)
-		if fresh, err := w.cfg.GenRepo.Get(pCtx, gen.ID); err == nil && fresh != nil {
-			fresh.DurationMs = elapsed.Milliseconds()
-			fresh.UpdatedAt = time.Now()
-			_ = w.cfg.GenRepo.Update(pCtx, fresh)
-		}
-
-		job.Status = domain.JobStatusDone
-		_ = w.cfg.JobRepo.Update(pCtx, job)
-
-		slog.Info("generation job complete", "jobId", job.ID, "genId", gen.ID, "duration", elapsed)
+		return g.Output, nil
 	}()
-}
-
-func (w *GenerationJobWorker) failJob(job *domain.Job, errMsg string) {
-	job.Status = domain.JobStatusFailed
-	job.Error = errMsg
-	_ = w.cfg.JobRepo.Update(context.Background(), job)
-}
-
-func (w *GenerationJobWorker) setStepStatus(ctx context.Context, genID, step, status string) {
-	if err := w.cfg.GenRepo.SetStepStatus(ctx, genID, step, status); err != nil {
-		slog.Error("set step status failed", "genId", genID, "step", step, "status", status, "error", err)
+	if sceneText == "" {
+		sceneText = scene.GeneratedContent
 	}
-	if w.cfg.Progress != nil {
-		w.cfg.Progress.Publish(genID, ProgressEvent{GenID: genID, Step: step, Status: status})
+	return sceneText
+}
+
+func publishEvent(eventBus events.Bus, evt events.Event) {
+	if eventBus != nil {
+		eventBus.Publish(context.Background(), evt)
 	}
 }
 
-func (w *GenerationJobWorker) publishEvent(ctx context.Context, evt events.Event) {
-	if w.cfg.EventBus != nil {
-		w.cfg.EventBus.Publish(ctx, evt)
-	}
-}
-
-func (w *GenerationJobWorker) setGenError(ctx context.Context, genID, errMsg string) {
-	gen, err := w.cfg.GenRepo.Get(ctx, genID)
-	if err != nil || gen == nil {
-		return
-	}
-	gen.Error = errMsg
-	_ = w.cfg.GenRepo.Update(ctx, gen)
-}
-
-func (w *GenerationJobWorker) setGenStatus(ctx context.Context, genID, status string) {
-	gen, err := w.cfg.GenRepo.Get(ctx, genID)
+func setGenStatus(ctx context.Context, genRepo repository.GenerationRepository, genID, status string) {
+	gen, err := genRepo.Get(ctx, genID)
 	if err != nil || gen == nil {
 		return
 	}
 	gen.Status = status
-	_ = w.cfg.GenRepo.Update(ctx, gen)
+	_ = genRepo.Update(ctx, gen)
 }
 
-func (w *GenerationJobWorker) runStep(ctx context.Context, genID, stepName string, fn func(context.Context) error) bool {
-	w.setStepStatus(ctx, genID, stepName, domain.StepRunning)
-
-	var lastErr error
-	for attempt := 0; attempt < 3; attempt++ {
-		if attempt > 0 {
-			slog.Info("retrying step", "genId", genID, "step", stepName, "attempt", attempt)
-		}
-		lastErr = fn(ctx)
-		if lastErr == nil {
-			w.setStepStatus(ctx, genID, stepName, domain.StepDone)
-			return true
-		}
-		if ctx.Err() != nil {
-			break
-		}
+func runGenerateStep(ctx context.Context, sc *orchestration.StepContext, cfg GenerationJobWorkerConfig) error {
+	gen, err := cfg.GenRepo.Get(ctx, sc.GenID)
+	if err != nil || gen == nil {
+		return fmt.Errorf("generation not found: %w", err)
 	}
 
-	slog.Error("step failed after retries", "genId", genID, "step", stepName, "error", lastErr)
-	w.setStepStatus(ctx, genID, stepName, domain.StepFailed)
-	return false
-}
-
-func (w *GenerationJobWorker) runNonCriticalStep(ctx context.Context, genID, stepName string, fn func(context.Context) error) {
-	if ctx.Err() != nil {
-		return
+	scene, err := cfg.SceneRepo.Get(ctx, sc.SceneID)
+	if err != nil || scene == nil {
+		gen.Status = domain.GenStatusFailed
+		gen.Error = "scene not found"
+		_ = cfg.GenRepo.Update(ctx, gen)
+		return fmt.Errorf("scene not found: %w", err)
 	}
-	w.setStepStatus(ctx, genID, stepName, domain.StepRunning)
-	if err := fn(ctx); err != nil {
-		slog.Warn("non-critical step failed", "genId", genID, "step", stepName, "error", err)
-		w.setStepStatus(ctx, genID, stepName, domain.StepFailed)
-		return
-	}
-	w.setStepStatus(ctx, genID, stepName, domain.StepDone)
-}
 
-func (w *GenerationJobWorker) runPipeline(ctx context.Context, gen *domain.Generation, scene *domain.Scene, job *domain.Job) {
-	genWorker := worker.NewGenerateSceneWorker(w.cfg.ProseSvc, w.cfg.GenRepo, w.cfg.SceneRepo)
-	extractWorker := worker.NewExtractStateWorker(w.cfg.ExtractSvc, w.cfg.StateRepo)
-	memWorker := worker.NewMemoryUpdateWorker(w.cfg.MemRepo, w.cfg.EmbeddingSvc)
-	tlWorker := worker.NewTimelineWorker(w.cfg.TlRepo, w.cfg.EdgeRepo, w.cfg.BibleRepo)
-	sumWorker := worker.NewSummaryWorker(w.cfg.SummarySvc, w.cfg.SumRepo)
-	valWorker := worker.NewValidationWorker(w.cfg.ValidateSvc, w.cfg.GenRepo)
+	gen.Status = domain.GenStatusRunning
+	_ = cfg.GenRepo.Update(ctx, gen)
 
-	slog.Info("generation pipeline starting", "genId", gen.ID, "jobId", job.ID)
+	genWorker := worker.NewGenerateSceneWorker(cfg.ProseSvc, cfg.GenRepo, cfg.SceneRepo)
+	extractWorker := worker.NewExtractStateWorker(cfg.ExtractSvc, cfg.StateRepo)
+	memWorker := worker.NewMemoryUpdateWorker(cfg.MemRepo, cfg.EmbeddingSvc)
+	tlWorker := worker.NewTimelineWorker(cfg.TlRepo, cfg.EdgeRepo, cfg.BibleRepo)
+	sumWorker := worker.NewSummaryWorker(cfg.SummarySvc, cfg.SumRepo)
+	valWorker := worker.NewValidationWorker(cfg.ValidateSvc, cfg.GenRepo)
 
-	if w.cfg.SceneValidator != nil {
-		violations := w.cfg.SceneValidator.ValidatePreGeneration(ctx, scene)
+	cfg.Progress.Publish(gen.ID, ProgressEvent{GenID: gen.ID, Step: "generate", Status: "running"})
+	if cfg.SceneValidator != nil {
+		violations := cfg.SceneValidator.ValidatePreGeneration(ctx, scene)
 		for _, v := range violations {
 			slog.Warn("pre-generation validation", "genId", gen.ID, "severity", v.Severity, "field", v.Field, "message", v.Message)
 		}
 	}
 
-	criticalFailed := false
-	anyFailed := false
-
 	var builtContext *BuiltContext
-
-	if w.cfg.ContextBldr != nil {
-		bCtx, err := w.cfg.ContextBldr.Build(ctx, scene)
+	if cfg.ContextBldr != nil {
+		bCtx, err := cfg.ContextBldr.Build(ctx, scene)
 		if err != nil {
 			slog.Warn("context builder failed, falling back to simple params", "genId", gen.ID, "error", err)
-			builtContext = nil
 		} else {
 			builtContext = bCtx
 		}
@@ -309,7 +208,6 @@ func (w *GenerationJobWorker) runPipeline(ctx context.Context, gen *domain.Gener
 		}
 		params = builtContext.Params
 
-		// Record context hash and prompt snapshot for observability.
 		cc := &llm.CompiledContext{
 			CharacterCards: builtContext.Params.CharacterCards,
 			LocationCard:   builtContext.Params.LocationCard,
@@ -337,13 +235,10 @@ func (w *GenerationJobWorker) runPipeline(ctx context.Context, gen *domain.Gener
 			gen.ContextHash = h
 		}
 		gen.PromptSnapshot = cc.BuildScenePromptSnapshot()
-		_ = w.cfg.GenRepo.Update(ctx, gen)
+		_ = cfg.GenRepo.Update(ctx, gen)
 
-		// Context-hash dedup: if an accepted generation with the same hash exists,
-		// skip the LLM call and reuse its output. This avoids re-generating identical
-		// context (same characters, states, lore, beat intent, tone, etc.).
 		if contextHash != "" {
-			existing, err := w.cfg.GenRepo.FindByContextHash(ctx, scene.StoryID, contextHash)
+			existing, err := cfg.GenRepo.FindByContextHash(ctx, scene.StoryID, contextHash)
 			if err == nil && existing != nil && existing.Output != "" && existing.ID != gen.ID {
 				slog.Info("context hash cache hit, reusing generation",
 					"sceneId", scene.ID, "genId", gen.ID, "existingGenId", existing.ID,
@@ -354,23 +249,17 @@ func (w *GenerationJobWorker) runPipeline(ctx context.Context, gen *domain.Gener
 				gen.TotalTokens = existing.TotalTokens
 				gen.Status = domain.GenStatusSuccess
 				gen.StepStatus = map[string]string{
-					domain.StepGenerate:     "cached",
-					domain.StepExtract:      "skipped",
-					domain.StepMemory:       "skipped",
-					domain.StepTimeline:     "skipped",
-					domain.StepSummary:      "skipped",
-					domain.StepValidate:     "skipped",
+					domain.StepGenerate: "cached",
+					domain.StepExtract:  "skipped",
+					domain.StepMemory:   "skipped",
+					domain.StepTimeline: "skipped",
+					domain.StepSummary:  "skipped",
+					domain.StepValidate: "skipped",
 				}
-				_ = w.cfg.GenRepo.Update(ctx, gen)
+				_ = cfg.GenRepo.Update(ctx, gen)
 				scene.GeneratedContent = gen.Output
-				_ = w.cfg.SceneRepo.Update(ctx, scene)
-				job.Status = domain.JobStatusDone
-				_ = w.cfg.JobRepo.Update(ctx, job)
-				w.publishEvent(ctx, events.Event{
-					Type: events.EventPipelineComplete, StoryID: scene.StoryID, SceneID: scene.ID, GenID: gen.ID,
-					Data: map[string]any{"status": domain.GenStatusSuccess, "cached": true},
-				})
-				return
+				_ = cfg.SceneRepo.Update(ctx, scene)
+				return nil
 			}
 		}
 	} else {
@@ -382,187 +271,224 @@ func (w *GenerationJobWorker) runPipeline(ctx context.Context, gen *domain.Gener
 		}
 	}
 
-	if w.cfg.AgentSvc != nil && w.cfg.AgentSvc.IsAgentScene(scene) {
+	sc.Artifacts["charNameToID"] = charNameToID
+
+	if cfg.AgentSvc != nil && cfg.AgentSvc.IsAgentScene(scene) {
 		slog.Info("hybrid pipeline: using agent orchestrator for generation", "sceneId", scene.ID)
-		if !w.runStep(ctx, gen.ID, domain.StepGenerate, func(sCtx context.Context) error {
-			output, err := w.cfg.AgentSvc.GenerateSceneHybrid(sCtx, scene, gen)
-			if err != nil {
-				return err
-			}
-			scene.GeneratedContent = output
-			_ = w.cfg.SceneRepo.Update(sCtx, scene)
-			gen.Output = output
-			return w.cfg.GenRepo.Update(sCtx, gen)
-		}) {
-			criticalFailed = true
-			anyFailed = true
+		output, err := cfg.AgentSvc.GenerateSceneHybrid(ctx, scene, gen)
+		if err != nil {
+			return err
 		}
-	} else if !w.runStep(ctx, gen.ID, domain.StepGenerate, func(sCtx context.Context) error {
-		_, err := genWorker.Work(sCtx, worker.GenerateSceneArgs{
-			SceneID: scene.ID,
-			GenID:   gen.ID,
-			Context: params,
-		})
+		scene.GeneratedContent = output
+		_ = cfg.SceneRepo.Update(ctx, scene)
+		gen.Output = output
+		return cfg.GenRepo.Update(ctx, gen)
+	}
+
+	_, err = genWorker.Work(ctx, worker.GenerateSceneArgs{
+		SceneID: scene.ID,
+		GenID:   gen.ID,
+		Context: params,
+	})
+	if err != nil {
 		return err
-	}) {
-		criticalFailed = true
-		anyFailed = true
 	}
 
-	w.publishEvent(ctx, events.Event{
+	publishEvent(cfg.EventBus, events.Event{
 		Type: events.EventSceneGenerated, StoryID: scene.StoryID, SceneID: scene.ID, GenID: gen.ID,
-		Data: map[string]any{"criticalFailed": criticalFailed},
 	})
 
-	sceneText, _ := func() (string, error) {
-		g, err := w.cfg.GenRepo.Get(ctx, gen.ID)
-		if err != nil || g == nil {
-			return "", err
-		}
-		return g.Output, nil
-	}()
+	sc.Artifacts["genWorker"] = genWorker
+	sc.Artifacts["extractWorker"] = extractWorker
+	sc.Artifacts["memWorker"] = memWorker
+	sc.Artifacts["tlWorker"] = tlWorker
+	sc.Artifacts["sumWorker"] = sumWorker
+	sc.Artifacts["valWorker"] = valWorker
+
+	if elapsed := time.Since(gen.CreatedAt); elapsed > 0 {
+		gen.DurationMs = elapsed.Milliseconds()
+		gen.UpdatedAt = time.Now()
+		_ = cfg.GenRepo.Update(ctx, gen)
+	}
+
+	return nil
+}
+
+func runExtractStep(ctx context.Context, sc *orchestration.StepContext, cfg GenerationJobWorkerConfig) error {
+	scene, err := cfg.SceneRepo.Get(ctx, sc.SceneID)
+	if err != nil || scene == nil {
+		return fmt.Errorf("scene not found: %w", err)
+	}
+
+	charNameToID := sc.Artifacts["charNameToID"]
+	charMap, _ := charNameToID.(map[string]string)
+
+	extractWorker := worker.NewExtractStateWorker(cfg.ExtractSvc, cfg.StateRepo)
+	sceneText := getSceneText(ctx, cfg.GenRepo, scene, sc.GenID)
 	if sceneText == "" {
-		sceneText = scene.GeneratedContent
+		return nil
 	}
 
-	if !criticalFailed && sceneText != "" {
-		if !w.runStep(ctx, gen.ID, domain.StepExtract, func(sCtx context.Context) error {
-			return extractWorker.Work(sCtx, worker.ExtractStateArgs{
-				StoryID: scene.StoryID, SceneID: scene.ID, SceneText: sceneText,
-				CharacterRefs: scene.Participants, CharNameToID: charNameToID,
-			})
-		}) {
-			anyFailed = true
-		}
-		w.publishEvent(ctx, events.Event{
-			Type: events.EventCharacterStatesExtracted, StoryID: scene.StoryID, SceneID: scene.ID, GenID: gen.ID,
-		})
+	if err := extractWorker.Work(ctx, worker.ExtractStateArgs{
+		StoryID: scene.StoryID, SceneID: scene.ID, SceneText: sceneText,
+		CharacterRefs: scene.Participants, CharNameToID: charMap,
+	}); err != nil {
+		return err
+	}
 
-		if w.cfg.SceneValidator != nil {
-			newStates, _ := w.cfg.StateRepo.ListByScene(ctx, scene.ID)
-			var checks []validation.PostGenerationCheck
-			for _, ns := range newStates {
-				check := validation.PostGenerationCheck{
-					CharacterID: ns.CharacterID,
-					NewLocation: ns.Location,
-					Learned:     extractLearned(ns.Changes),
-				}
-				prevStates, _ := w.cfg.StateRepo.ListByCharacter(ctx, ns.CharacterID)
-				for _, ps := range prevStates {
-					if ps.SceneID != scene.ID {
-						check.PreviousLocation = ps.Location
-						check.PreviousKnowledge = ps.Knowledge
-						break
-					}
-				}
-				checks = append(checks, check)
+	publishEvent(cfg.EventBus, events.Event{
+		Type: events.EventCharacterStatesExtracted, StoryID: scene.StoryID, SceneID: scene.ID, GenID: sc.GenID,
+	})
+
+	if cfg.SceneValidator != nil {
+		newStates, _ := cfg.StateRepo.ListByScene(ctx, scene.ID)
+		var checks []validation.PostGenerationCheck
+		for _, ns := range newStates {
+			check := validation.PostGenerationCheck{
+				CharacterID: ns.CharacterID,
+				NewLocation: ns.Location,
+				Learned:     extractLearned(ns.Changes),
 			}
-			violations := w.cfg.SceneValidator.ValidatePostGeneration(ctx, scene, checks)
-			for _, v := range violations {
-				slog.Warn("post-generation validation", "genId", gen.ID, "severity", v.Severity, "field", v.Field, "message", v.Message)
+			prevStates, _ := cfg.StateRepo.ListByCharacter(ctx, ns.CharacterID)
+			for _, ps := range prevStates {
+				if ps.SceneID != scene.ID {
+					check.PreviousLocation = ps.Location
+					check.PreviousKnowledge = ps.Knowledge
+					break
+				}
 			}
+			checks = append(checks, check)
+		}
+		violations := cfg.SceneValidator.ValidatePostGeneration(ctx, scene, checks)
+		for _, v := range violations {
+			slog.Warn("post-generation validation", "genId", sc.GenID, "severity", v.Severity, "field", v.Field, "message", v.Message)
 		}
 	}
 
-	if sceneText != "" {
-		w.runNonCriticalStep(ctx, gen.ID, domain.StepMemory, func(sCtx context.Context) error {
-			for _, charID := range scene.Participants {
-				if err := memWorker.Work(sCtx, worker.MemoryUpdateArgs{
-					StoryID: scene.StoryID, CharacterID: charID, SceneID: scene.ID,
-					Content: sceneText, Importance: 0.5,
-				}); err != nil {
-					slog.Error("memory step failed", "genId", gen.ID, "charId", charID, "error", err)
-				}
-			}
-			return nil
-		})
-		w.publishEvent(ctx, events.Event{
-			Type: events.EventMemoriesCreated, StoryID: scene.StoryID, SceneID: scene.ID, GenID: gen.ID,
-		})
+	return nil
+}
+
+func runMemoryStep(ctx context.Context, sc *orchestration.StepContext, cfg GenerationJobWorkerConfig) error {
+	scene, err := cfg.SceneRepo.Get(ctx, sc.SceneID)
+	if err != nil || scene == nil {
+		return fmt.Errorf("scene not found: %w", err)
 	}
 
-	w.runNonCriticalStep(ctx, gen.ID, domain.StepTimeline, func(sCtx context.Context) error {
-		return tlWorker.Work(sCtx, worker.TimelineArgs{
-			StoryID: scene.StoryID, SceneID: scene.ID,
-			Title: scene.Title, Order: scene.TimelinePosition,
-		})
+	memWorker := worker.NewMemoryUpdateWorker(cfg.MemRepo, cfg.EmbeddingSvc)
+	sceneText := getSceneText(ctx, cfg.GenRepo, scene, sc.GenID)
+	if sceneText == "" {
+		return nil
+	}
+
+	for _, charID := range scene.Participants {
+		if err := memWorker.Work(ctx, worker.MemoryUpdateArgs{
+			StoryID: scene.StoryID, CharacterID: charID, SceneID: scene.ID,
+			Content: sceneText, Importance: 0.5,
+		}); err != nil {
+			slog.Error("memory step failed", "genId", sc.GenID, "charId", charID, "error", err)
+		}
+	}
+
+	publishEvent(cfg.EventBus, events.Event{
+		Type: events.EventMemoriesCreated, StoryID: scene.StoryID, SceneID: scene.ID, GenID: sc.GenID,
 	})
-	w.publishEvent(ctx, events.Event{
-		Type: events.EventTimelineRecorded, StoryID: scene.StoryID, SceneID: scene.ID, GenID: gen.ID,
+	return nil
+}
+
+func runTimelineStep(ctx context.Context, sc *orchestration.StepContext, cfg GenerationJobWorkerConfig) error {
+	scene, err := cfg.SceneRepo.Get(ctx, sc.SceneID)
+	if err != nil || scene == nil {
+		return fmt.Errorf("scene not found: %w", err)
+	}
+
+	tlWorker := worker.NewTimelineWorker(cfg.TlRepo, cfg.EdgeRepo, cfg.BibleRepo)
+	if err := tlWorker.Work(ctx, worker.TimelineArgs{
+		StoryID: scene.StoryID, SceneID: scene.ID,
+		Title: scene.Title, Order: scene.TimelinePosition,
+	}); err != nil {
+		return err
+	}
+
+	publishEvent(cfg.EventBus, events.Event{
+		Type: events.EventTimelineRecorded, StoryID: scene.StoryID, SceneID: scene.ID, GenID: sc.GenID,
 	})
+	return nil
+}
 
-	if sceneText != "" {
-		w.runNonCriticalStep(ctx, gen.ID, domain.StepSummary, func(sCtx context.Context) error {
-			prevSummary := ""
-			if existing, _ := w.cfg.SumRepo.GetByLevel(sCtx, scene.StoryID, domain.SummaryLevelStory); existing != nil {
-				prevSummary = existing.Content
-			}
-			return sumWorker.Work(sCtx, worker.SummaryArgs{
-				StoryID: scene.StoryID, SceneID: scene.ID,
-				PreviousSummary: prevSummary,
-				AcceptedScene:   sceneText,
-			})
-		})
-		w.publishEvent(ctx, events.Event{
-			Type: events.EventSummaryUpdated, StoryID: scene.StoryID, SceneID: scene.ID, GenID: gen.ID,
-		})
+func runSummaryStep(ctx context.Context, sc *orchestration.StepContext, cfg GenerationJobWorkerConfig) error {
+	scene, err := cfg.SceneRepo.Get(ctx, sc.SceneID)
+	if err != nil || scene == nil {
+		return fmt.Errorf("scene not found: %w", err)
 	}
 
-	if sceneText != "" {
-		w.runNonCriticalStep(ctx, gen.ID, domain.StepValidate, func(sCtx context.Context) error {
-			canonXML := ""
-			if story, _ := w.cfg.StoryRepo.Get(sCtx, scene.StoryID); story != nil {
-				if len(story.CanonPins) > 0 {
-					b, err := json.Marshal(story.CanonPins)
-					if err != nil {
-						slog.Error("marshal canon pins", "genId", gen.ID, "error", err)
-					} else {
-						canonXML = string(b)
-					}
-				}
-			}
-			charState := ""
-			if states, _ := w.cfg.StateRepo.ListByScene(sCtx, scene.ID); len(states) > 0 {
-				b, err := json.Marshal(states)
-				if err != nil {
-					slog.Error("marshal char states", "genId", gen.ID, "error", err)
-				} else {
-					charState = string(b)
-				}
-			}
-			return valWorker.Work(sCtx, worker.ValidateArgs{
-				GenerationID: gen.ID, CanonXML: canonXML, CharState: charState, SceneText: sceneText,
-			})
-		})
-		w.publishEvent(ctx, events.Event{
-			Type: events.EventSceneValidated, StoryID: scene.StoryID, SceneID: scene.ID, GenID: gen.ID,
-		})
+	sumWorker := worker.NewSummaryWorker(cfg.SummarySvc, cfg.SumRepo)
+	sceneText := getSceneText(ctx, cfg.GenRepo, scene, sc.GenID)
+	if sceneText == "" {
+		return nil
 	}
 
-	switch {
-	case criticalFailed:
-		w.setGenStatus(ctx, gen.ID, domain.GenStatusFailed)
-		w.setGenError(ctx, gen.ID, "generate step failed after retries")
-		w.failJob(job, "generate step failed after retries")
-		slog.Error("generation pipeline failed", "genId", gen.ID)
-		w.publishEvent(ctx, events.Event{
-			Type: events.EventPipelineFailed, StoryID: scene.StoryID, SceneID: scene.ID, GenID: gen.ID,
-		})
-	case anyFailed:
-		w.setGenStatus(ctx, gen.ID, domain.GenStatusPartialSuccess)
-		slog.Warn("generation pipeline completed with partial failures", "genId", gen.ID)
-		w.publishEvent(ctx, events.Event{
-			Type: events.EventPipelineComplete, StoryID: scene.StoryID, SceneID: scene.ID, GenID: gen.ID,
-			Data: map[string]any{"status": domain.GenStatusPartialSuccess},
-		})
-	default:
-		w.setGenStatus(ctx, gen.ID, domain.GenStatusSuccess)
-		slog.Info("generation pipeline complete", "genId", gen.ID)
-		w.publishEvent(ctx, events.Event{
-			Type: events.EventPipelineComplete, StoryID: scene.StoryID, SceneID: scene.ID, GenID: gen.ID,
-			Data: map[string]any{"status": domain.GenStatusSuccess},
-		})
+	prevSummary := ""
+	if existing, _ := cfg.SumRepo.GetByLevel(ctx, scene.StoryID, domain.SummaryLevelStory); existing != nil {
+		prevSummary = existing.Content
 	}
+
+	if err := sumWorker.Work(ctx, worker.SummaryArgs{
+		StoryID: scene.StoryID, SceneID: scene.ID,
+		PreviousSummary: prevSummary,
+		AcceptedScene:   sceneText,
+	}); err != nil {
+		return err
+	}
+
+	publishEvent(cfg.EventBus, events.Event{
+		Type: events.EventSummaryUpdated, StoryID: scene.StoryID, SceneID: scene.ID, GenID: sc.GenID,
+	})
+	return nil
+}
+
+func runValidateStep(ctx context.Context, sc *orchestration.StepContext, cfg GenerationJobWorkerConfig) error {
+	scene, err := cfg.SceneRepo.Get(ctx, sc.SceneID)
+	if err != nil || scene == nil {
+		return fmt.Errorf("scene not found: %w", err)
+	}
+
+	valWorker := worker.NewValidationWorker(cfg.ValidateSvc, cfg.GenRepo)
+	sceneText := getSceneText(ctx, cfg.GenRepo, scene, sc.GenID)
+	if sceneText == "" {
+		return nil
+	}
+
+	canonXML := ""
+	if story, _ := cfg.StoryRepo.Get(ctx, scene.StoryID); story != nil {
+		if len(story.CanonPins) > 0 {
+			b, err := json.Marshal(story.CanonPins)
+			if err != nil {
+				slog.Error("marshal canon pins", "error", err)
+			} else {
+				canonXML = string(b)
+			}
+		}
+	}
+	charState := ""
+	if states, _ := cfg.StateRepo.ListByScene(ctx, scene.ID); len(states) > 0 {
+		b, err := json.Marshal(states)
+		if err != nil {
+			slog.Error("marshal char states", "error", err)
+		} else {
+			charState = string(b)
+		}
+	}
+
+	if err := valWorker.Work(ctx, worker.ValidateArgs{
+		GenerationID: sc.GenID, CanonXML: canonXML, CharState: charState, SceneText: sceneText,
+	}); err != nil {
+		return err
+	}
+
+	publishEvent(cfg.EventBus, events.Event{
+		Type: events.EventSceneValidated, StoryID: scene.StoryID, SceneID: scene.ID, GenID: sc.GenID,
+	})
+	return nil
 }
 
 func extractLearned(changes map[string]any) []string {

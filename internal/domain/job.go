@@ -3,19 +3,22 @@ package domain
 import "time"
 
 type Job struct {
-	ID         string     `bson:"_id" json:"id"`
-	Type       string     `bson:"type" json:"type"`
-	Status     string     `bson:"status" json:"status"`
-	StoryID    string     `bson:"storyId" json:"storyId"`
-	SceneID    string     `bson:"sceneId" json:"sceneId"`
-	GenID      string     `bson:"genId,omitempty" json:"genId,omitempty"`
-	RunID      string     `bson:"runId,omitempty" json:"runId,omitempty"`
-	Error      string     `bson:"error,omitempty" json:"error,omitempty"`
-	Attempts   int        `bson:"attempts" json:"attempts"`
-	MaxRetries int        `bson:"maxRetries" json:"maxRetries"`
-	LeaseUntil *time.Time `bson:"leaseUntil,omitempty" json:"leaseUntil,omitempty"`
-	CreatedAt  time.Time  `bson:"createdAt" json:"createdAt"`
-	UpdatedAt  time.Time  `bson:"updatedAt" json:"updatedAt"`
+	ID          string     `bson:"_id" json:"id"`
+	Type        string     `bson:"type" json:"type"`
+	Status      string     `bson:"status" json:"status"`
+	StoryID     string     `bson:"storyId" json:"storyId"`
+	SceneID     string     `bson:"sceneId" json:"sceneId"`
+	GenID       string     `bson:"genId,omitempty" json:"genId,omitempty"`
+	RunID       string     `bson:"runId,omitempty" json:"runId,omitempty"`
+	Error       string     `bson:"error,omitempty" json:"error,omitempty"`
+	Attempts    int        `bson:"attempts" json:"attempts"`
+	MaxRetries  int        `bson:"maxRetries" json:"maxRetries"`
+	WorkerID    string     `bson:"workerId,omitempty" json:"workerId,omitempty"`
+	HeartbeatAt *time.Time `bson:"heartbeatAt,omitempty" json:"heartbeatAt,omitempty"`
+	LeaseUntil  *time.Time `bson:"leaseUntil,omitempty" json:"leaseUntil,omitempty"`
+	Version     int        `bson:"version" json:"version"`
+	CreatedAt   time.Time  `bson:"createdAt" json:"createdAt"`
+	UpdatedAt   time.Time  `bson:"updatedAt" json:"updatedAt"`
 }
 
 const (
@@ -23,10 +26,11 @@ const (
 )
 
 const (
-	JobStatusPending = "pending"
-	JobStatusRunning = "running"
-	JobStatusDone    = "done"
-	JobStatusFailed  = "failed"
+	JobStatusPending    = "pending"
+	JobStatusRunning    = "running"
+	JobStatusDone       = "done"
+	JobStatusFailed     = "failed"
+	JobStatusDeadLetter = "dead_letter"
 )
 
 type StoryRun struct {
@@ -48,19 +52,22 @@ type StoryRun struct {
 }
 
 type RunStep struct {
-	ID         string         `bson:"_id" json:"id"`
-	RunID      string         `bson:"runId" json:"runId"`
-	StepName   string         `bson:"stepName" json:"stepName"`
-	Status     string         `bson:"status" json:"status"`
-	StartedAt  *time.Time     `bson:"startedAt,omitempty" json:"startedAt,omitempty"`
-	FinishedAt *time.Time     `bson:"finishedAt,omitempty" json:"finishedAt,omitempty"`
-	PromptHash string         `bson:"promptHash,omitempty" json:"promptHash,omitempty"`
-	Model      string         `bson:"model,omitempty" json:"model,omitempty"`
-	TokensIn   int            `bson:"tokensIn,omitempty" json:"tokensIn,omitempty"`
-	TokensOut  int            `bson:"tokensOut,omitempty" json:"tokensOut,omitempty"`
-	Error      string         `bson:"error,omitempty" json:"error,omitempty"`
-	Artifacts  map[string]any `bson:"artifacts,omitempty" json:"artifacts,omitempty"`
-	CreatedAt  time.Time      `bson:"createdAt" json:"createdAt"`
+	ID               string         `bson:"_id" json:"id"`
+	RunID            string         `bson:"runId" json:"runId"`
+	StepName         string         `bson:"stepName" json:"stepName"`
+	Status           string         `bson:"status" json:"status"`
+	StartedAt        *time.Time     `bson:"startedAt,omitempty" json:"startedAt,omitempty"`
+	FinishedAt       *time.Time     `bson:"finishedAt,omitempty" json:"finishedAt,omitempty"`
+	PromptHash       string         `bson:"promptHash,omitempty" json:"promptHash,omitempty"`
+	Model            string         `bson:"model,omitempty" json:"model,omitempty"`
+	TokensIn         int            `bson:"tokensIn,omitempty" json:"tokensIn,omitempty"`
+	TokensOut        int            `bson:"tokensOut,omitempty" json:"tokensOut,omitempty"`
+	Error            string         `bson:"error,omitempty" json:"error,omitempty"`
+	Artifacts        map[string]any `bson:"artifacts,omitempty" json:"artifacts,omitempty"`
+	OutputSnippet    string         `bson:"outputSnippet,omitempty" json:"outputSnippet,omitempty"`
+	PromptSnippet    string         `bson:"promptSnippet,omitempty" json:"promptSnippet,omitempty"`
+	EstimatedCostUSD float64        `bson:"estimatedCostUsd,omitempty" json:"estimatedCostUsd,omitempty"`
+	CreatedAt        time.Time      `bson:"createdAt" json:"createdAt"`
 }
 
 const (
@@ -86,3 +93,13 @@ const (
 	StepStatusFailed  = "failed"
 	StepStatusSkipped = "skipped"
 )
+
+type SceneLock struct {
+	SceneID    string    `bson:"_id"`
+	StoryID    string    `bson:"storyId"`
+	GenID      string    `bson:"genId,omitempty"`
+	WorkerID   string    `bson:"workerId"`
+	AcquiredAt time.Time `bson:"acquiredAt"`
+	TTL        time.Time `bson:"ttl"`
+	Version    int       `bson:"version"`
+}
