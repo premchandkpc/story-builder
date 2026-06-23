@@ -38,7 +38,10 @@ func (r *SceneRepo) Get(ctx context.Context, id string) (*domain.Scene, error) {
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
-	return &s, err
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
 }
 
 func (r *SceneRepo) Update(ctx context.Context, s *domain.Scene) error {

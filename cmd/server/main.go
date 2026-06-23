@@ -91,5 +91,8 @@ func main() {
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		slog.Error("http shutdown error", "error", err)
 	}
+	if err := db.Client().Disconnect(shutdownCtx); err != nil {
+		slog.Error("mongo disconnect error", "error", err)
+	}
 	slog.Info("server stopped")
 }

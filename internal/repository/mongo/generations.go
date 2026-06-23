@@ -42,7 +42,10 @@ func (r *GenerationRepo) Get(ctx context.Context, id string) (*domain.Generation
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
-	return &g, err
+	if err != nil {
+		return nil, err
+	}
+	return &g, nil
 }
 
 func (r *GenerationRepo) Update(ctx context.Context, g *domain.Generation) error {
@@ -56,7 +59,10 @@ func (r *GenerationRepo) FindByContextHash(ctx context.Context, storyID, hash st
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
-	return &g, err
+	if err != nil {
+		return nil, err
+	}
+	return &g, nil
 }
 
 func (r *GenerationRepo) ListByScene(ctx context.Context, sceneID string) ([]*domain.Generation, error) {

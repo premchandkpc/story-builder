@@ -32,7 +32,10 @@ func (r *CharacterStateRepo) Get(ctx context.Context, characterID, sceneID strin
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
-	return &s, err
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
 }
 
 func (r *CharacterStateRepo) ListByCharacter(ctx context.Context, characterID string) ([]*domain.CharacterState, error) {

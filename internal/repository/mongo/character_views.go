@@ -32,10 +32,17 @@ func (r *CharacterViewRepo) Get(ctx context.Context, charID string) (*domain.Cha
 
 func (r *CharacterViewRepo) Upsert(ctx context.Context, view *domain.CharacterView) error {
 	view.UpdatedAt = time.Now()
+	setFields := bson.M{
+		"storyId":      view.StoryID,
+		"currentState": view.CurrentState,
+		"eventIds":     view.EventIDs,
+		"version":      view.Version,
+		"updatedAt":    view.UpdatedAt,
+	}
 	_, err := r.coll.UpdateOne(
 		ctx,
 		bson.M{"_id": view.CharacterID},
-		bson.M{"$set": view},
+		bson.M{"$set": setFields},
 		options.Update().SetUpsert(true),
 	)
 	return err

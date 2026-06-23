@@ -2,6 +2,7 @@ package mongo
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -21,7 +22,6 @@ func NewSummaryRepo(db *mongo.Database) *SummaryRepo {
 }
 
 func (r *SummaryRepo) Upsert(ctx context.Context, s *domain.Summary) error {
-	s.CreatedAt = time.Now()
 	filter := bson.M{"storyId": s.StoryID}
 	if s.SceneID != "" {
 		filter["sceneId"] = s.SceneID
@@ -31,10 +31,15 @@ func (r *SummaryRepo) Upsert(ctx context.Context, s *domain.Summary) error {
 	var existing domain.Summary
 	if err := r.coll.FindOne(ctx, filter).Decode(&existing); err == nil {
 		s.ID = existing.ID
-	} else if s.ID == "" {
-		s.ID = primitive.NewObjectID().Hex()
+		s.CreatedAt = existing.CreatedAt
+	} else if mongo.ErrNoDocuments == err {
+		s.CreatedAt = time.Now()
+		if s.ID == "" {
+			s.ID = primitive.NewObjectID().Hex()
+		}
+	} else {
+		return fmt.Errorf("find existing summary: %w", err)
 	}
-
 	_, err := r.coll.ReplaceOne(ctx, filter, s, options.Replace().SetUpsert(true))
 	return err
 }
@@ -45,7 +50,10 @@ func (r *SummaryRepo) GetByLevel(ctx context.Context, storyID, level string) (*d
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
-	return &s, err
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
 }
 
 func (r *SummaryRepo) GetSceneSummary(ctx context.Context, storyID, sceneID string) (*domain.Summary, error) {
@@ -54,7 +62,10 @@ func (r *SummaryRepo) GetSceneSummary(ctx context.Context, storyID, sceneID stri
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
-	return &s, err
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
 }
 
 func (r *SummaryRepo) DeleteByStory(ctx context.Context, storyID string) error {

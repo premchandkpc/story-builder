@@ -39,7 +39,10 @@ func (r *JobRepo) Get(ctx context.Context, id string) (*domain.Job, error) {
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
-	return &j, err
+	if err != nil {
+		return nil, err
+	}
+	return &j, nil
 }
 
 func (r *JobRepo) Update(ctx context.Context, j *domain.Job) error {
@@ -53,11 +56,11 @@ func (r *JobRepo) PickPending(ctx context.Context, jobType string, leaseTime tim
 	leaseUntil := now.Add(leaseTime)
 
 	filter := bson.M{
-		"type":   jobType,
-		"status": domain.JobStatusPending,
+		"type": jobType,
 		"$or": []bson.M{
-			{"leaseUntil": nil},
-			{"leaseUntil": bson.M{"$lt": now}},
+			{"status": domain.JobStatusPending, "leaseUntil": nil},
+			{"status": domain.JobStatusPending, "leaseUntil": bson.M{"$lt": now}},
+			{"status": domain.JobStatusRunning, "leaseUntil": bson.M{"$lt": now}},
 		},
 	}
 	update := bson.M{
@@ -78,7 +81,10 @@ func (r *JobRepo) PickPending(ctx context.Context, jobType string, leaseTime tim
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
-	return &j, err
+	if err != nil {
+		return nil, err
+	}
+	return &j, nil
 }
 
 func (r *JobRepo) Heartbeat(ctx context.Context, id string, leaseDuration time.Duration) error {

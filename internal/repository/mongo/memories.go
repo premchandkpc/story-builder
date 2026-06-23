@@ -2,6 +2,7 @@ package mongo
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -49,15 +50,16 @@ func (r *MemoryRepo) Search(ctx context.Context, storyID, characterID string, qu
 		pipeline := mongo.Pipeline{
 			{{Key: "$match", Value: filter}},
 			{{Key: "$vectorSearch", Value: bson.M{
-				"queryVector":  query,
-				"path":         "embedding",
+				"queryVector":   query,
+				"path":          "embedding",
 				"numCandidates": limit * 10,
-				"limit":        limit,
-				"index":        "memory_vector_index",
+				"limit":         limit,
+				"index":         "memory_vector_index",
 			}}},
 		}
 		cursor, err := r.coll.Aggregate(ctx, pipeline)
 		if err != nil {
+			slog.Warn("vector search failed, falling back to importance search", "storyId", storyID, "characterId", characterID, "error", err)
 			return r.searchByImportance(ctx, storyID, characterID, limit)
 		}
 		var mems []*domain.CharacterMemory

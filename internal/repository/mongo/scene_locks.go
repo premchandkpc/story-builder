@@ -57,5 +57,8 @@ func (r *SceneLockRepo) Get(ctx context.Context, sceneID string) (*domain.SceneL
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
-	return &lock, err
+	if err != nil {
+		return nil, err
+	}
+	return &lock, nil
 }

@@ -35,7 +35,10 @@ func (r *SceneTurnRepo) Get(ctx context.Context, id string) (*domain.SceneTurn, 
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
-	return &t, err
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
 }
 
 func (r *SceneTurnRepo) Update(ctx context.Context, t *domain.SceneTurn) error {

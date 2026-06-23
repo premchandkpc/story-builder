@@ -3,23 +3,23 @@ package domain
 import "time"
 
 type Job struct {
-	ID          string     `bson:"_id" json:"id"`
-	Type        string     `bson:"type" json:"type"`
-	Status      string     `bson:"status" json:"status"`
-	StoryID     string     `bson:"storyId" json:"storyId"`
-	SceneID     string     `bson:"sceneId" json:"sceneId"`
-	GenID       string     `bson:"genId,omitempty" json:"genId,omitempty"`
-	RunID       string     `bson:"runId,omitempty" json:"runId,omitempty"`
-	Error       string     `bson:"error,omitempty" json:"error,omitempty"`
-	Attempts    int        `bson:"attempts" json:"attempts"`
-	MaxRetries  int        `bson:"maxRetries" json:"maxRetries"`
-	WorkerID    string     `bson:"workerId,omitempty" json:"workerId,omitempty"`
-	HeartbeatAt *time.Time `bson:"heartbeatAt,omitempty" json:"heartbeatAt,omitempty"`
+	ID               string     `bson:"_id" json:"id"`
+	Type             string     `bson:"type" json:"type"`
+	Status           string     `bson:"status" json:"status"`
+	StoryID          string     `bson:"storyId" json:"storyId"`
+	SceneID          string     `bson:"sceneId" json:"sceneId"`
+	GenID            string     `bson:"genId,omitempty" json:"genId,omitempty"`
+	RunID            string     `bson:"runId,omitempty" json:"runId,omitempty"`
+	Error            string     `bson:"error,omitempty" json:"error,omitempty"`
+	Attempts         int        `bson:"attempts" json:"attempts"`
+	MaxRetries       int        `bson:"maxRetries" json:"maxRetries"`
+	WorkerID         string     `bson:"workerId,omitempty" json:"workerId,omitempty"`
+	HeartbeatAt      *time.Time `bson:"heartbeatAt,omitempty" json:"heartbeatAt,omitempty"`
 	LeaseUntil       *time.Time `bson:"leaseUntil,omitempty" json:"leaseUntil,omitempty"`
 	DeadLetterReason string     `bson:"deadLetterReason,omitempty" json:"deadLetterReason,omitempty"`
 	Version          int        `bson:"version" json:"version"`
-	CreatedAt   time.Time  `bson:"createdAt" json:"createdAt"`
-	UpdatedAt   time.Time  `bson:"updatedAt" json:"updatedAt"`
+	CreatedAt        time.Time  `bson:"createdAt" json:"createdAt"`
+	UpdatedAt        time.Time  `bson:"updatedAt" json:"updatedAt"`
 }
 
 const (
@@ -72,10 +72,10 @@ type RunStep struct {
 }
 
 const (
-	RunTypeGenerateScene   = "generate_scene"
-	RunTypeRebuildSummary  = "rebuild_summary"
-	RunTypeExtractState    = "extract_state"
-	RunTypeValidate        = "validate"
+	RunTypeGenerateScene  = "generate_scene"
+	RunTypeRebuildSummary = "rebuild_summary"
+	RunTypeExtractState   = "extract_state"
+	RunTypeValidate       = "validate"
 )
 
 const (
@@ -96,11 +96,11 @@ const (
 )
 
 type SceneLock struct {
-	SceneID    string    `bson:"_id"`
-	StoryID    string    `bson:"storyId"`
-	GenID      string    `bson:"genId,omitempty"`
-	WorkerID   string    `bson:"workerId"`
-	AcquiredAt time.Time `bson:"acquiredAt"`
-	TTL        time.Time `bson:"ttl"`
-	Version    int       `bson:"version"`
+	SceneID    string    `bson:"_id" json:"scene_id"`
+	StoryID    string    `bson:"storyId" json:"story_id"`
+	GenID      string    `bson:"genId,omitempty" json:"gen_id,omitempty"`
+	WorkerID   string    `bson:"workerId" json:"worker_id"`
+	AcquiredAt time.Time `bson:"acquiredAt" json:"acquired_at"`
+	TTL        time.Time `bson:"ttl" json:"ttl"`
+	Version    int       `bson:"version" json:"version"`
 }

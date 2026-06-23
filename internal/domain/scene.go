@@ -6,29 +6,29 @@ import (
 )
 
 type Scene struct {
-	ID               string                 `bson:"_id" json:"id"`
-	StoryID          string                 `bson:"storyId" json:"storyId"`
-	ChapterID        string                 `bson:"chapterId,omitempty" json:"chapterId,omitempty"`
-	Title            string                 `bson:"title,omitempty" json:"title,omitempty"`
-	BeatIntent       string                 `bson:"beatIntent,omitempty" json:"beatIntent,omitempty"`
-	Summary          string                 `bson:"summary,omitempty" json:"summary,omitempty"`
-	GeneratedContent string                 `bson:"generatedContent,omitempty" json:"generatedContent,omitempty"`
-	Participants     []string               `bson:"participants,omitempty" json:"participants,omitempty"`
-	LocationRef      string                 `bson:"locationRef,omitempty" json:"locationRef,omitempty"`
-	POV              string                 `bson:"pov,omitempty" json:"pov,omitempty"`
-	Tone             string                 `bson:"tone,omitempty" json:"tone,omitempty"`
-	TargetWords      int                    `bson:"targetWords,omitempty" json:"targetWords,omitempty"`
-	FlowType         string                 `bson:"flowType,omitempty" json:"flowType,omitempty"`
-	MaxTurns         int                    `bson:"maxTurns,omitempty" json:"maxTurns,omitempty"`
-	TimelinePosition int                    `bson:"timelinePosition,omitempty" json:"timelinePosition,omitempty"`
-	PositionX        *float64               `bson:"positionX,omitempty" json:"positionX,omitempty"`
-	PositionY        *float64               `bson:"positionY,omitempty" json:"positionY,omitempty"`
-	Status           string                 `bson:"status" json:"status"`
-	AcceptedGenerationID string             `bson:"acceptedGenerationId,omitempty" json:"acceptedGenerationId,omitempty"`
-	SceneStructure   map[string]any         `bson:"sceneStructure,omitempty" json:"sceneStructure,omitempty"`
-	Metadata         map[string]any         `bson:"metadata,omitempty" json:"metadata,omitempty"`
-	CreatedAt        time.Time              `bson:"createdAt" json:"createdAt"`
-	UpdatedAt        time.Time              `bson:"updatedAt" json:"updatedAt"`
+	ID                   string         `bson:"_id" json:"id"`
+	StoryID              string         `bson:"storyId" json:"storyId"`
+	ChapterID            string         `bson:"chapterId,omitempty" json:"chapterId,omitempty"`
+	Title                string         `bson:"title,omitempty" json:"title,omitempty"`
+	BeatIntent           string         `bson:"beatIntent,omitempty" json:"beatIntent,omitempty"`
+	Summary              string         `bson:"summary,omitempty" json:"summary,omitempty"`
+	GeneratedContent     string         `bson:"generatedContent,omitempty" json:"generatedContent,omitempty"`
+	Participants         []string       `bson:"participants,omitempty" json:"participants,omitempty"`
+	LocationRef          string         `bson:"locationRef,omitempty" json:"locationRef,omitempty"`
+	POV                  string         `bson:"pov,omitempty" json:"pov,omitempty"`
+	Tone                 string         `bson:"tone,omitempty" json:"tone,omitempty"`
+	TargetWords          int            `bson:"targetWords,omitempty" json:"targetWords,omitempty"`
+	FlowType             string         `bson:"flowType,omitempty" json:"flowType,omitempty"`
+	MaxTurns             int            `bson:"maxTurns,omitempty" json:"maxTurns,omitempty"`
+	TimelinePosition     int            `bson:"timelinePosition,omitempty" json:"timelinePosition,omitempty"`
+	PositionX            *float64       `bson:"positionX,omitempty" json:"positionX,omitempty"`
+	PositionY            *float64       `bson:"positionY,omitempty" json:"positionY,omitempty"`
+	Status               string         `bson:"status" json:"status"`
+	AcceptedGenerationID string         `bson:"acceptedGenerationId,omitempty" json:"acceptedGenerationId,omitempty"`
+	SceneStructure       map[string]any `bson:"sceneStructure,omitempty" json:"sceneStructure,omitempty"`
+	Metadata             map[string]any `bson:"metadata,omitempty" json:"metadata,omitempty"`
+	CreatedAt            time.Time      `bson:"createdAt" json:"createdAt"`
+	UpdatedAt            time.Time      `bson:"updatedAt" json:"updatedAt"`
 }
 
 type SceneEdge struct {
@@ -88,12 +88,12 @@ const (
 )
 
 const (
-	StepGenerate  = "generate"
-	StepExtract   = "extract"
-	StepMemory    = "memory"
-	StepTimeline  = "timeline"
-	StepSummary   = "summary"
-	StepValidate  = "validate"
+	StepGenerate = "generate"
+	StepExtract  = "extract"
+	StepMemory   = "memory"
+	StepTimeline = "timeline"
+	StepSummary  = "summary"
+	StepValidate = "validate"
 )
 
 const (
@@ -125,6 +125,9 @@ var validSceneTransitions = map[string][]string{
 }
 
 func (s *Scene) CanTransitionTo(target string) error {
+	if s == nil {
+		return fmt.Errorf("cannot transition nil scene")
+	}
 	allowed, ok := validSceneTransitions[s.Status]
 	if !ok {
 		return fmt.Errorf("unknown scene status: %s", s.Status)

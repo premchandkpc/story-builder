@@ -39,7 +39,10 @@ func (r *CharacterRepo) Get(ctx context.Context, id string) (*domain.Character, 
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
-	return &c, err
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
 }
 
 func (r *CharacterRepo) GetLatest(ctx context.Context, charID string) (*domain.Character, error) {
@@ -49,7 +52,10 @@ func (r *CharacterRepo) GetLatest(ctx context.Context, charID string) (*domain.C
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
-	return &c, err
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
 }
 
 func (r *CharacterRepo) ListByStory(ctx context.Context, storyID string) ([]*domain.Character, error) {

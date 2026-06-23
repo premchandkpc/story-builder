@@ -13,14 +13,14 @@ import (
 )
 
 type ContextBuilder struct {
-	bibleRepo   repository.BibleRepository
-	storyRepo   repository.StoryRepository
-	charRepo    repository.CharacterRepository
-	stateRepo   repository.CharacterStateRepository
-	locRepo     repository.LocationRepository
-	memRepo     repository.MemoryRepository
-	sumRepo     repository.SummaryRepository
-	tlRepo      repository.TimelineRepository
+	bibleRepo repository.BibleRepository
+	storyRepo repository.StoryRepository
+	charRepo  repository.CharacterRepository
+	stateRepo repository.CharacterStateRepository
+	locRepo   repository.LocationRepository
+	memRepo   repository.MemoryRepository
+	sumRepo   repository.SummaryRepository
+	tlRepo    repository.TimelineRepository
 }
 
 func NewContextBuilder(
@@ -161,20 +161,24 @@ func (b *ContextBuilder) buildCharacterStates(ctx context.Context, scene *domain
 		}
 
 		states, err := b.stateRepo.ListByCharacter(ctx, charID)
-		if err != nil || len(states) == 0 {
+		if err != nil {
+			slog.Warn("context: list char state", "charId", charID, "error", err)
+			continue
+		}
+		if len(states) == 0 {
 			continue
 		}
 
 		latest := states[len(states)-1]
 		cs := llm.CharacterState{
-			StoryID:       latest.StoryID,
-			CharacterID:   latest.CharacterID,
-			AsOfScene:     latest.SceneID,
-			Location:      latest.Location,
-			Mood:          latest.Mood,
-			Knows:         latest.Knowledge,
-			DoesNotKnow:   latest.DoesNotKnow,
-			Items:         latest.Inventory,
+			StoryID:     latest.StoryID,
+			CharacterID: latest.CharacterID,
+			AsOfScene:   latest.SceneID,
+			Location:    latest.Location,
+			Mood:        latest.Mood,
+			Knows:       latest.Knowledge,
+			DoesNotKnow: latest.DoesNotKnow,
+			Items:       latest.Inventory,
 		}
 		if latest.Relationships != nil {
 			cs.Relationships = latest.Relationships
@@ -200,7 +204,11 @@ func (b *ContextBuilder) buildLocationContext(ctx context.Context, scene *domain
 	}
 
 	locs, err := b.locRepo.ListByStory(ctx, scene.StoryID)
-	if err != nil || len(locs) == 0 {
+	if err != nil {
+		slog.Warn("context: list locations", "storyId", scene.StoryID, "error", err)
+		return
+	}
+	if len(locs) == 0 {
 		return
 	}
 
@@ -258,7 +266,11 @@ func (b *ContextBuilder) buildLocationContext(ctx context.Context, scene *domain
 
 func (b *ContextBuilder) buildBibleContext(ctx context.Context, scene *domain.Scene, built *BuiltContext) {
 	bible, err := b.bibleRepo.GetByStory(ctx, scene.StoryID)
-	if err != nil || bible == nil {
+	if err != nil {
+		slog.Warn("context: get bible", "storyId", scene.StoryID, "error", err)
+		return
+	}
+	if bible == nil {
 		return
 	}
 
@@ -321,7 +333,11 @@ func (b *ContextBuilder) buildMemoryContext(ctx context.Context, scene *domain.S
 	memories := make(map[string][]string)
 	for charID := range participantIDs {
 		mems, err := b.memRepo.ListByCharacter(ctx, charID)
-		if err != nil || len(mems) == 0 {
+		if err != nil {
+			slog.Warn("context: list memories", "charId", charID, "error", err)
+			continue
+		}
+		if len(mems) == 0 {
 			continue
 		}
 		charName, ok := nameByID[charID]
@@ -349,7 +365,11 @@ func (b *ContextBuilder) buildMemoryContext(ctx context.Context, scene *domain.S
 
 func (b *ContextBuilder) buildTimelineContext(ctx context.Context, scene *domain.Scene, built *BuiltContext) {
 	events, err := b.tlRepo.ListByStory(ctx, scene.StoryID)
-	if err != nil || len(events) == 0 {
+	if err != nil {
+		slog.Warn("context: list timeline", "storyId", scene.StoryID, "error", err)
+		return
+	}
+	if len(events) == 0 {
 		return
 	}
 
@@ -391,7 +411,11 @@ func (b *ContextBuilder) buildSummaryContext(ctx context.Context, scene *domain.
 
 func (b *ContextBuilder) buildBlueprintContext(ctx context.Context, scene *domain.Scene, built *BuiltContext) {
 	story, err := b.storyRepo.Get(ctx, scene.StoryID)
-	if err != nil || story == nil || story.Blueprint == nil {
+	if err != nil {
+		slog.Warn("context: get story", "storyId", scene.StoryID, "error", err)
+		return
+	}
+	if story == nil || story.Blueprint == nil {
 		return
 	}
 

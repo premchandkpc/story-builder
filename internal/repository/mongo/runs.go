@@ -39,7 +39,10 @@ func (r *RunRepo) Get(ctx context.Context, id string) (*domain.StoryRun, error) 
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
-	return &run, err
+	if err != nil {
+		return nil, err
+	}
+	return &run, nil
 }
 
 func (r *RunRepo) ListByStory(ctx context.Context, storyID string, limit int) ([]*domain.StoryRun, error) {

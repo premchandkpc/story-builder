@@ -34,7 +34,10 @@ func (r *LocationRepo) GetByName(ctx context.Context, storyID, name string) (*do
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
-	return &l, err
+	if err != nil {
+		return nil, err
+	}
+	return &l, nil
 }
 
 func (r *LocationRepo) Get(ctx context.Context, id string) (*domain.Location, error) {
@@ -43,7 +46,10 @@ func (r *LocationRepo) Get(ctx context.Context, id string) (*domain.Location, er
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
-	return &l, err
+	if err != nil {
+		return nil, err
+	}
+	return &l, nil
 }
 
 func (r *LocationRepo) ListByStory(ctx context.Context, storyID string) ([]*domain.Location, error) {

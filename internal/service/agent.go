@@ -92,7 +92,9 @@ func (s *AgentService) GenerateScene(ctx context.Context, sceneID string) (*doma
 
 	agentCtx, err := s.buildContext(ctx, scene)
 	if err != nil {
-		s.genRepo.Update(ctx, &domain.Generation{ID: gen.ID, Status: domain.GenStatusFailed, Error: err.Error()})
+		if uerr := s.genRepo.Update(ctx, &domain.Generation{ID: gen.ID, Status: domain.GenStatusFailed, Error: err.Error()}); uerr != nil {
+			slog.Error("agent: update gen on build context error", "genId", gen.ID, "error", uerr)
+		}
 		return nil, fmt.Errorf("build context: %w", err)
 	}
 
@@ -105,7 +107,9 @@ func (s *AgentService) GenerateScene(ctx context.Context, sceneID string) (*doma
 
 	plan, err := s.orchestrator.Plan(ctx, scene)
 	if err != nil {
-		s.genRepo.Update(ctx, &domain.Generation{ID: gen.ID, Status: domain.GenStatusFailed, Error: err.Error()})
+		if uerr := s.genRepo.Update(ctx, &domain.Generation{ID: gen.ID, Status: domain.GenStatusFailed, Error: err.Error()}); uerr != nil {
+			slog.Error("agent: update gen on plan error", "genId", gen.ID, "error", uerr)
+		}
 		return nil, fmt.Errorf("orchestrator plan: %w", err)
 	}
 
@@ -114,7 +118,9 @@ func (s *AgentService) GenerateScene(ctx context.Context, sceneID string) (*doma
 		slog.Error("orchestrator execute failed", "sceneId", sceneID, "error", err)
 		gen.Status = domain.GenStatusFailed
 		gen.Error = err.Error()
-		s.genRepo.Update(ctx, gen)
+		if uerr := s.genRepo.Update(ctx, gen); uerr != nil {
+			slog.Error("agent: update gen on execute error", "genId", gen.ID, "error", uerr)
+		}
 		return gen, nil
 	}
 
