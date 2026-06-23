@@ -8,6 +8,8 @@ import (
 	"github.com/premchand/story-builder/internal/api"
 	"github.com/premchand/story-builder/internal/cache"
 	"github.com/premchand/story-builder/internal/config"
+	"github.com/premchand/story-builder/internal/event"
+	"github.com/premchand/story-builder/internal/event/rules"
 	"github.com/premchand/story-builder/internal/events"
 	"github.com/premchand/story-builder/internal/llm"
 	"github.com/premchand/story-builder/internal/prompt"
@@ -39,6 +41,8 @@ type appDependencies struct {
 	progressHub  *api.ProgressHub
 	eventBus     events.Bus
 	agentSvc     *service.AgentService
+	runSvc       *service.RunService
+	narrativeSvc *service.NarrativeEventService
 }
 
 func initAll(cfg config.Config, db *mongo.Database) appDependencies {
@@ -148,6 +152,19 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 	embedSvc := llm.NewOpenCodeEmbeddingService(cfg.OpenCodeURL, "nomic-embed-text")
 	sceneValidator := validation.NewSceneValidator(charRepo, locRepo)
 
+	narrativeEventRepo := mgorepo.NewNarrativeEventRepo(db)
+	charViewRepo := mgorepo.NewCharacterViewRepo(db)
+	sceneLockRepo := mgorepo.NewSceneLockRepo(db)
+	eventExtractor := event.NewEventExtractor()
+	eventValidator := event.NewEventValidator([]event.EventValidationRule{
+		&rules.DeadCharacterCannotAct{},
+		&rules.TimelineMonotonicity{},
+		rules.NewLocationConsistency(nil),
+		&rules.ValueBounds{},
+		&rules.DuplicateDetector{},
+	})
+	_, _ = charViewRepo, sceneLockRepo
+
 	agentRegistry := agents.NewAgentRegistry()
 	agents.RegisterAll(agentRegistry, router, proseSvc, extractSvc, validateSvc)
 	slog.Info("agent registry initialized", "count", len(agentRegistry.List()))
@@ -190,6 +207,8 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 		SummarySvc: summarySvc, ValidateSvc: validateSvc,
 		ContextBldr: contextBldr, EventBus: eventBus,
 		EmbeddingSvc: embedSvc, SceneValidator: sceneValidator,
+		EventRepo: narrativeEventRepo, EventExtractor: eventExtractor,
+		EventValidator: eventValidator,
 		Progress: progressHub, AgentSvc: agentSvc,
 		PollInterval: 5 * time.Second,
 		LeaseTime:    5 * time.Minute,
@@ -198,6 +217,8 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 	tlSvc := service.NewTimelineService(tlRepo)
 	sumSvc := service.NewSummaryService(sumRepo)
 	memSvc := service.NewMemoryService(memRepo, embedSvc)
+	runSvc := service.NewRunService(runRepo, stepRepo, jobRepo)
+	narrativeSvc := service.NewNarrativeEventService(narrativeEventRepo)
 	metricsSvc := service.NewMetricsService(genRepo)
 	criticSvc := service.NewCriticScoresService(genRepo, sceneRepo)
 	agentCfgRepo := mgorepo.NewAgentConfigRepo(db)
@@ -215,5 +236,7 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 		progressHub:  progressHub,
 		eventBus:     eventBus,
 		agentSvc:     agentSvc,
+		runSvc:       runSvc,
+		narrativeSvc: narrativeSvc,
 	}
 }

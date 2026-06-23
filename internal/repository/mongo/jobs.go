@@ -81,11 +81,11 @@ func (r *JobRepo) PickPending(ctx context.Context, jobType string, leaseTime tim
 	return &j, err
 }
 
-func (r *JobRepo) Heartbeat(ctx context.Context, id string) error {
+func (r *JobRepo) Heartbeat(ctx context.Context, id string, leaseDuration time.Duration) error {
 	now := time.Now()
 	_, err := r.coll.UpdateOne(ctx,
 		bson.M{"_id": id},
-		bson.M{"$set": bson.M{"heartbeatAt": now, "updatedAt": now}},
+		bson.M{"$set": bson.M{"heartbeatAt": now, "leaseUntil": now.Add(leaseDuration), "updatedAt": now}},
 	)
 	return err
 }
@@ -125,8 +125,8 @@ func (r *JobRepo) ListPending(ctx context.Context) ([]*domain.Job, error) {
 func (r *JobRepo) ListStuck(ctx context.Context, threshold time.Duration) ([]*domain.Job, error) {
 	cutoff := time.Now().Add(-threshold)
 	cursor, err := r.coll.Find(ctx, bson.M{
-		"status":    domain.JobStatusRunning,
-		"updatedAt": bson.M{"$lt": cutoff},
+		"status":      domain.JobStatusRunning,
+		"heartbeatAt": bson.M{"$lt": cutoff},
 	})
 	if err != nil {
 		return nil, err

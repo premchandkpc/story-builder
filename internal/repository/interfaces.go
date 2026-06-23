@@ -119,7 +119,7 @@ type JobRepository interface {
 	PickPending(ctx context.Context, jobType string, leaseTime time.Duration, workerID string) (*domain.Job, error)
 	ListPending(ctx context.Context) ([]*domain.Job, error)
 	ListStuck(ctx context.Context, threshold time.Duration) ([]*domain.Job, error)
-	Heartbeat(ctx context.Context, id string) error
+	Heartbeat(ctx context.Context, id string, leaseDuration time.Duration) error
 	ListByStatus(ctx context.Context, status string) ([]*domain.Job, error)
 	IncrementAttempt(ctx context.Context, id string) error
 }
@@ -147,8 +147,18 @@ type RunStepRepository interface {
 
 type NarrativeEventRepository interface {
 	Append(ctx context.Context, e *domain.NarrativeEvent) error
+	AppendMany(ctx context.Context, events []*domain.NarrativeEvent) error
 	ListByStory(ctx context.Context, storyID string, limit int) ([]*domain.NarrativeEvent, error)
 	ListByScene(ctx context.Context, sceneID string, limit int) ([]*domain.NarrativeEvent, error)
+	ListBySubject(ctx context.Context, storyID, subjectID string, limit int) ([]*domain.NarrativeEvent, error)
+	LatestVersion(ctx context.Context, storyID string) (int64, error)
+	DeleteByStory(ctx context.Context, storyID string) error
+}
+
+type CharacterViewRepository interface {
+	Get(ctx context.Context, charID string) (*domain.CharacterView, error)
+	Upsert(ctx context.Context, view *domain.CharacterView) error
+	ListByStory(ctx context.Context, storyID string) ([]*domain.CharacterView, error)
 	DeleteByStory(ctx context.Context, storyID string) error
 }
 

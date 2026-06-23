@@ -53,9 +53,12 @@ func main() {
 		deps.metricsSvc, deps.criticSvc, deps.agentCfgSvc,
 		deps.progressHub, deps.eventBus,
 		deps.agentSvc, deps.agentSvc,
+		deps.runSvc, deps.narrativeSvc,
 	)
 
-	srv := api.NewServer(h, deps.rateLimiter)
+	srv := api.NewServer(h, deps.rateLimiter, func(ctx context.Context) error {
+		return db.Client().Ping(ctx, nil)
+	})
 	httpServer := &http.Server{
 		Addr:         ":" + cfg.Port,
 		Handler:      srv.Router,

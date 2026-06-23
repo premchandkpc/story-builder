@@ -30,14 +30,14 @@ func (r *SceneLockRepo) Acquire(ctx context.Context, lock *domain.SceneLock) (bo
 		},
 	}
 	update := bson.M{
-		"$setOnInsert": bson.M{
+		"$set": bson.M{
 			"storyId":    lock.StoryID,
 			"genId":      lock.GenID,
 			"workerId":   lock.WorkerID,
 			"acquiredAt": lock.AcquiredAt,
 			"ttl":        lock.TTL,
-			"version":    1,
 		},
+		"$inc": bson.M{"version": 1},
 	}
 	result, err := r.coll.UpdateOne(ctx, filter, update, opts)
 	if err != nil {

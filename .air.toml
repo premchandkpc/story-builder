@@ -1,0 +1,18 @@
+root = "."
+tmp_dir = "tmp/"
+
+[build]
+  cmd = "go build -o tmp/server ./cmd/server"
+  bin = "tmp/server"
+  delay = 1000
+  exclude_dir = ["web", "tmp", "vendor", "test", ".agents", ".claude", "docs"]
+  include_ext = ["go", "tpl", "tmpl", "html"]
+
+[log]
+  time = true
+
+[color]
+  main = "cyan"
+  watcher = "green"
+  build = "yellow"
+  runner = "magenta"

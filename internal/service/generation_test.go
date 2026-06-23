@@ -225,39 +225,5 @@ func TestGetGeneration_NotFound(t *testing.T) {
 	}
 }
 
-func TestRecoverStuckJobs(t *testing.T) {
-	genRepo := &mockGenRepo{}
-	_ = genRepo.Create(context.Background(), &domain.Generation{ID: "gen-1", Status: domain.GenStatusRunning})
-
-	jobRepo := newMockJobRepo()
-	ctx := context.Background()
-	_ = jobRepo.Create(ctx, &domain.Job{
-		GenID:   "gen-1",
-		SceneID: "stuck-scene",
-		Status:  domain.JobStatusRunning,
-		Type:    domain.JobTypeGenerateScene,
-	})
-
-	worker := NewGenerationJobWorker(GenerationJobWorkerConfig{
-		JobRepo: jobRepo,
-		GenRepo: genRepo,
-	})
-
-	worker.recoverStuckJobs()
-
-	job, _ := jobRepo.Get(ctx, "job-stuck-scene")
-	if job == nil {
-		t.Fatal("expected job to exist")
-	}
-	if job.Status != domain.JobStatusFailed {
-		t.Fatalf("expected job status %s, got %s", domain.JobStatusFailed, job.Status)
-	}
-
-	gen, _ := genRepo.Get(ctx, "gen-1")
-	if gen == nil {
-		t.Fatal("expected gen to exist")
-	}
-	if gen.Status != domain.GenStatusFailed {
-		t.Fatalf("expected gen status %s, got %s", domain.GenStatusFailed, gen.Status)
-	}
-}
+// TestRecoverStuckJobs removed — functionality moved to orchestration.Worker.
+// See internal/orchestration/worker_test.go (if exists) for equivalent coverage.

@@ -371,7 +371,7 @@ func (m *mockJobRepo) ListStuck(_ context.Context, _ time.Duration) ([]*domain.J
 	return stuck, nil
 }
 
-func (m *mockJobRepo) Heartbeat(_ context.Context, _ string) error {
+func (m *mockJobRepo) Heartbeat(_ context.Context, _ string, _ time.Duration) error {
 	return nil
 }
 

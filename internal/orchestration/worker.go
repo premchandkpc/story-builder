@@ -13,6 +13,7 @@ import (
 
 type WorkerConfig struct {
 	JobRepo        repository.JobRepository
+	GenRepo        repository.GenerationRepository
 	Recorder       *RunRecorder
 	Pipelines      []*PipelineDef
 	PollInterval   time.Duration
@@ -103,6 +104,13 @@ func (w *Worker) recoverStuckJobs() {
 		} else {
 			slog.Warn("marked stuck job as failed", "jobId", job.ID, "genId", job.GenID)
 		}
+		if job.GenID != "" && w.cfg.GenRepo != nil {
+			if gen, err := w.cfg.GenRepo.Get(ctx, job.GenID); err == nil && gen != nil && gen.Status == domain.GenStatusRunning {
+				gen.Status = domain.GenStatusPending
+				_ = w.cfg.GenRepo.Update(ctx, gen)
+				slog.Warn("reset generation status to pending", "genId", job.GenID)
+			}
+		}
 	}
 }
 
@@ -162,7 +170,7 @@ func (w *Worker) heartbeatLoop(ctx context.Context, jobID string) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := w.cfg.JobRepo.Heartbeat(ctx, jobID); err != nil {
+			if err := w.cfg.JobRepo.Heartbeat(ctx, jobID, w.cfg.LeaseTime); err != nil {
 				slog.Warn("heartbeat failed", "jobId", jobID, "error", err)
 			}
 		}
@@ -171,8 +179,11 @@ func (w *Worker) heartbeatLoop(ctx context.Context, jobID string) {
 
 func (w *Worker) executePipeline(ctx context.Context, pipe *PipelineDef, job *domain.Job) {
 	slog.Info("pipeline executing",
-		"pipeline", pipe.Name, "jobId", job.ID,
-		"sceneId", job.SceneID, "genId", job.GenID,
+		"pipeline", pipe.Name,
+		"storyId", job.StoryID,
+		"jobId", job.ID,
+		"sceneId", job.SceneID,
+		"genId", job.GenID,
 	)
 
 	run, err := w.cfg.Recorder.CreateRun(ctx, job.StoryID, job.SceneID, job.GenID, pipe.RunType)
@@ -208,12 +219,13 @@ func (w *Worker) executePipeline(ctx context.Context, pipe *PipelineDef, job *do
 		}
 
 		_ = w.cfg.Recorder.UpdateRunStep(ctx, run.ID, step.Name, domain.StepStatusRunning)
+		stepStart := time.Now()
 		result := w.runStep(ctx, step, stepCtx)
 		recordOpts := StepRecordOptions{
-			Status:    result.Status,
-			StartedAt: timePtr(time.Now()),
-			FinishedAt: timePtr(time.Now().Add(result.Duration)),
-			Error:     result.Error,
+			Status:     result.Status,
+			StartedAt:  timePtr(stepStart),
+			FinishedAt: timePtr(stepStart.Add(result.Duration)),
+			Error:      result.Error,
 		}
 		_ = w.cfg.Recorder.RecordStep(ctx, run.ID, step.Name, recordOpts)
 
@@ -222,15 +234,25 @@ func (w *Worker) executePipeline(ctx context.Context, pipe *PipelineDef, job *do
 			if step.Critical {
 				criticalFailed = true
 				slog.Error("critical step failed, aborting pipeline",
-					"pipeline", pipe.Name, "step", step.Name, "error", result.Error)
+					"pipeline", pipe.Name, "storyId", job.StoryID,
+					"jobId", job.ID, "step", step.Name,
+					"duration", result.Duration, "error", result.Error)
 				_ = w.cfg.Recorder.CompleteRun(ctx, run.ID, domain.RunStatusFailed, step.Name, result.Error)
 				w.failJob(ctx, job, result.Error)
 				return
 			}
 			slog.Warn("non-critical step failed, continuing",
-				"pipeline", pipe.Name, "step", step.Name, "error", result.Error)
+				"pipeline", pipe.Name, "storyId", job.StoryID,
+				"jobId", job.ID, "step", step.Name,
+				"duration", result.Duration, "error", result.Error)
 		}
 	}
+
+	slog.Info("pipeline finished",
+		"pipeline", pipe.Name, "storyId", job.StoryID,
+		"jobId", job.ID, "sceneId", job.SceneID,
+		"criticalFailed", criticalFailed, "anyFailed", anyFailed,
+	)
 
 	switch {
 	case criticalFailed:

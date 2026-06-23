@@ -129,9 +129,12 @@ func EnsureIndexes(ctx context.Context, db *mongo.Database) error {
 			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "createdAt", Value: -1}}},
 			{Keys: bson.D{{Key: "sceneId", Value: 1}, {Key: "createdAt", Value: -1}}},
 			{Keys: bson.D{{Key: "eventType", Value: 1}}},
+			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "subjectId", Value: 1}, {Key: "createdAt", Value: -1}}},
+		},
+		"character_views": {
+			{Keys: bson.D{{Key: "storyId", Value: 1}}},
 		},
 		"scene_locks": {
-			{Keys: bson.D{{Key: "sceneId", Value: 1}}, Options: options.Index().SetUnique(true)},
 			{Keys: bson.D{{Key: "ttl", Value: 1}}, Options: options.Index().SetExpireAfterSeconds(0)},
 		},
 	}

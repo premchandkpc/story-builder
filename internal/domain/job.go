@@ -15,8 +15,9 @@ type Job struct {
 	MaxRetries  int        `bson:"maxRetries" json:"maxRetries"`
 	WorkerID    string     `bson:"workerId,omitempty" json:"workerId,omitempty"`
 	HeartbeatAt *time.Time `bson:"heartbeatAt,omitempty" json:"heartbeatAt,omitempty"`
-	LeaseUntil  *time.Time `bson:"leaseUntil,omitempty" json:"leaseUntil,omitempty"`
-	Version     int        `bson:"version" json:"version"`
+	LeaseUntil       *time.Time `bson:"leaseUntil,omitempty" json:"leaseUntil,omitempty"`
+	DeadLetterReason string     `bson:"deadLetterReason,omitempty" json:"deadLetterReason,omitempty"`
+	Version          int        `bson:"version" json:"version"`
 	CreatedAt   time.Time  `bson:"createdAt" json:"createdAt"`
 	UpdatedAt   time.Time  `bson:"updatedAt" json:"updatedAt"`
 }

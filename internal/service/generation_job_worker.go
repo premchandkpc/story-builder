@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/premchand/story-builder/internal/domain"
+	"github.com/premchand/story-builder/internal/event"
 	"github.com/premchand/story-builder/internal/events"
 	"github.com/premchand/story-builder/internal/llm"
 	"github.com/premchand/story-builder/internal/orchestration"
@@ -39,6 +40,9 @@ type GenerationJobWorkerConfig struct {
 	EventBus       events.Bus
 	EmbeddingSvc   llm.EmbeddingService
 	SceneValidator *validation.SceneValidator
+	EventRepo      repository.NarrativeEventRepository
+	EventExtractor *event.EventExtractor
+	EventValidator *event.EventValidator
 	Progress       ProgressPublisher
 	AgentSvc       *AgentService
 	PollInterval   time.Duration
@@ -54,6 +58,7 @@ func NewGenerationJobWorker(cfg GenerationJobWorkerConfig) *GenerationJobWorker 
 	pipe := buildGenerateScenePipeline(cfg)
 	wrk := orchestration.NewWorker(orchestration.WorkerConfig{
 		JobRepo:           cfg.JobRepo,
+		GenRepo:           cfg.GenRepo,
 		Recorder:          recorder,
 		Pipelines:         []*orchestration.PipelineDef{pipe},
 		PollInterval:      cfg.PollInterval,
@@ -142,15 +147,6 @@ func publishEvent(eventBus events.Bus, evt events.Event) {
 	if eventBus != nil {
 		eventBus.Publish(context.Background(), evt)
 	}
-}
-
-func setGenStatus(ctx context.Context, genRepo repository.GenerationRepository, genID, status string) {
-	gen, err := genRepo.Get(ctx, genID)
-	if err != nil || gen == nil {
-		return
-	}
-	gen.Status = status
-	_ = genRepo.Update(ctx, gen)
 }
 
 func runGenerateStep(ctx context.Context, sc *orchestration.StepContext, cfg GenerationJobWorkerConfig) error {
@@ -362,6 +358,54 @@ func runExtractStep(ctx context.Context, sc *orchestration.StepContext, cfg Gene
 		violations := cfg.SceneValidator.ValidatePostGeneration(ctx, scene, checks)
 		for _, v := range violations {
 			slog.Warn("post-generation validation", "genId", sc.GenID, "severity", v.Severity, "field", v.Field, "message", v.Message)
+		}
+	}
+
+	if cfg.EventExtractor != nil && cfg.EventValidator != nil && cfg.EventRepo != nil {
+		states, err := cfg.StateRepo.ListByScene(ctx, scene.ID)
+		if err == nil && len(states) > 0 {
+			statesSlice := make([]domain.CharacterState, len(states))
+			for i, s := range states {
+				statesSlice[i] = *s
+			}
+			candidates := cfg.EventExtractor.ExtractFromStates(ctx, event.ExtractorConfig{
+				StoryID: scene.StoryID,
+				SceneID: scene.ID,
+				RunID:   sc.RunID,
+				GenID:   sc.GenID,
+			}, statesSlice)
+
+			storyState := &event.StoryState{
+				Characters: make(map[string]*domain.CharacterState),
+				Timeline:   []domain.TimelineEvent{},
+				Scene:      scene,
+			}
+			for _, s := range states {
+				storyState.Characters[s.CharacterID] = s
+			}
+			if tlEvents, err := cfg.TlRepo.ListByStory(ctx, scene.StoryID); err == nil {
+				for _, e := range tlEvents {
+					if e != nil {
+						storyState.Timeline = append(storyState.Timeline, *e)
+					}
+				}
+			}
+
+			accepted, rejected := cfg.EventValidator.Filter(ctx, candidates, storyState)
+			if len(accepted) > 0 {
+				acceptedPtrs := make([]*domain.NarrativeEvent, len(accepted))
+				for i := range accepted {
+					acceptedPtrs[i] = &accepted[i]
+				}
+				if err := cfg.EventRepo.AppendMany(ctx, acceptedPtrs); err != nil {
+					slog.Error("failed to append narrative events", "genId", sc.GenID, "error", err)
+				} else {
+					slog.Info("narrative events appended", "genId", sc.GenID, "accepted", len(accepted), "rejected", len(rejected))
+				}
+			}
+			if len(rejected) > 0 {
+				sc.Artifacts["rejected_events"] = rejected
+			}
 		}
 	}
 

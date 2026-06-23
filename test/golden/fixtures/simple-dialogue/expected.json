@@ -1,0 +1,15 @@
+{
+  "generationStatus": "success",
+  "sceneTextMinTokens": 20,
+  "characterStatesCount": 2,
+  "timelineExists": true,
+  "summaryExists": true,
+  "stepStatus": {
+    "generate": "done",
+    "extract": "done",
+    "memory": "done",
+    "timeline": "done",
+    "summary": "done",
+    "validate": "done"
+  }
+}

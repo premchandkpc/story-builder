@@ -1,0 +1,17 @@
+{
+  "deltas": [
+    {
+      "character": "Hero",
+      "new_location": "throne_room",
+      "mood": "determined",
+      "learned": ["Mentor has completed his investigation"]
+    },
+    {
+      "character": "Mentor",
+      "new_location": "throne_room",
+      "mood": "pleased",
+      "learned": ["Hero is ready for the next stage"]
+    }
+  ],
+  "openThreads": ["council_report"]
+}

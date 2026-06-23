@@ -34,7 +34,7 @@ func Init(cfg Config) {
 	} else {
 		h = slog.NewTextHandler(w, &slog.HandlerOptions{Level: lvl, AddSource: true})
 	}
-	slog.SetDefault(slog.New(h))
+	slog.SetDefault(slog.New(TraceLogHandler(h)))
 }
 
 func Err(err error) slog.Attr {

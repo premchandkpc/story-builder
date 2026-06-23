@@ -1,0 +1,13 @@
+[
+  {
+    "title": "A Conversation",
+    "beatIntent": "Two characters meet and discuss their mission",
+    "pov": "Hero",
+    "tone": "neutral",
+    "targetWords": 100,
+    "flowType": "dialogue",
+    "status": "draft",
+    "participants": ["char_hero", "char_mentor"],
+    "timelinePosition": 1
+  }
+]

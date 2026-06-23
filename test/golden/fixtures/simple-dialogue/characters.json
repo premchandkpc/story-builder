@@ -1,0 +1,14 @@
+[
+  {
+    "storyId": "STORY_ID",
+    "name": "Hero",
+    "char_id": "char_hero",
+    "traits": ["brave", "curious"]
+  },
+  {
+    "storyId": "STORY_ID",
+    "name": "Mentor",
+    "char_id": "char_mentor",
+    "traits": ["wise", "patient"]
+  }
+]

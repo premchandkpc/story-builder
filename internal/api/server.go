@@ -15,16 +15,22 @@ import (
 	"github.com/premchand/story-builder/internal/log"
 )
 
+type HealthCheckFn func(ctx context.Context) error
+
 // Server wraps the chi router and handler dependencies.
 type Server struct {
 	Router    *chi.Mux
 	handler   *Handlers
+	healthCheck HealthCheckFn
 }
 
 // NewServer creates a chi router, applies middleware, and registers all routes.
-func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
+func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter, healthCheck ...HealthCheckFn) *Server {
 	s := &Server{
 		handler: h,
+	}
+	if len(healthCheck) > 0 {
+		s.healthCheck = healthCheck[0]
 	}
 
 	r := chi.NewRouter()
@@ -44,6 +50,12 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 	}
 
 	r.Get("/api/v1/healthz", func(w http.ResponseWriter, r *http.Request) {
+		if s.healthCheck != nil {
+			if err := s.healthCheck(r.Context()); err != nil {
+				writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "degraded", "error": err.Error()})
+				return
+			}
+		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
