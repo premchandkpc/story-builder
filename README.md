@@ -1,77 +1,84 @@
-# story-builder
+# Story Builder
 
-Full-stack story graph editor with DAG-based plot structure and LLM-generated prose. Built with Go (chi), React Flow, Postgres + pgvector, and River async jobs.
-Full-stack story graph editor with DAG-based plot structure and LLM-generated prose. Built with Go (chi), React Flow, MongoDB, and Redis.
+Full-stack story graph editor with DAG-based plot structure and LLM-generated prose.
+Built with Go (chi), React Flow, MongoDB, and Redis.
 
 ## Quick start
 
 ```bash
-docker compose up -d          # postgres + pgvector + redis + mongo + qdrant + kafka + opencode + server + web
-# Or just the essential infra:
-docker compose up -d db redis opencode
-# Server + web are also containerized:
-# Start all services (backend, frontend, db, cache, llm)
-docker compose up -d --build
-
-# Or just the essential infrastructure:
-docker compose up -d mongo redis opencode
-docker compose up -d --build  # builds and starts everything
+docker compose up -d mongo redis       # minimal infra (OpenCode runs locally on host)
+docker compose up -d --build           # everything
+make dev                               # Go API + Vite frontend with live reload
 ```
 
 ## Project structure
 
 ```
-cmd/server/main.go          # Entrypoint — selects DB or in-memory mode
+cmd/server/main.go          # Entrypoint
 internal/
   api/                      # chi HTTP handlers + middleware
-  cache/                    # Redis-backed caching (prompt, context, rate limiter, dist lock)
-  canon/                    # Versioned domain types (Character, Location, Lore)
-  compiler/                 # CompiledContext + SHA256 hash + prompt builders
+  agents/                   # Multi-agent scene orchestration (10 agents)
+  cache/                    # Redis-backed caching (prompt, rate limiter, dist lock)
   config/                   # Environment-based config
-  db/                       # sqlc-generated query layer (38 methods)
-  graph/                    # DAG data model + traversal algorithms
-  grpc/                     # gRPC server wrapping service interfaces
-  ledger/                   # CharacterState per (story, char, node)
+  domain/                   # Domain models (no infra dependencies)
+  events/                   # In-memory event bus
+  graph/                    # DAG traversal + validation
   llm/                      # LLM clients + Router + 7 service implementations
   log/                      # Structured logging (slog-based)
-  migrate/                  # SQL migration runner
-  narrative/                # Narrative domain models (Blueprint, CharacterArc, PlotThread, Act)
-  river/                    # River async job types + workers
-  scene/                    # Multi-agent scene turn orchestration
-  service/                  # Service implementations (DB + memory dual mode)
-    blueprint/              # Story blueprint service
-    cache/                  # Redis cache wrapper service
-    canon/                  # Character, Actor, Trait, Casting, Location, Lore
-    edge/                   # Edge CRUD
-    generation/             # Generation + story generator
-    node/                   # Node CRUD
-    scene/                  # Scene CRUD (multi-agent)
-    story/                  # Story CRUD
-    summary/                # Summary CRUD
-    timeline/               # Timeline event service
-  timeline/                 # Timeline domain models
+  narrative/                # Narrative domain services
+  prompt/                   # Prompt compilation + token budgeting
+  repository/               # Interfaces + MongoDB implementations
+  scene/                    # Scene turn orchestration
+  service/                  # Business logic layer
+  test/                     # Integration test fixtures
+  trace/                    # OpenTelemetry wrapper
+  validation/               # Scene/canon validation
+  worker/                   # Pipeline workers (generate, extract, memory, timeline, summary, validate)
+web/                        # Vite + React + React Flow frontend
+docs/                       # Architecture, schema, API, LLM docs
 ```
 
 ## Key architecture decisions
 
-- **Dual mode** — DB-backed (Postgres via sqlc) or in-memory (for dev without Docker)
-- **LLM Router** — Dispatches `claude-sonnet`/`claude-haiku` to Anthropic, `local-7b` to OpenCode
-- **Redis cache** — Optional prompt caching + rate limiting + distributed locks
-- **River async jobs** — 5 job types for the generation pipeline (generate → extract → summarize → merge → validate)
-- **Canon versioning** — Characters and locations are append-only (id, version) PK
-- **Blueprints + Timelines** — Narrative planning layer (memory-only, no DB backing yet)
-- **No tests yet** — Run the server and curl endpoints to verify
+- **SSOT MongoDB** — No Postgres, pgvector, Kafka, or River. Single-process Go with in-process workers.
+- **LLM Router** — Dispatches `claude-sonnet`/`claude-haiku` to Anthropic, `local-7b` to OpenCode.
+- **Redis cache** — Optional prompt caching + rate limiting + distributed locks.
+- **Durable job queue** — MongoDB-backed lease-based worker pool with crash recovery.
+- **Multi-agent orchestrator** — 10 agents (Director, Character×N, Narrator, Editor, CanonGuard, Critic, StateExtract, World, Arc, Memory) for structured scene generation.
+- **Event-sourced character state** — Append-only character_state + canon_deltas collections.
+- **Per-character agent identities** — Each character registers its own AgentSpec with baked-in identity.
+- **StoryRun + RunStep** — Persistent orchestration tracking with per-step artifacts.
+- **NarrativeEvent log** — Append-only universal state mutation log for replayability.
+- **Context caching** — SHA256 context hash dedup avoids regenerating identical scenes.
+- **Headroom-ai** — Optional context compression proxy for all LLM calls.
+- **Java analysis service** — Readability/sentiment/pacing scores (port 8081, async).
+
+## Tests
+
+```bash
+go test ./...
+```
+
+Test priority: graph (cycle detection, topological sort), memory (state changes, retrieval),
+generation (pipeline), validation (4 validators).
+
+## Environment
+
+See `.env` for defaults. Key vars:
+- `MONGO_URI` — MongoDB connection string
+- `REDIS_ADDR` — Redis address (optional)
+- `HEADROOM_BASE_URL` — Context compression proxy (optional)
+- `ANTHROPIC_API_KEY` — For claude-sonnet/claude-haiku calls
+- `OPENCODE_BASE_URL` — For local-7b model
 
 ## Docs
 
 | File | Contents |
 |------|----------|
-| `docs/architecture.md` | System overview, package deps, data flow, dual mode |
+| `docs/architecture.md` | System overview, package deps, data flow |
 | `docs/api.md` | HTTP endpoints reference |
-| `docs/schema.md` | Database schema |
+| `docs/schema.md` | MongoDB collections, indexes |
 | `docs/llm.md` | LLM pipeline, prompts, router, clients |
-| `docs/rules.md` | Migration conventions |
 | `docs/services.md` | Service layer implementations |
 | `docs/scene-agents.md` | Multi-agent scene system design |
-| `docs/review-and-enhancements.md` | Architecture review + roadmap |
-| `docs/adr/` | Architecture decision records |
+| `docs/rules.md` | Code conventions |

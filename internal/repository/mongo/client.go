@@ -116,6 +116,19 @@ func EnsureIndexes(ctx context.Context, db *mongo.Database) error {
 			{Keys: bson.D{{Key: "role", Value: 1}}},
 			{Keys: bson.D{{Key: "shared", Value: 1}}},
 		},
+		"story_runs": {
+			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "createdAt", Value: -1}}},
+			{Keys: bson.D{{Key: "sceneId", Value: 1}, {Key: "createdAt", Value: -1}}},
+			{Keys: bson.D{{Key: "status", Value: 1}}},
+		},
+		"run_steps": {
+			{Keys: bson.D{{Key: "runId", Value: 1}, {Key: "createdAt", Value: 1}}},
+		},
+		"narrative_events": {
+			{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "createdAt", Value: -1}}},
+			{Keys: bson.D{{Key: "sceneId", Value: 1}, {Key: "createdAt", Value: -1}}},
+			{Keys: bson.D{{Key: "eventType", Value: 1}}},
+		},
 	}
 
 	for collName, models := range indexes {

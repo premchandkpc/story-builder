@@ -1,0 +1,69 @@
+{
+  "name": "simple_story",
+  "story": {
+    "title": "The Hero's Journey",
+    "genre": "fantasy",
+    "mainPrompt": "A young hero discovers their destiny.",
+    "status": "draft"
+  },
+  "characters": [
+    {
+      "charId": "char-hero",
+      "name": "Kaelen",
+      "persona": "reluctant hero",
+      "traits": ["brave", "curious", "impulsive"],
+      "goals": ["Find the ancient artifact"],
+      "relationships": { "char-mentor": "respect" }
+    },
+    {
+      "charId": "char-mentor",
+      "name": "Mira",
+      "persona": "wise mentor",
+      "traits": ["patient", "knowledgeable", "mysterious"],
+      "goals": ["Guide Kaelen", "Protect the artifact"],
+      "relationships": { "char-hero": "protective" }
+    },
+    {
+      "charId": "char-villain",
+      "name": "Vorak",
+      "persona": "power-hungry sorcerer",
+      "traits": ["cunning", "ruthless", "ambitious"],
+      "goals": ["Seize the artifact", "Destroy Kaelen"],
+      "relationships": { "char-hero": "hateful", "char-mentor": "contempt" }
+    }
+  ],
+  "scenes": [
+    {
+      "id": "scene-1",
+      "title": "The Discovery",
+      "beatIntent": "Kaelen discovers a hidden cave containing the ancient artifact.",
+      "participants": ["char-hero", "char-mentor"],
+      "pov": "Kaelen",
+      "tone": "mysterious",
+      "targetWords": 150,
+      "maxTurns": 3,
+      "flowType": "director",
+      "locationRef": "hidden-cave"
+    },
+    {
+      "id": "scene-2",
+      "title": "The Confrontation",
+      "beatIntent": "Vorak ambushes Kaelen and Mira to steal the artifact.",
+      "participants": ["char-hero", "char-mentor", "char-villain"],
+      "pov": "Kaelen",
+      "tone": "tense",
+      "targetWords": 200,
+      "maxTurns": 5,
+      "flowType": "director",
+      "locationRef": "cave-entrance"
+    }
+  ],
+  "edges": [
+    {
+      "fromSceneId": "scene-1",
+      "toSceneId": "scene-2",
+      "type": "seq"
+    }
+  ],
+  "expectedPipelines": 2
+}

@@ -17,7 +17,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 // useNavigate: React Router hook to programmatically navigate between pages
 import { useNavigate } from "react-router-dom"
 import { api } from "./client"
-import type { Character, CriticScoreData, Story, StoryStats, SceneTurn, AgentRun, LlmMetrics, StoryBible, TimelineEvent, Generation, GraphNode, GraphEdge, Topology } from "./types"
+import type { Character, CriticScoreData, Story, StoryStats, SceneTurn, AgentRun, LlmMetrics, StoryBible, TimelineEvent, Generation, GraphNode, GraphEdge, Topology, StoryRun, RunStep, NarrativeEvent } from "./types"
 
 // ---- useStories() ----
 // Custom hook that fetches the list of all stories.
@@ -549,6 +549,68 @@ export function useLinkBible(storyId: string) {
 }
 
 export function useUnlinkBible(storyId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (bibleId: string) => api.bible.unlink(storyId, bibleId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bible", storyId] })
+      qc.invalidateQueries({ queryKey: ["referencingBibles", storyId] })
+    },
+  })
+}
+
+// ---- Run Hooks ----
+export function useStoryRuns(storyId: string, limit?: number) {
+  return useQuery<StoryRun[]>({
+    queryKey: ["runs", storyId],
+    queryFn: () => api.runs.listByStory(storyId, limit),
+    enabled: !!storyId,
+  })
+}
+
+export function useRunDetails(runId: string | null) {
+  return useQuery<StoryRun>({
+    queryKey: ["run", runId],
+    queryFn: () => api.runs.get(runId!),
+    enabled: !!runId,
+  })
+}
+
+export function useRunSteps(runId: string | null) {
+  return useQuery<RunStep[]>({
+    queryKey: ["runSteps", runId],
+    queryFn: () => api.runs.steps(runId!),
+    enabled: !!runId,
+  })
+}
+
+export function useCancelRun() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (runId: string) => api.runs.cancel(runId),
+    onSuccess: (_data, runId) => {
+      qc.invalidateQueries({ queryKey: ["run", runId] })
+      qc.invalidateQueries({ queryKey: ["runs"] })
+    },
+  })
+}
+
+// ---- Narrative Event Hooks ----
+export function useNarrativeEvents(storyId: string, limit?: number) {
+  return useQuery<NarrativeEvent[]>({
+    queryKey: ["narrativeEvents", storyId],
+    queryFn: () => api.narrativeEvents.listByStory(storyId, limit),
+    enabled: !!storyId,
+  })
+}
+
+export function useSceneNarrativeEvents(storyId: string, nodeId: string | null, limit?: number) {
+  return useQuery<NarrativeEvent[]>({
+    queryKey: ["narrativeEvents", storyId, nodeId],
+    queryFn: () => api.narrativeEvents.listByScene(storyId, nodeId!, limit),
+    enabled: !!storyId && !!nodeId,
+  })
+}
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (bibleId: string) => api.bible.unlink(storyId, bibleId),

@@ -7,6 +7,7 @@ import type {
   CriticScoreData, Generation, GraphEdge, GraphNode, Location,
   SceneTurn, AgentRun, LlmMetrics,
   Story, StoryGenerateResult, StorySummary, Topology, UpdateNodePayload,
+  StoryRun, RunStep, NarrativeEvent,
 } from "./types"
 
 // ---- Base URL ----
@@ -187,6 +188,30 @@ export const api = {
   agentRuns: {
     list: (_storyId: string, _nodeId: string) =>
       request<AgentRun[]>(`/experimental/agent-runs`),
+  },
+
+  // ==========================================
+  // Runs — durable orchestration tracking
+  // ==========================================
+  runs: {
+    listByStory: (storyId: string, limit?: number) =>
+      request<StoryRun[]>(`/stories/${storyId}/runs${limit ? `?limit=${limit}` : ""}`),
+    get: (runId: string) =>
+      request<StoryRun>(`/runs/${runId}`),
+    steps: (runId: string) =>
+      request<RunStep[]>(`/runs/${runId}/steps`),
+    cancel: (runId: string) =>
+      request<{ status: string }>(`/runs/${runId}/cancel`, { method: "POST" }),
+  },
+
+  // ==========================================
+  // Narrative Events — append-only state mutation log
+  // ==========================================
+  narrativeEvents: {
+    listByStory: (storyId: string, limit?: number) =>
+      request<NarrativeEvent[]>(`/stories/${storyId}/narrative-events${limit ? `?limit=${limit}` : ""}`),
+    listByScene: (storyId: string, nodeId: string, limit?: number) =>
+      request<NarrativeEvent[]>(`/experimental/stories/${storyId}/nodes/${nodeId}/narrative-events${limit ? `?limit=${limit}` : ""}`),
   },
 
   // ==========================================

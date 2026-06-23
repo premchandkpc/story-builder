@@ -229,6 +229,24 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter) *Server {
 				r.Get("/state", h.GetCharAgentState)
 			})
 		})
+
+		// Story runs — durable orchestration tracking
+		r.Route("/runs/{runID}", func(r chi.Router) {
+			r.Get("/", h.GetRun)
+			r.Get("/steps", h.GetRunSteps)
+			r.Post("/cancel", h.CancelRun)
+		})
+		r.Route("/stories/{storyID}/runs", func(r chi.Router) {
+			r.Get("/", h.ListStoryRuns)
+		})
+
+		// Narrative events — append-only state mutation log
+		r.Route("/stories/{storyID}/narrative-events", func(r chi.Router) {
+			r.Get("/", h.ListNarrativeEvents)
+		})
+		r.Route("/experimental/stories/{storyID}/nodes/{nodeID}/narrative-events", func(r chi.Router) {
+			r.Get("/", h.ListNarrativeEventsByScene)
+		})
 	})
 
 	s.Router = r

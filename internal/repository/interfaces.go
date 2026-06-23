@@ -121,6 +121,28 @@ type JobRepository interface {
 	ListStuck(ctx context.Context, threshold time.Duration) ([]*domain.Job, error)
 }
 
+type RunRepository interface {
+	Create(ctx context.Context, r *domain.StoryRun) error
+	Get(ctx context.Context, id string) (*domain.StoryRun, error)
+	ListByStory(ctx context.Context, storyID string, limit int) ([]*domain.StoryRun, error)
+	ListByScene(ctx context.Context, sceneID string, limit int) ([]*domain.StoryRun, error)
+	Update(ctx context.Context, r *domain.StoryRun) error
+	DeleteByStory(ctx context.Context, storyID string) error
+}
+
+type RunStepRepository interface {
+	Create(ctx context.Context, s *domain.RunStep) error
+	ListByRun(ctx context.Context, runID string) ([]*domain.RunStep, error)
+	DeleteByRun(ctx context.Context, runID string) error
+}
+
+type NarrativeEventRepository interface {
+	Append(ctx context.Context, e *domain.NarrativeEvent) error
+	ListByStory(ctx context.Context, storyID string, limit int) ([]*domain.NarrativeEvent, error)
+	ListByScene(ctx context.Context, sceneID string, limit int) ([]*domain.NarrativeEvent, error)
+	DeleteByStory(ctx context.Context, storyID string) error
+}
+
 type TokenBudgetRepository interface {
 	Get(ctx context.Context, storyID string) (*domain.TokenBudget, error)
 	Upsert(ctx context.Context, tb *domain.TokenBudget) error

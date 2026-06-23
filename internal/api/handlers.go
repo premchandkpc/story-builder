@@ -12,27 +12,29 @@ import (
 )
 
 type Handlers struct {
-	storySvc     StoryService
-	sceneSvc     SceneService
-	edgeSvc      EdgeService
-	charSvc      CharacterService
-	genWriteSvc  GenerationWriteService
-	genReadSvc   GenerationReadService
-	tlSvc        TimelineService
-	sumSvc       SummaryService
-	memSvc       MemoryService
-	locSvc       LocationService
-	bibleSvc     BibleService
-	chapterSvc   ChapterService
-	outlineSvc   llm.OutlineService
-	titleSvc     llm.TitleService
-	metricsSvc   MetricsService
-	criticSvc    CriticScoresService
-	agentCfgSvc  AgentConfigService
-	progress     *ProgressHub
-	eventBus     events.Bus
-	agentSvc     AgentService
-	charAgentSvc CharAgentService
+	storySvc      StoryService
+	sceneSvc      SceneService
+	edgeSvc       EdgeService
+	charSvc       CharacterService
+	genWriteSvc   GenerationWriteService
+	genReadSvc    GenerationReadService
+	tlSvc         TimelineService
+	sumSvc        SummaryService
+	memSvc        MemoryService
+	locSvc        LocationService
+	bibleSvc      BibleService
+	chapterSvc    ChapterService
+	outlineSvc    llm.OutlineService
+	titleSvc      llm.TitleService
+	metricsSvc    MetricsService
+	criticSvc     CriticScoresService
+	agentCfgSvc   AgentConfigService
+	progress      *ProgressHub
+	eventBus      events.Bus
+	agentSvc      AgentService
+	charAgentSvc  CharAgentService
+	runSvc        RunService
+	narrativeSvc  NarrativeEventService
 }
 
 func NewHandlers(
@@ -57,6 +59,8 @@ func NewHandlers(
 	eventBus events.Bus,
 	agentSvc AgentService,
 	charAgentSvc CharAgentService,
+	runSvc RunService,
+	narrativeSvc NarrativeEventService,
 ) *Handlers {
 	return &Handlers{
 		storySvc: storySvc, sceneSvc: sceneSvc, edgeSvc: edgeSvc,
@@ -67,6 +71,7 @@ func NewHandlers(
 		criticSvc: criticSvc, agentCfgSvc: agentCfgSvc,
 		progress: progress, eventBus: eventBus, agentSvc: agentSvc,
 		charAgentSvc: charAgentSvc,
+		runSvc: runSvc, narrativeSvc: narrativeSvc,
 	}
 }
 

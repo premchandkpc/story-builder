@@ -120,6 +120,18 @@ type CriticScoresService interface {
 	ListByStory(ctx context.Context, storyID string) ([]domain.CriticScoreEntry, error)
 }
 
+type RunService interface {
+	Get(ctx context.Context, id string) (*domain.StoryRun, error)
+	ListByStory(ctx context.Context, storyID string, limit int) ([]*domain.StoryRun, error)
+	ListSteps(ctx context.Context, runID string) ([]*domain.RunStep, error)
+	Cancel(ctx context.Context, runID string) error
+}
+
+type NarrativeEventService interface {
+	ListByStory(ctx context.Context, storyID string, limit int) ([]*domain.NarrativeEvent, error)
+	ListByScene(ctx context.Context, sceneID string, limit int) ([]*domain.NarrativeEvent, error)
+}
+
 type AgentConfigService interface {
 	Create(ctx context.Context, cfg *domain.AgentConfig) error
 	Get(ctx context.Context, name string) (*domain.AgentConfig, error)

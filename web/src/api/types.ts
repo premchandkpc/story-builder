@@ -257,6 +257,54 @@ export interface AgentRun {
   created_at: string
 }
 
+export interface StoryRun {
+  id: string
+  story_id: string
+  scene_id: string
+  gen_id: string
+  run_type: string
+  status: string
+  started_at: string | null
+  finished_at: string | null
+  input_context_hash: string
+  current_step: string
+  error_summary: string
+  output_gen_id: string
+  created_at: string
+  updated_at: string
+}
+
+export interface RunStep {
+  id: string
+  run_id: string
+  step_name: string
+  status: string
+  started_at: string | null
+  finished_at: string | null
+  prompt_hash: string
+  model: string
+  tokens_in: number
+  tokens_out: number
+  error: string
+  artifacts: Record<string, unknown>
+  created_at: string
+}
+
+export interface NarrativeEvent {
+  id: string
+  story_id: string
+  scene_id: string
+  source_run_id: string
+  source_agent: string
+  event_type: string
+  subject_type: string
+  subject_id: string
+  payload: Record<string, unknown>
+  confidence: number
+  version: number
+  created_at: string
+}
+
 export interface LlmMetrics {
   total_prompt_tokens: number
   total_completion_tokens: number
