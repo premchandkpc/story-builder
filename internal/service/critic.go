@@ -24,7 +24,7 @@ func (s *CriticScoresService) ListByStory(ctx context.Context, storyID string) (
 	}
 	var out []domain.CriticScoreEntry
 	for _, g := range gens {
-		if g.CriticScore == 0 {
+		if g.CriticScore == 0 && g.CriticSummary == "" {
 			continue
 		}
 		out = append(out, domain.CriticScoreEntry{

@@ -158,8 +158,10 @@ func (w *Worker) tryProcess(pipe *PipelineDef) {
 
 	w.executePipeline(pCtx, pipe, job)
 
-	job.Status = domain.JobStatusDone
-	_ = w.cfg.JobRepo.Update(context.Background(), job)
+	if job.Status != domain.JobStatusFailed {
+		job.Status = domain.JobStatusDone
+		_ = w.cfg.JobRepo.Update(context.Background(), job)
+	}
 }
 
 func (w *Worker) heartbeatLoop(ctx context.Context, jobID string) {

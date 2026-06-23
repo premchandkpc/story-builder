@@ -17,7 +17,7 @@ func NewAnthropicClient(apiKey string) *AnthropicClient {
 		IdleConnTimeout:       90 * time.Second,
 	}
 	return &AnthropicClient{apiKey: apiKey, http: &http.Client{
-		Timeout:   60 * time.Second,
+		Timeout:   180 * time.Second,
 		Transport: transport,
 	}}
 }

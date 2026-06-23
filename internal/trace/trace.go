@@ -58,7 +58,8 @@ func End(span Span) {
 }
 
 func NewContext(ctx context.Context, operation string) context.Context {
-	ctx, _ = tracer().Start(ctx, operation)
+	ctx, span := tracer().Start(ctx, operation)
+	go func() { span.End() }()
 	return ctx
 }
 

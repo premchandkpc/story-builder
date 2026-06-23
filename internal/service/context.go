@@ -51,6 +51,7 @@ type BuiltContext struct {
 	CharStateXML   string
 	BranchSummary  string
 	CharacterNames []string
+	CharNameToID   map[string]string
 }
 
 func (b *ContextBuilder) Build(ctx context.Context, scene *domain.Scene) (*BuiltContext, error) {
@@ -70,6 +71,7 @@ func (b *ContextBuilder) Build(ctx context.Context, scene *domain.Scene) (*Built
 	}
 
 	charNameToID := b.buildCharacterCards(scene, allChars, built)
+	built.CharNameToID = charNameToID
 	built.CharacterNames = make([]string, 0, len(charNameToID))
 	for name := range charNameToID {
 		built.CharacterNames = append(built.CharacterNames, name)

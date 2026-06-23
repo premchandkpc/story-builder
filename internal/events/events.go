@@ -2,6 +2,7 @@ package events
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -50,12 +51,34 @@ func (b *InMemoryBus) Publish(ctx context.Context, event Event) error {
 	combined = append(combined, wildcard...)
 	b.mu.RUnlock()
 
+	var mu sync.Mutex
+	var firstErr error
+	var wg sync.WaitGroup
 	for _, entry := range combined {
-		if err := entry.fn(ctx, event); err != nil {
-			return err
-		}
+		entry := entry
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					mu.Lock()
+					if firstErr == nil {
+						firstErr = fmt.Errorf("event handler panic: %v", r)
+					}
+					mu.Unlock()
+				}
+			}()
+			if err := entry.fn(ctx, event); err != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = err
+				}
+				mu.Unlock()
+			}
+		}()
 	}
-	return nil
+	wg.Wait()
+	return firstErr
 }
 
 func (b *InMemoryBus) Subscribe(eventType string, handler Handler) func() {

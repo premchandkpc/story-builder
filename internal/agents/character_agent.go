@@ -222,10 +222,6 @@ func updateStateFromTurn(state *CharacterAgentState, output string, input AgentI
 		state.CurrentEmotion = "affectionate"
 	}
 
-	if cs != nil && cs.EmotionalState != "" {
-		state.CurrentEmotion = cs.EmotionalState
-	}
-
 	state.InternalThoughts = append(state.InternalThoughts, InternalThought{
 		Timestamp: time.Now(),
 		Thought:   fmt.Sprintf("After action: %s", output),

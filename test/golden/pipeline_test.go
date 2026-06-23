@@ -62,7 +62,6 @@ func loadFixture(t *testing.T, dir string) *GoldenFixture {
 	}
 
 	readJSON("story.json", &f.Story)
-	f.Story.ID = ""
 	readJSON("scenes.json", &f.Scenes)
 	readJSON("characters.json", &f.Chars)
 	readJSON("edges.json", &f.Edges)
@@ -70,6 +69,7 @@ func loadFixture(t *testing.T, dir string) *GoldenFixture {
 	readJSON("mocked_outputs/generate.json", &f.MockedOutputs.Generate)
 	readJSON("mocked_outputs/extract.json", &f.MockedOutputs.Extract)
 	readJSON("expected.json", &f.Expected)
+	f.Story.ID = ""
 	return f
 }
 

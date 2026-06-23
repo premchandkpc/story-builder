@@ -186,6 +186,7 @@ func (c *CachedLLMClient) cacheKey(req CompletionRequest) string {
 	h := sha256.New()
 	h.Write([]byte(req.System))
 	h.Write([]byte(req.UserMessage))
+	h.Write([]byte(string(req.Model)))
 	h.Write([]byte(fmt.Sprintf("%f", req.Temperature)))
 	if req.Tools != nil {
 		if b, err := json.Marshal(req.Tools); err == nil {

@@ -60,7 +60,7 @@ func (s *TokenBudgetService) CheckAndConsume(ctx context.Context, storyID, model
 	tb.UpdatedAt = time.Now()
 
 	if err := s.repo.Upsert(ctx, tb); err != nil {
-		slog.Error("failed to persist token budget", "storyId", storyID, "error", err)
+		return fmt.Errorf("persist token budget: %w", err)
 	}
 
 	usage := float64(tb.BudgetUsed) / float64(tb.BudgetLimit) * 100

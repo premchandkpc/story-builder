@@ -103,6 +103,7 @@ func (m *CharacterManager) StopAll() {
 	for _, inst := range m.agents {
 		agents = append(agents, inst)
 	}
+	m.agents = make(map[string]*CharacterAgentInstance)
 	m.mu.Unlock()
 
 	for _, inst := range agents {
@@ -113,10 +114,6 @@ func (m *CharacterManager) StopAll() {
 		}
 		inst.closeMu.Unlock()
 	}
-
-	m.mu.Lock()
-	m.agents = make(map[string]*CharacterAgentInstance)
-	m.mu.Unlock()
 
 	slog.Info("character manager: stopped all agents")
 }

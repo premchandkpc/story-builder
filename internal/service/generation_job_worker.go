@@ -145,7 +145,7 @@ func getSceneText(ctx context.Context, genRepo repository.GenerationRepository, 
 
 func publishEvent(eventBus events.Bus, evt events.Event) {
 	if eventBus != nil {
-		eventBus.Publish(context.Background(), evt)
+		eventBus.Publish(context.Background(), evt) // intentionally background: caller ctx may be cancelled
 	}
 }
 
@@ -173,7 +173,9 @@ func runGenerateStep(ctx context.Context, sc *orchestration.StepContext, cfg Gen
 	sumWorker := worker.NewSummaryWorker(cfg.SummarySvc, cfg.SumRepo)
 	valWorker := worker.NewValidationWorker(cfg.ValidateSvc, cfg.GenRepo)
 
-	cfg.Progress.Publish(gen.ID, ProgressEvent{GenID: gen.ID, Step: "generate", Status: "running"})
+	if cfg.Progress != nil {
+		cfg.Progress.Publish(gen.ID, ProgressEvent{GenID: gen.ID, Step: "generate", Status: "running"})
+	}
 	if cfg.SceneValidator != nil {
 		violations := cfg.SceneValidator.ValidatePreGeneration(ctx, scene)
 		for _, v := range violations {
@@ -194,13 +196,8 @@ func runGenerateStep(ctx context.Context, sc *orchestration.StepContext, cfg Gen
 	var params llm.PromptParams
 	charNameToID := make(map[string]string)
 	if builtContext != nil {
-		for _, name := range builtContext.CharacterNames {
-			for _, c := range builtContext.Params.CharacterCards {
-				if c.Name == name {
-					charNameToID[name] = c.Name
-					break
-				}
-			}
+		if builtContext.CharNameToID != nil {
+			charNameToID = builtContext.CharNameToID
 		}
 		params = builtContext.Params
 

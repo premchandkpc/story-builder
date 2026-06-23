@@ -277,8 +277,10 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 func middlewareRateLimit(limiter *cache.SlidingWindowRateLimiter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Derive key from method + first two path segments for route-group awareness
 			key := routeRateLimitKey(r.Method, r.URL.Path)
+			if routeCtx := chi.RouteContext(r.Context()); routeCtx != nil {
+				key = routeRateLimitKey(r.Method, routeCtx.RoutePattern())
+			}
 			ok, err := limiter.Allow(r.Context(), key)
 			if err != nil || !ok {
 				writeError(w, http.StatusTooManyRequests, "rate limit exceeded")

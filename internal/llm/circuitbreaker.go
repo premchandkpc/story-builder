@@ -61,13 +61,13 @@ func (c *CircuitBreakerClient) Complete(ctx context.Context, req CompletionReque
 		c.probe.Lock()
 
 		c.mu.Lock()
-		if c.state != circuitHalfOpen {
+		cs := c.state
+		if cs != circuitHalfOpen {
 			c.mu.Unlock()
 			c.probe.Unlock()
-			halfOpen = false
-		} else {
-			c.mu.Unlock()
+			return nil, fmt.Errorf("circuit breaker: concurrent probe, %s %d", req.Model, cs)
 		}
+		c.mu.Unlock()
 	}
 
 	resp, err := c.client.Complete(ctx, req)
@@ -80,6 +80,7 @@ func (c *CircuitBreakerClient) Complete(ctx context.Context, req CompletionReque
 			c.state = circuitOpen
 		}
 		if halfOpen {
+			c.state = circuitOpen
 			c.probe.Unlock()
 		}
 		c.mu.Unlock()

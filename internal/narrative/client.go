@@ -45,6 +45,7 @@ func (c *Client) AnalyzeScene(ctx context.Context, req AnalysisRequest) (*SceneA
 		return nil, fmt.Errorf("narrative request: %w", err)
 	}
 	defer res.Body.Close()
+	res.Body = http.MaxBytesReader(nil, res.Body, 10<<20)
 
 	if res.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(res.Body)
@@ -56,6 +57,25 @@ func (c *Client) AnalyzeScene(ctx context.Context, req AnalysisRequest) (*SceneA
 		return nil, fmt.Errorf("narrative decode: %w", err)
 	}
 	return &analysis, nil
+}
+
+func (c *Client) AnalyzeSceneWithRetry(ctx context.Context, req AnalysisRequest) (*SceneAnalysis, error) {
+	var lastErr error
+	for i := 0; i < 3; i++ {
+		if i > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(time.Duration(100*(1<<i)) * time.Millisecond):
+			}
+		}
+		result, err := c.AnalyzeScene(ctx, req)
+		if err == nil {
+			return result, nil
+		}
+		lastErr = err
+	}
+	return nil, fmt.Errorf("narrative retry exhausted: %w", lastErr)
 }
 
 func (c *Client) GetSceneAnalysis(ctx context.Context, sceneID string) (*SceneAnalysis, error) {

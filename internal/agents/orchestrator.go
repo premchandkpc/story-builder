@@ -243,7 +243,8 @@ func (o *Orchestrator) Execute(ctx context.Context, plan *OrchestrationPlan, age
 			trace.SetAttribute(turnSpan, "turnNumber", i+1)
 			trace.SetAttribute(turnSpan, "turnId", turn.ID)
 		}
-		agentCtx.TurnID = turn.ID
+		turnAgentCtx := *agentCtx
+		turnAgentCtx.TurnID = turn.ID
 
 		turn.Status = domain.TurnStatusRunning
 		if turnRepo != nil {
@@ -257,7 +258,7 @@ func (o *Orchestrator) Execute(ctx context.Context, plan *OrchestrationPlan, age
 
 		if o.budgetChecker != nil {
 			promptEst, compEst := agentBudgetEstimate(step.AgentType, spec.Model)
-			if err := o.budgetChecker.CheckAndConsume(turnCtx, agentCtx.StoryID, spec.Model, step.AgentType, promptEst, compEst); err != nil {
+			if err := o.budgetChecker.CheckAndConsume(turnCtx, turnAgentCtx.StoryID, spec.Model, step.AgentType, promptEst, compEst); err != nil {
 				cancel()
 				turn.Status = domain.TurnStatusFailed
 				turn.Error = err.Error()
@@ -272,7 +273,7 @@ func (o *Orchestrator) Execute(ctx context.Context, plan *OrchestrationPlan, age
 
 		start := time.Now()
 		output, err := spec.Runner(turnCtx, AgentInput{
-			Ctx:       agentCtx,
+			Ctx:       &turnAgentCtx,
 			Payload:   payload,
 			Directive: step.Phase,
 		})

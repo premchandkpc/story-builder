@@ -102,6 +102,12 @@ func (h *Handlers) SSEGenerationProgress(w http.ResponseWriter, r *http.Request)
 			}
 			fmt.Fprintf(w, "event: progress\ndata: {\"genId\":%q,\"step\":%q,\"status\":%q%s}\n\n", evt.GenID, evt.Step, evt.Status, errStr)
 			flusher.Flush()
+
+			if evt.Status == "complete" || evt.Status == "failed" {
+				fmt.Fprintf(w, "event: %s\ndata: {\"genId\":%q}\n\n", evt.Status, evt.GenID)
+				flusher.Flush()
+				return
+			}
 		case <-r.Context().Done():
 			return
 		}

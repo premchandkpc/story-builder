@@ -41,7 +41,7 @@ func (r *StoryRepo) Get(ctx context.Context, id string) (*domain.Story, error) {
 
 func (r *StoryRepo) Update(ctx context.Context, s *domain.Story) error {
 	s.UpdatedAt = time.Now()
-	_, err := r.coll.UpdateOne(ctx, bson.M{"_id": s.ID}, bson.M{"$set": s})
+	_, err := r.coll.ReplaceOne(ctx, bson.M{"_id": s.ID}, s)
 	return err
 }
 

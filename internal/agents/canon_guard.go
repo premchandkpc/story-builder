@@ -92,17 +92,6 @@ func runRuleChecks(input AgentInput) []map[string]any {
 		}
 	}
 
-	sceneChars := map[string]bool{}
-	for _, pid := range input.Ctx.ParticipantIDs {
-		sceneChars[pid] = true
-	}
-	for _, t := range input.Ctx.Turns {
-		if t.Role == "character" {
-			if _, ok := sceneChars[input.Ctx.Scene.ID]; !ok {
-			}
-		}
-	}
-
 	if len(input.Ctx.Timeline) > 1 {
 		for i := 1; i < len(input.Ctx.Timeline); i++ {
 			if input.Ctx.Timeline[i].Order < input.Ctx.Timeline[i-1].Order {

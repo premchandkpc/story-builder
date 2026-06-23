@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -177,8 +178,8 @@ func (h *Handlers) GenerateStory(w http.ResponseWriter, r *http.Request) {
 		}
 		created, err := h.charSvc.Create(r.Context(), char)
 		if err != nil {
-			slog.Error("generate story: create character failed", "name", c.Name, "error", err)
-			continue
+			writeError(w, http.StatusInternalServerError, fmt.Sprintf("create character %q: %v", c.Name, err))
+			return
 		}
 		charIDByName[c.Name] = created.ID
 	}

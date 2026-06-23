@@ -30,7 +30,7 @@ func (e *EventExtractor) ExtractFromStates(ctx context.Context, cfg ExtractorCon
 func (e *EventExtractor) extractCharacterEvents(cfg ExtractorConfig, s domain.CharacterState) []domain.NarrativeEvent {
 	var events []domain.NarrativeEvent
 
-	if location, ok := s.Changes["location"]; ok {
+	if location, ok := s.Changes["new_location"]; ok {
 		if locStr, ok := location.(string); ok && locStr != "" {
 			events = append(events, domain.NarrativeEvent{
 				StoryID:     cfg.StoryID,
@@ -91,7 +91,7 @@ func (e *EventExtractor) extractCharacterEvents(cfg ExtractorConfig, s domain.Ch
 		}
 	}
 
-	if rel, ok := s.Changes["relationships"]; ok {
+	if rel, ok := s.Changes["relationship_changes"]; ok {
 		if relMap, ok := rel.(map[string]any); ok {
 			for targetID, change := range relMap {
 				if changeMap, ok := change.(map[string]any); ok {
