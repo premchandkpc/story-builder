@@ -64,6 +64,18 @@
 │          │ │ rate lim │
 │          │ │ locks    │
 └──────────┘ └──────────┘
+              │
+              ▼
+┌──────────────────────────┐
+│  Narrative Analysis      │
+│  (Java Spring Boot)      │
+│  localhost:8081           │
+│  Readability, Sentiment, │
+│  Pacing analysis per      │
+│  scene                    │
+│  HTTP REST → Go client    │
+│  in internal/narrative/  │
+└──────────────────────────┘
 ```
 
 ## Package Dependency Graph
@@ -173,11 +185,15 @@ cmd/server/
     ├── internal/validation     ─── Canon validators
     │   └── validate.go         ─── ValidateAgainstCanon
     │
-	├── internal/trace          ─── OpenTelemetry tracing
-	│   ├── trace.go            ─── Span type alias, StartSpan/End/SetAttribute/SetError wrappers
-	│   └── init.go             ─── InitFromEnv — OTLP exporter + TracerProvider setup
-	│
-	├── internal/test           ─── Test helpers
+ 	├── internal/narrative      ─── Narrative Analysis HTTP client
+ 	│   ├── client.go           ─── Client (AnalyzeScene, GetSceneAnalysis)
+ 	│   └── models.go           ─── AnalysisRequest, SceneAnalysis, ReadabilityMetrics, etc.
+ 	│
+ 	├── internal/trace          ─── OpenTelemetry tracing
+ 	│   ├── trace.go            ─── Span type alias, StartSpan/End/SetAttribute/SetError wrappers
+ 	│   └── init.go             ─── InitFromEnv — OTLP exporter + TracerProvider setup
+ 	│
+ 	├── internal/test           ─── Test helpers
 	│   └── integration/
 	│
 	├── internal/config        ─── Environment-based config (Port, MongoURI, RedisAddr, AnthropicKey, OpenCodeURL, LogLevel, etc.)

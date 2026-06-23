@@ -19,7 +19,8 @@ docker compose up -d --build             # everything
 ```
 React Flow → Go API (chi) → Service Layer → Repository (interfaces)
                                                ├── MongoDB (SSOT)
-                                               └── Redis (cache, rate limit, locks)
+                                               ├── Redis (cache, rate limit, locks)
+                                               └── Narrative Analysis (Java, port 8081)
 ```
 
 ## Key types

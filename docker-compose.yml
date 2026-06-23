@@ -59,6 +59,27 @@ services:
       OPENCODE_API_KEY: ${OPENCODE_API_KEY:-}
       HEADROOM_BASE_URL: ${HEADROOM_BASE_URL:-}
       HEADROOM_API_KEY: ${HEADROOM_API_KEY:-}
+      NARRATIVE_ANALYSIS_URL: http://narrative-analysis:8081
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  narrative-analysis:
+    build:
+      context: ./services/narrative-analysis
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      SERVER_PORT: "8081"
+      MONGO_URI: mongodb://storybuilder:${MONGO_PASSWORD:-storybuilder}@mongo:27017/storybuilder
+      MONGO_DB: storybuilder
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-storybuilder}
     depends_on:
       mongo:
         condition: service_healthy

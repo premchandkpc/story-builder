@@ -14,6 +14,7 @@ type Config struct {
 	OpenCodeKey   string
 	HeadroomURL   string
 	HeadroomKey   string
+	NarrativeURL  string
 	LogLevel      string
 }
 
@@ -30,6 +31,7 @@ func FromEnv() Config {
 		OpenCodeKey:   env("OPENCODE_API_KEY", ""),
 		HeadroomURL:   env("HEADROOM_BASE_URL", ""),
 		HeadroomKey:   env("HEADROOM_API_KEY", ""),
+		NarrativeURL:  env("NARRATIVE_ANALYSIS_URL", ""),
 		LogLevel:      env("LOG_LEVEL", "info"),
 	}
 }

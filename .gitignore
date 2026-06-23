@@ -52,6 +52,9 @@ QODER.md
 /out/
 *.out
 
+### Java
+services/narrative-analysis/target/
+
 ### Dead config / simulation
 /config/
 /cmd/simulate/
