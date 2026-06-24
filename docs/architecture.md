@@ -101,6 +101,8 @@ cmd/server/
     │   ├── progress.go        ─── SSE progress hub
     │   ├── summaries.go       ─── Summary retrieval
     │   ├── memories.go        ─── Memory search + list
+    │   ├── runs.go            ─── Run CRUD, prompt sections, events, cost, stats
+    │   ├── planner.go         ─── Scene plan + generation diff endpoints
     │   └── helpers.go         ─── writeJSON, param helpers
     │
     ├── internal/domain        ─── Domain models (no infra deps)
@@ -117,7 +119,10 @@ cmd/server/
     │   ├── relationship.go    ─── Relationship + RelationshipDelta
     │   ├── scene_turn.go      ─── SceneTurn (turn in agent generation)
     │   ├── agent_run.go       ─── AgentRun (agent execution log)
-    │   └── canon_delta.go     ─── CanonDelta (append-only canon changes)
+    │   ├── canon_delta.go     ─── CanonDelta (append-only canon changes)
+    │   ├── job.go             ─── Job + RunStep + PromptSnapshot/CostSummary/RunStats types
+    │   ├── narrative_event.go ─── NarrativeEvent (append-only state mutations)
+    │   ├── scene_lock.go      ─── SceneLock (cross-process generation guard)
     │
     ├── internal/service       ─── Business logic
     │   ├── agent.go           ─── AgentService (orchestrator-based scene generation)
@@ -126,7 +131,11 @@ cmd/server/
     │   ├── generation.go      ─── Durable pipeline orchestration (context.Background, partial success)
     │   ├── bible.go           ─── Bible generation + storage
     │   ├── chapter.go         ─── Chapter CRUD
-    │   └── context.go         ─── ContextBuilder — assembles Bible + states + memories + timeline → 20k prompt
+    │   ├── context.go         ─── ContextBuilder — assembles Bible + states + memories + timeline → 20k prompt
+    │   ├── planner.go         ─── PlannerService — scene structural analysis (purpose, beats, intent)
+    │   ├── diff.go            ─── DiffService — generation prose/event/token comparison
+    │   ├── run.go             ─── RunService — durable run tracking, cost, stats
+    │   └── narrative_event.go ─── NarrativeEventService — append-only state event log
     │
     ├── internal/repository    ─── Data access interfaces
     │   └── mongo/             ─── MongoDB implementations

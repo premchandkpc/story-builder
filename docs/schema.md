@@ -523,12 +523,246 @@ Append-only log of canon changes, projected into `stories.canonPins` on scene ac
 
 ---
 
+---
+
+### `story_blueprints`
+
+Structural plan for a story: acts, character arcs, plot threads.
+
+```json
+{
+  "_id": "bp_1",
+  "storyId": "story_1",
+  "acts": [{"number": 1, "name": "Setup", "scenes": []}],
+  "plotThreads": [{"id": "thread_1", "type": "main", "description": "Hero's journey"}],
+  "characterArcs": [{"characterId": "char_1", "arc": "redemption", "actBreakpoints": []}],
+  "createdAt": "",
+  "updatedAt": ""
+}
+```
+
+**Indexes:**
+- `{ storyId: 1 }` (unique)
+
+---
+
+### `story_runs`
+
+Durable orchestration run tracking.
+
+```json
+{
+  "_id": "run_1",
+  "storyId": "story_1",
+  "sceneId": "scene_100",
+  "genId": "gen_1",
+  "runType": "generate_scene",
+  "status": "running",
+  "startedAt": "",
+  "finishedAt": null,
+  "inputContextHash": "sha256...",
+  "currentStep": "generate",
+  "errorSummary": "",
+  "outputGenId": "",
+  "createdAt": "",
+  "updatedAt": ""
+}
+```
+
+**Status values:** `pending`, `running`, `completed`, `failed`, `cancelled`
+
+**Indexes:**
+- `{ storyId: 1, createdAt: -1 }`
+- `{ sceneId: 1, createdAt: -1 }`
+- `{ status: 1 }`
+
+---
+
+### `run_steps`
+
+Per-step execution records within a story run.
+
+```json
+{
+  "_id": "step_1",
+  "runId": "run_1",
+  "stepName": "generate",
+  "status": "done",
+  "startedAt": "",
+  "finishedAt": "",
+  "promptHash": "sha256...",
+  "model": "claude-sonnet",
+  "tokensIn": 4500,
+  "tokensOut": 820,
+  "error": "",
+  "artifacts": {},
+  "createdAt": ""
+}
+```
+
+**Step names:** `generate`, `extract`, `memory`, `timeline`, `summary`, `validate`
+
+**Indexes:**
+- `{ runId: 1, stepName: 1 }`
+- `{ runId: 1 }`
+
+---
+
+### `narrative_events`
+
+Append-only state mutation log for character and world changes.
+
+```json
+{
+  "_id": "evt_1",
+  "storyId": "story_1",
+  "sceneId": "scene_100",
+  "sourceRunId": "run_1",
+  "sourceAgent": "state_extractor",
+  "eventType": "state_change",
+  "subjectType": "character",
+  "subjectId": "char_1",
+  "payload": {"emotion": "fearful", "location": "throne_room"},
+  "confidence": 0.95,
+  "version": 1,
+  "createdAt": ""
+}
+```
+
+**Indexes:**
+- `{ storyId: 1, createdAt: -1 }`
+- `{ sceneId: 1 }`
+- `{ sourceRunId: 1 }`
+
+---
+
+### `scene_locks`
+
+Distributed generation lock for cross-process safety. Optional — in-process dedup via `sync.Map` is sufficient for single-worker setups.
+
+```json
+{
+  "_id": "lock_scene_100",
+  "sceneId": "scene_100",
+  "genId": "gen_1",
+  "workerId": "worker_1",
+  "ttl": 300,
+  "version": 1,
+  "acquiredAt": ""
+}
+```
+
+**Indexes:**
+- `{ sceneId: 1 }` (unique)
+- `{ ttl: 1 }` (expiry TTL index)
+
+---
+
+### `character_views`
+
+Projected character state cache, rebuilt from narrative events via event-replay. Speeds up lookups for the LLM context builder.
+
+```json
+{
+  "_id": "cv_1",
+  "storyId": "story_1",
+  "characterId": "char_1",
+  "sceneId": "scene_100",
+  "latestEventVersion": 5,
+  "emotionalState": "fearful",
+  "location": "throne_room",
+  "mood": "anxious",
+  "activeGoal": "escape",
+  "lastUpdated": ""
+}
+```
+
+**Indexes:**
+- `{ storyId: 1, characterId: 1, sceneId: 1 }`
+- `{ storyId: 1, characterId: 1, latestEventVersion: -1 }`
+
+---
+
+### `agent_configs`
+
+Shareable agent configuration specs for the community marketplace.
+
+```json
+{
+  "_id": "ac_1",
+  "name": "my-custom-critic",
+  "agentType": "critic",
+  "systemPrompt": "You are a strict narrative critic...",
+  "model": "claude-haiku",
+  "temperature": 0.0,
+  "maxTokens": 1024,
+  "version": 1,
+  "isShared": false,
+  "sharedAt": null,
+  "createdAt": "",
+  "updatedAt": ""
+}
+```
+
+**Indexes:**
+- `{ name: 1 }` (unique)
+- `{ agentType: 1 }`
+
+---
+
+### `token_budgets`
+
+Per-story token allocation tracking.
+
+```json
+{
+  "_id": "tb_1",
+  "storyId": "story_1",
+  "totalTokens": 100000,
+  "usedTokens": 45000,
+  "resetAt": ""
+}
+```
+
+**Indexes:**
+- `{ storyId: 1 }` (unique)
+
+---
+
+### `jobs`
+
+Durable generation job queue. Workers poll for pending jobs with lease semantics.
+
+```json
+{
+  "_id": "job_1",
+  "storyId": "story_1",
+  "sceneId": "scene_100",
+  "type": "generate_scene",
+  "status": "pending",
+  "leaseUntil": null,
+  "retryCount": 0,
+  "maxRetries": 3,
+  "error": "",
+  "createdAt": "",
+  "updatedAt": ""
+}
+```
+
+**Status values:** `pending`, `running`, `success`, `failed`
+
+**Indexes:**
+- `{ status: 1, createdAt: 1 }` (poll query)
+- `{ storyId: 1 }`
+
+---
+
 ## Frontend Types
 
 The frontend mirrors backend models as TypeScript interfaces in `web/src/api/types.ts`. Key mappings:
 
 | Frontend Type | Backend Collection | Notes |
-|---|---|---|
+|---|---|---|---|
 | `Story` | `stories` | DAG root, title + canon pins |
 | `GraphNode` | `scenes` (as graph nodes) | Primary DAG node type used by React Flow |
 | `GraphEdge` | `scene_edges` | Directed edges with type |
@@ -541,6 +775,14 @@ The frontend mirrors backend models as TypeScript interfaces in `web/src/api/typ
 | `SceneStructure` | embedded in scene | Turn-based flow config |
 | `AgentRun` | `agent_runs` | Agent execution log |
 | `CanonDelta` | `canon_deltas` | Append-only canon change log |
+| `StoryRun` | `story_runs` | Durable orchestration run |
+| `RunStep` | `run_steps` | Per-step execution record |
+| `NarrativeEvent` | `narrative_events` | Append-only state mutation |
+| `PromptSnapshot` | computed from run steps | System prompt + section breakdown |
+| `CostSummary` | computed from run steps | Token cost by model |
+| `RunStats` | computed from runs | Aggregate run metrics |
+| `ScenePlan` | computed | Planner service output (no dedicated collection) |
+| `GenDiff` | computed | Diff service output (no dedicated collection) |
 
 ### UI-Only Types (no backend equivalent)
 
@@ -553,6 +795,8 @@ The frontend mirrors backend models as TypeScript interfaces in `web/src/api/typ
 
 ```
 stories 1──1 bibles                (storyId)
+stories 1──1 story_blueprints      (storyId)
+stories 1──1 token_budgets         (storyId)
 stories 1──* chapters              (storyId)
 stories 1──* locations             (storyId)
 stories 1──* scenes                (storyId)
@@ -565,6 +809,10 @@ stories 1──* timeline_events       (storyId)
 stories 1──* scene_turns           (storyId)
 stories 1──* agent_runs            (storyId)
 stories 1──* canon_deltas          (storyId)
+stories 1──* narrative_events      (storyId)
+stories 1──* story_runs            (storyId)
+stories 1──* jobs                  (storyId)
+stories 1──* character_views       (storyId)
 
 scenes 1──* scene_edges            (fromSceneId / toSceneId)
 scenes 1──* generations            (sceneId)
@@ -574,13 +822,21 @@ scenes 1──* canon_deltas           (sceneId)
 scenes 1──* character_state        (sceneId)
 scenes 1──* character_memories     (sceneId)
 scenes 1──* summaries              (sceneId)
+scenes 1──* narrative_events       (sceneId)
+scenes 1──* story_runs             (sceneId)
+scenes 1──* scene_locks            1──1 (sceneId)
 
 characters 1──* character_state    (characterId)
 characters 1──* character_memories (characterId)
+characters 1──* narrative_events   (subjectId)
+characters 1──* character_views    (characterId)
 
 chapters 1──* scenes               (scenes array references)
 
 agent_runs 1──* scene_turns        (turnId)
+story_runs 1──* run_steps          (runId)
+story_runs 1──* narrative_events   (sourceRunId)
+generations 1──* story_runs        (genId)
 ```
 
 ---
