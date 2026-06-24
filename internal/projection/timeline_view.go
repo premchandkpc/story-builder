@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/repository"
 )
 
