@@ -56,3 +56,54 @@ func (h *Handlers) CancelRun(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "cancelled"})
 }
+
+func (h *Handlers) GetRunPromptSections(w http.ResponseWriter, r *http.Request) {
+	runID := chi.URLParam(r, "runID")
+	sections, err := h.runSvc.GetPromptSections(r.Context(), runID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if sections == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"sections": []any{}, "system": "", "tokenCount": 0})
+		return
+	}
+	writeJSON(w, http.StatusOK, sections)
+}
+
+func (h *Handlers) GetRunEvents(w http.ResponseWriter, r *http.Request) {
+	runID := chi.URLParam(r, "runID")
+	limit := queryInt(r, "limit", 100)
+	events, err := h.narrativeSvc.ListByRun(r.Context(), runID, limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if events == nil {
+		events = []*domain.NarrativeEvent{}
+	}
+	writeJSON(w, http.StatusOK, events)
+}
+
+func (h *Handlers) GetRunCost(w http.ResponseWriter, r *http.Request) {
+	runID := chi.URLParam(r, "runID")
+	cost, err := h.runSvc.GetRunCost(r.Context(), runID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if cost == nil {
+		cost = &domain.CostSummary{ByModel: map[string]domain.ModelCost{}}
+	}
+	writeJSON(w, http.StatusOK, cost)
+}
+
+func (h *Handlers) GetStoryRunStats(w http.ResponseWriter, r *http.Request) {
+	storyID := chi.URLParam(r, "storyID")
+	stats, err := h.runSvc.GetStoryRunStats(r.Context(), storyID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, stats)
+}

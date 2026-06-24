@@ -305,6 +305,70 @@ export interface NarrativeEvent {
   created_at: string
 }
 
+export interface PromptSection {
+  name: string
+  tokens: number
+  contentSnippet?: string
+}
+
+export interface PromptSnapshot {
+  system: string
+  tokenCount: number
+  sections: PromptSection[]
+}
+
+export interface ModelCost {
+  tokens: number
+  cost: number
+}
+
+export interface CostSummary {
+  totalTokens: number
+  estimatedCost: number
+  byModel: Record<string, ModelCost>
+}
+
+export interface RunStats {
+  total: number
+  completed: number
+  failed: number
+  cancelled: number
+  running: number
+  failureRate: number
+}
+
+export interface ScenePlan {
+  sceneId: string
+  purpose: {
+    sceneId: string
+    storyId: string
+    entryState: Record<string, string>
+    exitState: Record<string, string>
+    advancingArcs: string[]
+    conflictType: string
+    requiredBeats: { type: string; description: string; mandatory: boolean }[]
+  }
+  participantIntent: Record<string, string>
+  entryStatePreview: string
+  suggestedTone: string
+  suggestedPOV: string
+  suggestedWords: number
+}
+
+export interface EventDiff {
+  eventType: string
+  a?: { subjectType: string; subjectId: string; payload: Record<string, unknown>; confidence: number }
+  b?: { subjectType: string; subjectId: string; payload: Record<string, unknown>; confidence: number }
+}
+
+export interface GenDiff {
+  genAId: string
+  genBId: string
+  proseDiff: string
+  eventDiffs: EventDiff[]
+  tokenDiff: { a: number; b: number }
+}
+
 export interface LlmMetrics {
   total_prompt_tokens: number
   total_completion_tokens: number

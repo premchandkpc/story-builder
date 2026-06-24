@@ -17,7 +17,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 // useNavigate: React Router hook to programmatically navigate between pages
 import { useNavigate } from "react-router-dom"
 import { api } from "./client"
-import type { Character, CriticScoreData, Story, StoryStats, SceneTurn, AgentRun, LlmMetrics, StoryBible, TimelineEvent, Generation, GraphNode, GraphEdge, Topology, StoryRun, RunStep, NarrativeEvent } from "./types"
+import type { Character, CriticScoreData, Story, StoryStats, SceneTurn, AgentRun, LlmMetrics, StoryBible, TimelineEvent, Generation, GraphNode, GraphEdge, Topology, StoryRun, RunStep, NarrativeEvent, PromptSnapshot, CostSummary, RunStats, ScenePlan, GenDiff } from "./types"
 
 // ---- useStories() ----
 // Custom hook that fetches the list of all stories.
@@ -559,6 +559,23 @@ export function useUnlinkBible(storyId: string) {
   })
 }
 
+// ---- Plan & Diff Hooks ----
+export function useScenePlan(storyId: string, nodeId: string | null) {
+  return useQuery<ScenePlan>({
+    queryKey: ["scenePlan", storyId, nodeId],
+    queryFn: () => api.nodes.plan(storyId, nodeId!),
+    enabled: !!storyId && !!nodeId,
+  })
+}
+
+export function useGenDiff(storyId: string, nodeId: string, genA: string | null, genB: string | null) {
+  return useQuery<GenDiff>({
+    queryKey: ["genDiff", storyId, nodeId, genA, genB],
+    queryFn: () => api.nodes.diff(storyId, nodeId, genA!, genB!),
+    enabled: !!storyId && !!nodeId && !!genA && !!genB,
+  })
+}
+
 // ---- Run Hooks ----
 export function useStoryRuns(storyId: string, limit?: number) {
   return useQuery<StoryRun[]>({
@@ -592,6 +609,38 @@ export function useCancelRun() {
       qc.invalidateQueries({ queryKey: ["run", runId] })
       qc.invalidateQueries({ queryKey: ["runs"] })
     },
+  })
+}
+
+export function useRunPromptSections(runId: string | null) {
+  return useQuery<PromptSnapshot>({
+    queryKey: ["runPromptSections", runId],
+    queryFn: () => api.runs.promptSections(runId!),
+    enabled: !!runId,
+  })
+}
+
+export function useRunEvents(runId: string | null, limit = 100) {
+  return useQuery<NarrativeEvent[]>({
+    queryKey: ["runEvents", runId],
+    queryFn: () => api.runs.events(runId!, limit),
+    enabled: !!runId,
+  })
+}
+
+export function useRunCost(runId: string | null) {
+  return useQuery<CostSummary>({
+    queryKey: ["runCost", runId],
+    queryFn: () => api.runs.cost(runId!),
+    enabled: !!runId,
+  })
+}
+
+export function useRunStats(storyId: string) {
+  return useQuery<RunStats>({
+    queryKey: ["runStats", storyId],
+    queryFn: () => api.runs.stats(storyId),
+    enabled: !!storyId,
   })
 }
 

@@ -1,0 +1,4 @@
+[
+  {"_id": "charA", "storyId": "story-fork-001", "name": "Alice", "archetype": "hero", "personality": "brave and impulsive", "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"},
+  {"_id": "charB", "storyId": "story-fork-001", "name": "Bob", "archetype": "mentor", "personality": "wise and cautious", "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"}
+]

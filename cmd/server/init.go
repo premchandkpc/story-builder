@@ -44,6 +44,8 @@ type appDependencies struct {
 	agentSvc     *service.AgentService
 	runSvc       *service.RunService
 	narrativeSvc *service.NarrativeEventService
+	plannerSvc   *service.PlannerService
+	diffSvc      *service.DiffService
 }
 
 func initAll(cfg config.Config, db *mongo.Database) appDependencies {
@@ -167,6 +169,7 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 	charProjection := projection.NewCharacterProjection(narrativeEventRepo, charViewRepo)
 	tlProjection := projection.NewTimelineProjection(narrativeEventRepo, tlRepo)
 	projScheduler := projection.NewScheduler(charProjection, tlProjection)
+	_ = projScheduler
 
 	agentRegistry := agents.NewAgentRegistry()
 	agents.RegisterAll(agentRegistry, router, proseSvc, extractSvc, validateSvc)
@@ -222,6 +225,8 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 	memSvc := service.NewMemoryService(memRepo, embedSvc)
 	runSvc := service.NewRunService(runRepo, stepRepo, jobRepo)
 	narrativeSvc := service.NewNarrativeEventService(narrativeEventRepo)
+	plannerSvc := service.NewPlannerService(storyRepo, sceneRepo, edgeRepo, charRepo, mgorepo.NewBlueprintRepo(db))
+	diffSvc := service.NewDiffService(genRepo, narrativeEventRepo)
 	metricsSvc := service.NewMetricsService(genRepo)
 	criticSvc := service.NewCriticScoresService(genRepo, sceneRepo)
 	agentCfgRepo := mgorepo.NewAgentConfigRepo(db)
@@ -241,5 +246,7 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 		agentSvc:     agentSvc,
 		runSvc:       runSvc,
 		narrativeSvc: narrativeSvc,
+		plannerSvc:   plannerSvc,
+		diffSvc:      diffSvc,
 	}
 }

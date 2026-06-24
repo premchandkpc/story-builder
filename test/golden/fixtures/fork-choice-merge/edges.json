@@ -1,0 +1,6 @@
+[
+  {"_id": "edge1", "storyId": "story-fork-001", "fromSceneId": "sceneA", "toSceneId": "sceneB", "type": "fork"},
+  {"_id": "edge2", "storyId": "story-fork-001", "fromSceneId": "sceneA", "toSceneId": "sceneC", "type": "fork"},
+  {"_id": "edge3", "storyId": "story-fork-001", "fromSceneId": "sceneB", "toSceneId": "sceneD", "type": "seq"},
+  {"_id": "edge4", "storyId": "story-fork-001", "fromSceneId": "sceneC", "toSceneId": "sceneD", "type": "seq"}
+]

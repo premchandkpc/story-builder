@@ -54,6 +54,7 @@ func main() {
 		deps.progressHub, deps.eventBus,
 		deps.agentSvc, deps.agentSvc,
 		deps.runSvc, deps.narrativeSvc,
+		deps.plannerSvc, deps.diffSvc,
 	)
 
 	srv := api.NewServer(h, deps.rateLimiter, func(ctx context.Context) error {

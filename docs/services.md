@@ -195,6 +195,30 @@ See `docs/architecture.md` for the full span table and setup instructions.
 
 ---
 
+## Planner Service
+
+`internal/service/planner.go` — Analyzes scene structure, character intent, and story blueprint to produce a structural plan:
+
+| Method | Description |
+|--------|-------------|
+| `PlanScene(ctx, sceneID)` | Returns `ScenePlan` with purpose, participant intents, required beats, suggested tone/POV/word count. Reads scene, edges, characters, and story blueprint. |
+
+Dependencies: `StoryRepository`, `SceneRepository`, `SceneEdgeRepository`, `CharacterRepository`, `BlueprintRepository`.
+
+---
+
+## Diff Service
+
+`internal/service/diff.go` — Compares two generations for prose changes, event deltas, and token usage:
+
+| Method | Description |
+|--------|-------------|
+| `GenDiff(ctx, storyID, sceneID, genAID, genBID)` | Returns `GenDiff` with `proseDiff` (git-style), `eventDiffs` (added/removed events), and `tokenDiff`. |
+
+Dependencies: `GenerationRepository`, `NarrativeEventRepository`.
+
+---
+
 ## Generation Service
 
 Orchestrates the durable generation pipeline:

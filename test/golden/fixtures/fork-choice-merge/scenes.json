@@ -1,0 +1,6 @@
+[
+  {"_id": "sceneA", "storyId": "story-fork-001", "title": "Scene A - Start", "status": "completed", "flowType": "dialogue", "participants": ["charA", "charB"], "timelinePosition": 1, "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"},
+  {"_id": "sceneB", "storyId": "story-fork-001", "title": "Scene B - Branch", "status": "completed", "flowType": "dialogue", "participants": ["charA"], "timelinePosition": 2, "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"},
+  {"_id": "sceneC", "storyId": "story-fork-001", "title": "Scene C - Alt Branch", "status": "completed", "flowType": "monologue", "participants": ["charB"], "timelinePosition": 2, "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"},
+  {"_id": "sceneD", "storyId": "story-fork-001", "title": "Scene D - Merge", "status": "draft", "flowType": "dialogue", "participants": ["charA", "charB"], "timelinePosition": 3, "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"}
+]

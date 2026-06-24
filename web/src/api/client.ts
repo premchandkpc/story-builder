@@ -7,7 +7,8 @@ import type {
   CriticScoreData, Generation, GraphEdge, GraphNode, Location,
   SceneTurn, AgentRun, LlmMetrics,
   Story, StoryGenerateResult, StorySummary, Topology, UpdateNodePayload,
-  StoryRun, RunStep, NarrativeEvent,
+  StoryRun, RunStep, NarrativeEvent, PromptSnapshot, CostSummary, RunStats,
+  ScenePlan, GenDiff,
 } from "./types"
 
 // ---- Base URL ----
@@ -123,6 +124,10 @@ export const api = {
         method: "PUT",
         body: JSON.stringify({ position_x: x, position_y: y }),
       }),
+    plan: (storyId: string, nodeId: string) =>
+      request<ScenePlan>(`/stories/${storyId}/nodes/${nodeId}/plan`),
+    diff: (storyId: string, nodeId: string, genA: string, genB: string) =>
+      request<GenDiff>(`/stories/${storyId}/nodes/${nodeId}/generations/${genA}/diff?against=${encodeURIComponent(genB)}`),
   },
 
   // ==========================================
@@ -200,8 +205,16 @@ export const api = {
       request<StoryRun>(`/runs/${runId}`),
     steps: (runId: string) =>
       request<RunStep[]>(`/runs/${runId}/steps`),
+    promptSections: (runId: string) =>
+      request<PromptSnapshot>(`/runs/${runId}/prompt-sections`),
+    events: (runId: string, limit?: number) =>
+      request<NarrativeEvent[]>(`/runs/${runId}/events${limit ? `?limit=${limit}` : ""}`),
+    cost: (runId: string) =>
+      request<CostSummary>(`/runs/${runId}/cost`),
     cancel: (runId: string) =>
       request<{ status: string }>(`/runs/${runId}/cancel`, { method: "POST" }),
+    stats: (storyId: string) =>
+      request<RunStats>(`/stories/${storyId}/runs/stats`),
   },
 
   // ==========================================

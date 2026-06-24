@@ -1,0 +1,3 @@
+[
+  {"_id": "edgeM1", "storyId": "story-mono-001", "fromSceneId": "sceneM1", "toSceneId": "sceneM2", "type": "seq"}
+]

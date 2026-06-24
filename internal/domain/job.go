@@ -48,6 +48,7 @@ type StoryRun struct {
 	CurrentStep      string     `bson:"currentStep,omitempty" json:"currentStep,omitempty"`
 	ErrorSummary     string     `bson:"errorSummary,omitempty" json:"errorSummary,omitempty"`
 	OutputGenID      string     `bson:"outputGenId,omitempty" json:"outputGenId,omitempty"`
+	PromptSnapshot   *PromptSnapshot `bson:"promptSnapshot,omitempty" json:"promptSnapshot,omitempty"`
 	CreatedAt        time.Time  `bson:"createdAt" json:"createdAt"`
 	UpdatedAt        time.Time  `bson:"updatedAt" json:"updatedAt"`
 }
@@ -94,6 +95,38 @@ const (
 	StepStatusFailed  = "failed"
 	StepStatusSkipped = "skipped"
 )
+
+type PromptSection struct {
+	Name    string `bson:"name" json:"name"`
+	Tokens  int    `bson:"tokens" json:"tokens"`
+	Snippet string `bson:"contentSnippet,omitempty" json:"contentSnippet,omitempty"`
+}
+
+type PromptSnapshot struct {
+	System   string          `bson:"system,omitempty" json:"system,omitempty"`
+	Tokens   int             `bson:"tokenCount,omitempty" json:"tokenCount,omitempty"`
+	Sections []PromptSection `bson:"sections,omitempty" json:"sections,omitempty"`
+}
+
+type ModelCost struct {
+	Tokens int     `bson:"tokens" json:"tokens"`
+	Cost   float64 `bson:"cost" json:"cost"`
+}
+
+type CostSummary struct {
+	TotalTokens    int                  `bson:"totalTokens" json:"totalTokens"`
+	EstimatedCost  float64              `bson:"estimatedCost" json:"estimatedCost"`
+	ByModel        map[string]ModelCost `bson:"byModel,omitempty" json:"byModel,omitempty"`
+}
+
+type RunStats struct {
+	Total       int     `bson:"total" json:"total"`
+	Completed   int     `bson:"completed" json:"completed"`
+	Failed      int     `bson:"failed" json:"failed"`
+	Cancelled   int     `bson:"cancelled" json:"cancelled"`
+	Running     int     `bson:"running" json:"running"`
+	FailureRate float64 `bson:"failureRate" json:"failureRate"`
+}
 
 type SceneLock struct {
 	SceneID    string    `bson:"_id" json:"scene_id"`

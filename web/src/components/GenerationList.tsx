@@ -7,6 +7,7 @@ interface GenerationListProps {
   generations: Generation[]
   gensLoading: boolean
   selectedNodeId: string
+  storyId?: string
   onAccept: (nodeId: string, genId: string) => void
   hasPending?: boolean
   onRetry?: () => void
@@ -306,7 +307,7 @@ export default function GenerationList({
       </div>
 
       {showCompare ? (
-        <GenerationCompare generations={generations} />
+        <GenerationCompare generations={generations} storyId={storyId} nodeId={selectedNodeId} />
       ) : (
         <>
           {/* Empty state */}

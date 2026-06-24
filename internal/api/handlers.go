@@ -35,6 +35,8 @@ type Handlers struct {
 	charAgentSvc  CharAgentService
 	runSvc        RunService
 	narrativeSvc  NarrativeEventService
+	plannerSvc    PlannerService
+	diffSvc       DiffService
 }
 
 func NewHandlers(
@@ -61,6 +63,8 @@ func NewHandlers(
 	charAgentSvc CharAgentService,
 	runSvc RunService,
 	narrativeSvc NarrativeEventService,
+	plannerSvc PlannerService,
+	diffSvc DiffService,
 ) *Handlers {
 	return &Handlers{
 		storySvc: storySvc, sceneSvc: sceneSvc, edgeSvc: edgeSvc,
@@ -72,6 +76,7 @@ func NewHandlers(
 		progress: progress, eventBus: eventBus, agentSvc: agentSvc,
 		charAgentSvc: charAgentSvc,
 		runSvc: runSvc, narrativeSvc: narrativeSvc,
+		plannerSvc: plannerSvc, diffSvc: diffSvc,
 	}
 }
 

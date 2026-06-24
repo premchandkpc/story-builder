@@ -84,6 +84,8 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter, healthCheck
 						r.Delete("/", h.DeleteNode)
 						r.Post("/generate", h.V2GenerateNode)
 						r.Get("/generations", h.V2ListNodeGenerations)
+						r.Get("/plan", h.GetScenePlan)
+						r.Get("/generations/{genID}/diff", h.GetGenerationDiff)
 						r.Post("/accept", h.V2AcceptGeneration)
 					})
 				})
@@ -246,10 +248,14 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter, healthCheck
 		r.Route("/runs/{runID}", func(r chi.Router) {
 			r.Get("/", h.GetRun)
 			r.Get("/steps", h.GetRunSteps)
+			r.Get("/prompt-sections", h.GetRunPromptSections)
+			r.Get("/events", h.GetRunEvents)
+			r.Get("/cost", h.GetRunCost)
 			r.Post("/cancel", h.CancelRun)
 		})
 		r.Route("/stories/{storyID}/runs", func(r chi.Router) {
 			r.Get("/", h.ListStoryRuns)
+			r.Get("/stats", h.GetStoryRunStats)
 		})
 
 		// Narrative events — append-only state mutation log

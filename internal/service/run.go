@@ -64,6 +64,58 @@ func (s *RunService) AddStep(ctx context.Context, step *domain.RunStep) error {
 	return s.stepRepo.Create(ctx, step)
 }
 
+func (s *RunService) GetPromptSections(ctx context.Context, runID string) (*domain.PromptSnapshot, error) {
+	run, err := s.runRepo.Get(ctx, runID)
+	if err != nil || run == nil {
+		return nil, err
+	}
+	return run.PromptSnapshot, nil
+}
+
+func (s *RunService) GetRunCost(ctx context.Context, runID string) (*domain.CostSummary, error) {
+	steps, err := s.stepRepo.ListByRun(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	cost := &domain.CostSummary{
+		ByModel: make(map[string]domain.ModelCost),
+	}
+	for _, step := range steps {
+		cost.TotalTokens += step.TokensIn + step.TokensOut
+		cost.EstimatedCost += step.EstimatedCostUSD
+		mc := cost.ByModel[step.Model]
+		mc.Tokens += step.TokensIn + step.TokensOut
+		mc.Cost += step.EstimatedCostUSD
+		cost.ByModel[step.Model] = mc
+	}
+	return cost, nil
+}
+
+func (s *RunService) GetStoryRunStats(ctx context.Context, storyID string) (*domain.RunStats, error) {
+	runs, err := s.runRepo.ListByStory(ctx, storyID, 0)
+	if err != nil {
+		return nil, err
+	}
+	stats := &domain.RunStats{}
+	for _, r := range runs {
+		stats.Total++
+		switch r.Status {
+		case domain.RunStatusCompleted:
+			stats.Completed++
+		case domain.RunStatusFailed:
+			stats.Failed++
+		case domain.RunStatusCancelled:
+			stats.Cancelled++
+		case domain.RunStatusRunning:
+			stats.Running++
+		}
+	}
+	if stats.Total > 0 {
+		stats.FailureRate = float64(stats.Failed) / float64(stats.Total)
+	}
+	return stats, nil
+}
+
 type NarrativeEventService struct {
 	repo repository.NarrativeEventRepository
 }
@@ -82,4 +134,8 @@ func (s *NarrativeEventService) ListByStory(ctx context.Context, storyID string,
 
 func (s *NarrativeEventService) ListByScene(ctx context.Context, sceneID string, limit int) ([]*domain.NarrativeEvent, error) {
 	return s.repo.ListByScene(ctx, sceneID, limit)
+}
+
+func (s *NarrativeEventService) ListByRun(ctx context.Context, runID string, limit int) ([]*domain.NarrativeEvent, error) {
+	return s.repo.ListByRun(ctx, runID, limit)
 }

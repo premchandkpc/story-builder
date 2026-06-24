@@ -150,6 +150,7 @@ type NarrativeEventRepository interface {
 	AppendMany(ctx context.Context, events []*domain.NarrativeEvent) error
 	ListByStory(ctx context.Context, storyID string, limit int) ([]*domain.NarrativeEvent, error)
 	ListByScene(ctx context.Context, sceneID string, limit int) ([]*domain.NarrativeEvent, error)
+	ListByRun(ctx context.Context, runID string, limit int) ([]*domain.NarrativeEvent, error)
 	ListBySubject(ctx context.Context, storyID, subjectID string, limit int) ([]*domain.NarrativeEvent, error)
 	LatestVersion(ctx context.Context, storyID string) (int64, error)
 	DeleteByStory(ctx context.Context, storyID string) error

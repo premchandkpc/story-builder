@@ -656,6 +656,68 @@ Returns:
 |--------|------|----------|
 | GET | `/api/v1/experimental/agent-runs` | List agent runs (empty) |
 
+---
+
+## Product Intelligence
+
+Endpoints for scene planning and generation comparison.
+
+### `GET /api/v1/stories/{storyID}/nodes/{nodeID}/plan`
+
+Returns the structural plan for a scene: purpose, participant intents, required beats, suggested tone/POV/word count.
+
+**Response 200:**
+```json
+{
+  "sceneId": "node_abc",
+  "purpose": {
+    "sceneId": "node_abc",
+    "storyId": "story_1",
+    "entryState": {},
+    "exitState": {},
+    "advancingArcs": ["char_1", "char_2"],
+    "conflictType": "choice",
+    "requiredBeats": [
+      {"type": "confrontation", "description": "Resolve the standoff", "mandatory": true},
+      {"type": "decision", "description": "choose path forward", "mandatory": true}
+    ]
+  },
+  "participantIntent": {
+    "char_1": "Hero's persona description...",
+    "char_2": "Villain's persona description..."
+  },
+  "entryStatePreview": "",
+  "suggestedTone": "dark",
+  "suggestedPOV": "third-person",
+  "suggestedWords": 500
+}
+```
+
+### `GET /api/v1/stories/{storyID}/nodes/{nodeID}/generations/{genID}/diff?against={genBID}`
+
+Compares two generations: prose diff, event diffs (added/removed events), and token usage delta.
+
+**Response 200:**
+```json
+{
+  "genAId": "gen_a",
+  "genBId": "gen_b",
+  "proseDiff": "--- a\n+++ b\n@@ -120 +120 @@\n ...",
+  "eventDiffs": [
+    {
+      "eventType": "added",
+      "b": {
+        "subjectType": "character",
+        "subjectId": "char_1",
+        "payload": {"emotion": "fearful"},
+        "confidence": 0.92
+      }
+    }
+  ],
+  "tokenDiff": {"a": 450, "b": 520}
+}
+```
+
 ### Stub Groups (all return `[]` or 501)
 
 | Group | Endpoints |

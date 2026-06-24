@@ -125,11 +125,23 @@ type RunService interface {
 	ListByStory(ctx context.Context, storyID string, limit int) ([]*domain.StoryRun, error)
 	ListSteps(ctx context.Context, runID string) ([]*domain.RunStep, error)
 	Cancel(ctx context.Context, runID string) error
+	GetPromptSections(ctx context.Context, runID string) (*domain.PromptSnapshot, error)
+	GetRunCost(ctx context.Context, runID string) (*domain.CostSummary, error)
+	GetStoryRunStats(ctx context.Context, storyID string) (*domain.RunStats, error)
 }
 
 type NarrativeEventService interface {
 	ListByStory(ctx context.Context, storyID string, limit int) ([]*domain.NarrativeEvent, error)
 	ListByScene(ctx context.Context, sceneID string, limit int) ([]*domain.NarrativeEvent, error)
+	ListByRun(ctx context.Context, runID string, limit int) ([]*domain.NarrativeEvent, error)
+}
+
+type PlannerService interface {
+	PlanScene(ctx context.Context, sceneID string) (*service.ScenePlan, error)
+}
+
+type DiffService interface {
+	GenDiff(ctx context.Context, storyID, sceneID, genAID, genBID string) (*service.GenDiff, error)
 }
 
 type AgentConfigService interface {

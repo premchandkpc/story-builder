@@ -112,3 +112,12 @@ func WithTimelinePosition(n int) SceneOpt {
 func WithLocation(name string) SceneOpt {
 	return func(sc *domain.Scene) { sc.LocationRef = name }
 }
+
+func randomString(n int) string {
+	const letters = "abcdefghijklmnopqrstuvwxyz"
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letters[i%len(letters)]
+	}
+	return string(b)
+}

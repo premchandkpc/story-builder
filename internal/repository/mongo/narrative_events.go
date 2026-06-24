@@ -45,6 +45,22 @@ func (r *NarrativeEventRepo) ListByStory(ctx context.Context, storyID string, li
 	return events, nil
 }
 
+func (r *NarrativeEventRepo) ListByRun(ctx context.Context, runID string, limit int) ([]*domain.NarrativeEvent, error) {
+	opt := options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}})
+	if limit > 0 {
+		opt.SetLimit(int64(limit))
+	}
+	cursor, err := r.coll.Find(ctx, bson.M{"sourceRunId": runID}, opt)
+	if err != nil {
+		return nil, err
+	}
+	var events []*domain.NarrativeEvent
+	if err := cursor.All(ctx, &events); err != nil {
+		return nil, err
+	}
+	return events, nil
+}
+
 func (r *NarrativeEventRepo) ListByScene(ctx context.Context, sceneID string, limit int) ([]*domain.NarrativeEvent, error) {
 	opt := options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}})
 	if limit > 0 {
