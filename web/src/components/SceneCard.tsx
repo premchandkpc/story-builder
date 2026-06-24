@@ -169,7 +169,7 @@ export default function SceneCard({ node, nodes, edges, generations, onOpenInGra
                     <span style={{ color: "var(--text-faint)" }}>{g.total_tokens}t</span>
                   )}
                   <span style={{ color: "var(--text-faint)", fontSize: 10 }}>
-                    {new Date(g.created_at).toLocaleDateString()}
+                    {g.created_at ? new Date(g.created_at).toLocaleDateString() : ""}
                   </span>
                 </div>
               ))}
