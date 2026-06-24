@@ -6,147 +6,149 @@
 
 package "cmd/server" as CMD {
   [main.go]
+  [init.go]
 }
 
 package "internal/api" as API {
   [router.go]
-  [handlers_stories.go]
-  [handlers_characters.go]
-  [handlers_generation.go]
-  [handlers_timeline.go]
-  [handlers_blueprints.go]
-  [request_validation.go]
+  [handlers*.go]
   [middleware.go]
-  [mwlogger.go]
 }
 
-package "internal/graph" as GRAPH {
-  [models.go]
-  [traversal.go]
+package "internal/service" as SVC {
+  [story.go]
+  [scene.go]
+  [generation.go]
+  [character.go]
   [memory.go]
+  [agents.go]
 }
 
-package "internal/canon" as CANON {
-  [models.go]
-  [memory.go]
+package "internal/domain" as DOM {
+  [story/]
+  [scene/]
+  [character/]
+  [memory/]
+  [timeline/]
 }
 
-package "internal/ledger" as LEDGER {
-  [models.go]
-  [memory.go]
+package "internal/repository" as REPO {
+  [interfaces.go]
 }
 
-package "internal/compiler" as COMPILER {
-  [compiler.go]
-  [prompts.go]
-  [summary.go]
-  [memory.go]
+package "internal/repository/mongo" as MONGO {
+  [client.go]
+  [stories.go]
+  [scenes.go]
+  [edges.go]
+  [characters.go]
+  [generations.go]
+  [memories.go]
+  [timeline.go]
+  [+16 more]
 }
 
 package "internal/llm" as LLM {
-  [types.go]
-  [services.go]
   [client.go]
   [router.go]
+  [compress.go]
+  [cache.go]
 }
 
-package "internal/scene" as SCENE {
+package "internal/prompt" as PROMPT {
+  [compiler.go]
+  [templates.go]
+}
+
+package "internal/agents" as AGENTS {
+  [orchestrator.go]
+  [director.go]
+  [narrator.go]
+  [character_manager.go]
+  [character_agent.go]
+  [editor.go]
+  [canon_guard.go]
+  [critic.go]
+  [world.go]
+  [arc.go]
+  [memory_agent.go]
+}
+
+package "internal/worker" as WORKER {
+  [generate.go]
+  [extract.go]
+  [memory.go]
+  [summary.go]
+  [timeline.go]
+  [validate.go]
+}
+
+package "internal/graph" as GRAPH {
+  [traversal.go]
+  [validate.go]
+}
+
+package "internal/validation" as VALID {
+  [rules.go]
+  [result.go]
+}
+
+package "internal/events" as EVT {
+  [bus.go]
   [types.go]
-  [agent.go]
-  [turn.go]
-}
-
-package "internal/river" as RIVER {
-  [jobs.go]
-}
-
-package "internal/db" as DB {
-  [db.go]
-  [models.go]
-  [queries.sql.go]
-  [extras.go]
-  [actor_traits.go]
-}
-
-package "internal/migrate" as MIGRATE {
-  [runner.go]
 }
 
 package "internal/cache" as CACHE {
-  [cache.go]
-  [cached_llm.go]
-  [context_cache.go]
-  [prompt_cache.go]
+  [redis_client.go]
   [rate_limiter.go]
   [dist_lock.go]
-  [redis_client.go]
-  [workflow.go]
+  [context_cache.go]
 }
 
-package "internal/narrative" as NARRATIVE {
-  [models.go]
-  [types.go]
+package "internal/projection" as PROJ {
+  [character_view.go]
+  [timeline.go]
 }
 
-package "internal/timeline" as TL {
-  [models.go]
-}
-
-package "internal/agent" as AGENT {
-  [models.go]
-  [service.go]
-}
-
-package "internal/memory" as MEM {
-  [models.go]
-  [store.go]
-}
-
-package "internal/planner" as PLAN {
-  [models.go]
-  [store.go]
-}
-
-package "internal/workflow" as WF {
-  [models.go]
-  [store.go]
-  [saga.go]
+package "internal/config" as CFG {
+  [config.go]
 }
 
 CMD --> API : HTTP handlers
-CMD --> DB : pgxpool
+CMD --> MONGO : mongo.Client (via mgorepo)
 CMD --> LLM : clients
-CMD --> RIVER : workers
-CMD --> MIGRATE : runner
-CMD --> GRAPH : memory store (fallback)
-CMD --> CANON : memory store (fallback)
-CMD --> LEDGER : memory store (fallback)
-CMD --> COMPILER : memory store (fallback)
+CMD --> WORKER : lifecycle
 CMD --> CACHE : Redis client
+CMD --> CFG : config
+CMD --> EVT : event bus
 
-API --> DB : queries
-API --> GRAPH : domain types
-API --> CANON : domain types
-API --> COMPILER : generation types
-API --> SCENE : scene service
+API --> SVC : service calls
 API --> CACHE : rate limiter
 
-RIVER --> DB : queries
-RIVER --> LLM : service calls
-RIVER --> CANON : card types
-RIVER --> LEDGER : state types
-RIVER --> COMPILER : prompt builders
+SVC --> DOM : domain types
+SVC --> REPO : repository interfaces
+SVC --> LLM : generation
+SVC --> PROMPT : prompt compiler
+SVC --> AGENTS : agent service
+SVC --> VALID : validation
+SVC --> EVT : publish events
 
-COMPILER --> CANON : card types
-COMPILER --> LEDGER : state types
+WORKER --> REPO : repository interfaces
+WORKER --> LLM : service calls
+WORKER --> PROMPT : prompt builders
+WORKER --> AGENTS : character agent access
 
-GRAPH --> CANON : domain types (via API)
+AGENTS --> LLM : LLM calls
+AGENTS --> DOM : domain types
+AGENTS --> EVT : publish/consume events
+
+PROMPT --> DOM : domain types
+
+GRAPH --> DOM : domain types
 
 CACHE --> LLM : cached wrapper
 
-AGENT --> LLM : agent prompts
-MEM --> DB : persistence
-PLAN --> DB : persistence
-WF --> DB : persistence
+PROJ --> DOM : domain types
+PROJ --> REPO : persistence
 
 @enduml

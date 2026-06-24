@@ -7,41 +7,43 @@
 actor User
 entity "React Frontend" as UI
 entity "API Handler" as API
-database "PostgreSQL" as DB
-entity "River Queue" as RIVER
+database "MongoDB" as MONGO
+entity "Redis" as REDIS
 entity "GenerateSceneWorker" as GENWORKER
 entity "LLM Service" as LLM
+entity "Cache" as CACHE
 
 User -> UI : Click "Generate"
 UI -> API : POST /nodes/{id}/generate
-API -> DB : GetScene(id)
-API -> DB : compileContext (characters, location, lore)
+API -> MONGO : GetScene(id)
+API -> MONGO : compileContext (characters, location, lore)
 API -> API : Compute Hash()
-API -> DB : INSERT generation
-API -> RIVER : Insert GenerateSceneArgs
+API -> MONGO : INSERT generation
+API -> REDIS : Enqueue job
 API -> UI : Response 202 { generation_id, context_hash }
 UI -> User : Show pending
 
-RIVER -> GENWORKER : Process job
-GENWORKER -> DB : Load characters (GetCharacterLatest)
-GENWORKER -> DB : Load location (GetLocationLatest)
-GENWORKER -> DB : Load lore (SearchLoreByTags)
-GENWORKER -> DB : Load state (GetStatesForScene)
-GENWORKER -> DB : Load scene summary
+REDIS -> GENWORKER : Poll pending job
+GENWORKER -> MONGO : Load characters (GetCharacterLatest)
+GENWORKER -> MONGO : Load location (GetLocationLatest)
+GENWORKER -> MONGO : Load lore (SearchLoreByTags)
+GENWORKER -> MONGO : Load state (GetStatesForScene)
+GENWORKER -> MONGO : Load scene summary
+GENWORKER -> CACHE : Check/populate cache
 GENWORKER -> LLM : GenerateScene(params)
 LLM -> LLM : Build system prompt + user message
 LLM -> LLM : Call Anthropic/OpenCode API
 LLM -> GENWORKER : Return prose
-GENWORKER -> DB : UpdateGenerationOutput(id, output, model)
-GENWORKER -> RIVER : Done
+GENWORKER -> MONGO : UpdateGenerationOutput(id, output, model)
+GENWORKER -> REDIS : Mark done
 
 User -> UI : Click "Accept"
 UI -> API : POST /nodes/{id}/accept
-API -> DB : AcceptGeneration(id)
-API -> DB : RejectOtherGenerations(scene_id, id)
-API -> RIVER : Insert ExtractStateArgs
-API -> RIVER : Insert UpdateSummaryArgs
-API -> RIVER : Insert ValidateSceneArgs
+API -> MONGO : AcceptGeneration(id)
+API -> MONGO : RejectOtherGenerations(scene_id, id)
+API -> REDIS : Enqueue ExtractStateArgs
+API -> REDIS : Enqueue UpdateSummaryArgs
+API -> REDIS : Enqueue ValidateSceneArgs
 API -> UI : 200 OK
 
 @enduml

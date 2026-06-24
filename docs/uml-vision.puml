@@ -4,42 +4,20 @@ skinparam monochrome true
 skinparam shadowing false
 skinparam packageStyle rectangle
 
-title Narrative OS — Target Architecture
+title Story Builder — Architecture
 
 ' ── Data Stores ──
 
 package "Data Stores" {
-  database "PostgreSQL" as PG {
-    frame "Transactional" as TX
-    frame "stories"
-    frame "chapters"
-    frame "scenes"
-    frame "users"
-    frame "generation_jobs"
-    frame "audit_logs"
-  }
-
   database "MongoDB" as MONGO {
-    frame "Documents" as DOC
-    frame "character_profiles"
-    frame "scene_templates"
-    frame "prompt_templates"
-    frame "world_definitions"
-    frame "culture_definitions"
-  }
-
-  database "Neo4j" as NEO {
-    frame "Relationships" as REL
-    frame "Character↔Character"
-    frame "Character↔Scene"
-    frame "Scene↔Scene"
-  }
-
-  database "Qdrant" as QDRANT {
-    frame "Vectors" as VEC
-    frame "character_memories"
-    frame "story_embeddings"
-    frame "culture_embeddings"
+    frame "Primary SSOT" as SSOT
+    frame "stories"
+    frame "scenes"
+    frame "characters"
+    frame "generations"
+    frame "character_state"
+    frame "memories"
+    frame "timeline_events"
   }
 
   database "Redis" as REDIS {
@@ -48,43 +26,64 @@ package "Data Stores" {
     frame "context_cache"
     frame "rate_limiter"
     frame "dist_lock"
+    frame "job_queue"
   }
 }
 
-' ── Canonical Model ──
+' ── Domain Model ──
 
-package "Canonical Model" {
-  frame "Universe" as U
-  frame "World" as W
-  frame "Timeline" as T
+package "Domain Model" {
   frame "Story" as S
-  frame "Scenario" as SC
   frame "Scene" as SE
-  frame "Frame" as F
+  frame "SceneEdge" as EDGE
+  frame "Character" as C
+  frame "CharacterState" as CS
+  frame "CharacterMemory" as M
+  frame "Generation" as G
+  frame "TimelineEvent" as T
 }
 
-U --> W : contains
-W --> T : owns
-W --> S : owns
-S --> SC : contains
-SC --> SE : contains
-SE --> F : composed of
+S --> SE : contains scenes
+SE --> EDGE : linked by edges
+SE --> C : involves characters
+C --> CS : append-only state
+C --> M : semantic memories
+SE --> G : LLM outputs
 
 ' ── Services ──
 
-package "Services (Modular Monolith)" {
+package "Services" {
   frame "Prompt Compiler" as PC
-  frame "Context Builder" as CB
   frame "Generation Service" as GS
-  frame "Character Service" as CS
+  frame "Character Service" as CHS
   frame "Timeline Service" as TS
   frame "Memory Service" as MS
-  frame "Emotion Service" as ES
-  frame "Culture Service" as CUS
   frame "Validation Service" as VS
-  frame "Render Service" as RS
-  frame "Casting Service" as CAS
-  frame "Analytics Service" as AS
+  frame "Agent Service" as AS
+}
+
+' ── Runtime Agents ──
+
+package "Runtime Agents" {
+  frame "Orchestrator" as ORC
+  frame "Director" as DIR
+  frame "Narrator" as NAR
+  frame "Character Agents" as CAGS
+  frame "Editor" as ED
+  frame "CanonGuard" as CG
+  frame "Critic" as CR
+  frame "World/Arc/Memory" as WAM
+}
+
+' ── Workers ──
+
+package "Workers (goroutines)" {
+  frame "Generate" as WGEN
+  frame "ExtractState" as WEXT
+  frame "MemoryUpdate" as WMEM
+  frame "Timeline" as WTL
+  frame "Summary" as WSUM
+  frame "Validate" as WVAL
 }
 
 ' ── External ──
@@ -92,68 +91,58 @@ package "Services (Modular Monolith)" {
 rectangle "LLM Providers" as LLM {
   frame "Anthropic"
   frame "OpenCode"
-  frame "OpenAI"
-}
-
-rectangle "Render Targets" as RENDER {
-  frame "Prose"
-  frame "Visual Novel"
-  frame "Screenplay"
-  frame "Comic Panel"
-  frame "Game Dialog"
-  frame "2D/3D Scene"
 }
 
 ' ── Connections ──
 
-PC --> CB : compiled prompt
-CB --> PG : canon + state
-CB --> MONGO : templates + culture
-CB --> NEO : relationships
-CB --> QDRANT : memories
-CB --> REDIS : cache check
+PC --> MONGO : templates + lore
+PC --> REDIS : prompt cache
 
+GS --> MONGO : scene + state
 GS --> LLM : completion request
 GS --> VS : validate output
-GS --> RS : render output
 
-CS --> NEO : relationship queries
-CS --> QDRANT : memory storage
-CS --> PG : state persistence
+CHS --> MONGO : state persistence
+CHS --> CAGS : per-character agents
 
-TS --> PG : event store
+TS --> MONGO : event store
 TS --> REDIS : timeline cache
 
-MS --> QDRANT : semantic search
-MS --> QDRANT : memory write
+MS --> MONGO : semantic search
+MS --> MONGO : memory write
 
-ES --> CS : character state
-ES --> PC : emotion context
+VS --> MONGO : validation results
 
-CUS --> MONGO : culture definitions
-CUS --> PC : culture context
+AS --> MONGO : agent runs + turns
+AS --> ORC : orchestrate scene
+AS --> REDIS : job queue
 
-VS --> PG : validation results
+ORC --> DIR : direct scene flow
+ORC --> NAR : narrate prose
+ORC --> CAGS : character turns
+ORC --> ED : polish output
+ORC --> CG : verify consistency
+ORC --> CR : score scene
+ORC --> WAM : world/arc/memory
 
-RS --> RENDER : format-specific output
+WGEN --> LLM : generate prose
+WGEN --> LORE : context building
+WEXT --> MONGO : extract state
+WMEM --> MONGO : store memories
+WSUM --> MONGO : update summaries
+WVAL --> MONGO : validate canon
 
-AS --> PG : analytics data
-AS --> LLM : usage metrics
+' ── In-Memory Events ──
 
-' ── Events ──
-
-frame "Kafka" as KAFKA {
-  frame "Event Bus" as EVT
+frame "Event Bus" as EVT {
 }
 
 GS --> EVT : SceneGenerated
-CS --> EVT : CharacterChanged
-ES --> EVT : EmotionChanged
-TS --> EVT : TimelineChanged
-RS --> EVT : RenderGenerated
+AS --> EVT : SceneTurnsComplete
+CAGS --> EVT : CharacterActed
 
-EVT --> AS : consume events
+EVT --> TS : consume events
 EVT --> MS : consume events
-EVT --> CS : consume events
+EVT --> WSUM : consume events
 
 @enduml

@@ -1,202 +1,205 @@
 @startuml
 
 ' =============================================
-' DB Entity Relationship Diagram
+' MongoDB Collections — Document Model (Story Builder)
 ' =============================================
 
-entity stories {
-  * id: uuid <<PK>>
+entity "stories" as STORIES {
+  * _id: ObjectId <<PK>>
   --
-  * title: text
-  * canon_pins: jsonb
-  genre: text
-  theme: text
-  main_prompt: text
-  general_prompt: text
-  * created_at: timestamptz
+  * title: string
+  * canon_pins: string[]
+  genre: string
+  theme: string
+  main_prompt: string
+  general_prompt: string
+  bible_id: ObjectId
+  * created_at: Date
+  * updated_at: Date
 }
 
-entity chapters {
-  * id: uuid <<PK>>
+entity "chapters" as CHAPTERS {
+  * _id: ObjectId <<PK>>
   --
-  * story_id: uuid <<FK>>
-  * title: text
-  goal: text
+  * story_id: ObjectId <<FK>>
+  * title: string
+  goal: string
   * order_index: int
-  summary: text
-  status: text
-  * created_at: timestamptz
-  * updated_at: timestamptz
+  summary: string
+  status: string
+  * created_at: Date
+  * updated_at: Date
 }
 
-entity scenes {
-  * id: uuid <<PK>>
+entity "scenes" as SCENES {
+  * _id: ObjectId <<PK>>
   --
-  * chapter_id: uuid <<FK>>
-  * story_id: uuid <<FK>>
-  title: text
-  * beat_intent: text
-  character_refs: uuid[]
-  location_ref: uuid
-  pov: text
-  tone: text
+  * chapter_id: ObjectId <<FK>>
+  * story_id: ObjectId <<FK>>
+  title: string
+  * beat_intent: string
+  character_refs: ObjectId[]
+  location_ref: ObjectId
+  pov: string
+  tone: string
   target_words: int
-  scene_structure: jsonb
-  parent_scene_id: uuid
-  timeline_position: text
-  flow_type: text
+  scene_structure: object
+  parent_scene_id: ObjectId
+  timeline_position: string
+  flow_type: string
   max_turns: int
-  status: text
-  * created_at: timestamptz
-  * updated_at: timestamptz
+  status: string
+  * created_at: Date
+  * updated_at: Date
 }
 
-entity scene_edges {
-  * story_id: uuid <<FK>>
-  * from_scene: uuid <<FK>>
-  * to_scene: uuid <<FK>>
+entity "scene_edges" as EDGES {
+  * _id: ObjectId <<PK>>
   --
-  * edge_type: text
-  condition: text
+  * story_id: ObjectId <<FK>>
+  * from_scene: ObjectId <<FK>>
+  * to_scene: ObjectId <<FK>>
+  * edge_type: string
+  condition: string
 }
 
-entity generations {
-  * id: uuid <<PK>>
+entity "generations" as GENS {
+  * _id: ObjectId <<PK>>
   --
-  * scene_id: uuid <<FK>>
-  * context_hash: text
-  * prompt_snapshot: text
-  * output: text
-  * model: text
+  * scene_id: ObjectId <<FK>>
+  * context_hash: string
+  * prompt_snapshot: string
+  * output: string
+  * model: string
   * accepted: bool
-  validation_result: jsonb
-  * created_at: timestamptz
+  validation_result: object
+  * created_at: Date
 }
 
-entity characters {
-  * id: uuid
+entity "characters" as CHARS {
+  * _id: ObjectId <<PK>>
   * version: int
   --
-  * name: text
-  persona: text
-  backstory: text
-  moral_alignment: text
-  personality: jsonb
-  flaws: jsonb
-  goals: jsonb
-  traits: jsonb
-  voice_samples: text[]
-  relationships: jsonb
-  parent_id: uuid
-  * created_at: timestamptz
+  * name: string
+  persona: string
+  backstory: string
+  moral_alignment: string
+  personality: object
+  flaws: object
+  goals: object
+  traits: object
+  voice_samples: string[]
+  relationships: object
+  parent_id: ObjectId
+  * created_at: Date
 }
 
-entity locations {
-  * id: uuid
+entity "locations" as LOCS {
+  * _id: ObjectId <<PK>>
   * version: int
   --
-  * name: text
-  description: text
-  props: jsonb
-  * created_at: timestamptz
+  * name: string
+  description: string
+  props: object
+  * created_at: Date
 }
 
-entity lore {
-  * id: uuid <<PK>>
+entity "lore" as LORE {
+  * _id: ObjectId <<PK>>
   --
-  tags: text[]
-  * content: text
-  embedding: vector(768)
-  * created_at: timestamptz
+  tags: string[]
+  * content: string
+  embedding: number[]
+  * created_at: Date
 }
 
-entity character_state {
-  * story_id: uuid <<FK>>
-  * character_id: uuid
-  * as_of_scene: uuid <<FK>>
+entity "character_state" as CHARSTATE {
+  * _id: ObjectId <<PK>>
   --
-  * state: jsonb
-  * updated_at: timestamptz
+  * story_id: ObjectId <<FK>>
+  * character_id: ObjectId
+  * as_of_scene: ObjectId <<FK>>
+  * state: object
+  * updated_at: Date
+  indexes: {story_id+character_id, as_of_scene}
 }
 
-entity actors {
-  * id: uuid <<PK>>
+entity "character_memories" as MEMS {
+  * _id: ObjectId <<PK>>
   --
-  * name: text
-  gender: text
-  ethnicity: text
-  race: text
-  skin_tone: text
-  eye_color: text
-  hair_color: text
-  hair_style: text
-  build: text
-  height_cm: int
-  weight_kg: int
-  age: int
-  nationality: text
-  traits: jsonb
-  * created_at: timestamptz
+  * character_id: ObjectId <<FK>>
+  * scene_id: ObjectId <<FK>>
+  * content: string
+  embedding: number[]
+  importance: float
+  * created_at: Date
 }
 
-entity actor_traits {
-  * id: uuid <<PK>>
+entity "scene_turns" as TURNS {
+  * _id: ObjectId <<PK>>
   --
-  * actor_id: uuid <<FK>>
-  * trait_key: text
-  * trait_value: text
-  * created_at: timestamptz
-}
-
-entity character_traits {
-  * id: uuid <<PK>>
-  --
-  * name: text
-  category: text
-  description: text
-  * created_at: timestamptz
-}
-
-entity character_trait_assignments {
-  * character_id: uuid
-  * trait_id: uuid <<FK>>
-  --
-  intensity: int
-  note: text
-}
-
-entity casting {
-  * id: uuid <<PK>>
-  --
-  * story_id: uuid <<FK>>
-  * actor_id: uuid <<FK>>
-  * character_id: uuid
-  role_type: text
-  * created_at: timestamptz
-}
-
-entity scene_turns {
-  * id: uuid <<PK>>
-  --
-  * scene_id: uuid <<FK>>
+  * scene_id: ObjectId <<FK>>
   * turn_number: int
-  actor_ids: uuid[]
-  prompt: text
-  output: text
-  model: text
-  status: text
-  * created_at: timestamptz
+  * agent_name: string
+  prompt: string
+  output: string
+  model: string
+  status: string
+  * created_at: Date
 }
 
-entity story_summaries {
-  * id: uuid <<PK>>
+entity "agent_runs" as RUNS {
+  * _id: ObjectId <<PK>>
   --
-  * story_id: uuid <<FK>>
-  scene_id: uuid <<FK>>
-  * level: text
-  * content: text
+  * scene_id: ObjectId <<FK>>
+  * story_id: ObjectId <<FK>>
+  * status: string
+  turns: object[]
+  * created_at: Date
+}
+
+entity "summaries" as SUMS {
+  * _id: ObjectId <<PK>>
+  --
+  * story_id: ObjectId <<FK>>
+  scene_id: ObjectId <<FK>>
+  * level: string
+  * content: string
   word_count: int
-  * created_at: timestamptz
+  * created_at: Date
+}
+
+entity "timeline_events" as TLEVTS {
+  * _id: ObjectId <<PK>>
+  --
+  * story_id: ObjectId <<FK>>
+  * scene_id: ObjectId <<FK>>
+  * event_type: string
+  * description: string
+  * sequence: int
+  * created_at: Date
+}
+
+entity "bible" as BIBLE {
+  * _id: ObjectId <<PK>>
+  --
+  * story_id: ObjectId <<FK>>
+  * content: string
+  rules: object[]
+  * version: int
+  * created_at: Date
+}
+
+entity "jobs" as JOBS {
+  * _id: ObjectId <<PK>>
+  --
+  * type: string
+  * payload: object
+  status: string
+  lease_until: Date
+  retry_count: int
+  * created_at: Date
+  indexes: {status+lease_until}
 }
 
 ' --- Relationships ---
@@ -205,8 +208,9 @@ stories ||--o{ chapters : "story_id"
 stories ||--o{ scenes : "story_id"
 stories ||--o{ scene_edges : "story_id"
 stories ||--o{ character_state : "story_id"
-stories ||--o{ casting : "story_id"
-stories ||--o{ story_summaries : "story_id"
+stories ||--o{ summaries : "story_id"
+stories ||--o{ timeline_events : "story_id"
+stories ||--o{ bible : "story_id"
 
 chapters ||--o{ scenes : "chapter_id"
 
@@ -215,15 +219,12 @@ scenes ||--o{ scene_edges : "to_scene"
 scenes ||--o{ generations : "scene_id"
 scenes ||--o{ scene_turns : "scene_id"
 scenes ||--o{ character_state : "as_of_scene"
-scenes ||--o{ story_summaries : "scene_id"
+scenes ||--o{ summaries : "scene_id"
+scenes ||--o{ timeline_events : "scene_id"
+scenes ||--o{ character_memories : "scene_id"
 scenes ?--? scenes : "parent_scene_id"
 
 characters ||--o{ character_state : "character_id"
-characters ||--o{ casting : "character_id"
-characters ||--o{ character_trait_assignments : "character_id"
-
-actors ||--o{ casting : "actor_id"
-actors ||--o{ actor_traits : "actor_id"
-character_traits ||--o{ character_trait_assignments : "trait_id"
+characters ||--o{ character_memories : "character_id"
 
 @enduml

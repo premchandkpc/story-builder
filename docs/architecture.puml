@@ -9,29 +9,35 @@ package "Web App" {
   component "Story Graph"
 }
 
-package "API" {
+package "API (Go/chi)" {
   component Router
   component Handlers
   component Services
 }
 
-package "Domain" {
-  component Canon
-  component Graph
-  component Ledger
-  component Compiler
-  component LLM
-  component Narrative
-  component Timeline
-  component Agent
-  component Memory
-  component Planner
-  component Workflow
+package "Domain & Engine" {
+  component "Domain Models"
+  component "Graph Engine"
+  component "LLM Service"
+  component "Prompt Compiler"
+  component "Event Bus"
+  component "Validation"
+  component "Projection"
+}
+
+package "Runtime Agents" {
+  component "Agent Orchestrator"
+  component "Director"
+  component "Narrator"
+  component "Character Agents"
+  component "Editor"
+  component "CanonGuard"
+  component "World/Arc/Memory"
+  component "Workers"
 }
 
 package "Data" {
-  database Postgres
-  database pgvector
+  database MongoDB
   database Redis
 }
 
@@ -39,19 +45,23 @@ User --> React
 React --> Router
 Router --> Handlers
 Handlers --> Services
-Services --> Canon
-Services --> Graph
-Services --> Ledger
-Services --> Compiler
-Services --> LLM
-Services --> Narrative
-Services --> Memory
-Services --> Planner
-Compiler --> Canon
-Compiler --> Ledger
-LLM --> Postgres
-Services --> Postgres
-Postgres --> pgvector
+Services --> "Domain Models"
+Services --> "Graph Engine"
+Services --> "LLM Service"
+Services --> "Prompt Compiler"
+Services --> "Agent Orchestrator"
+Services --> Validation
+"Agent Orchestrator" --> Director
+"Agent Orchestrator" --> Narrator
+"Agent Orchestrator" --> "Character Agents"
+"Agent Orchestrator" --> Editor
+"Agent Orchestrator" --> CanonGuard
+"Agent Orchestrator" --> "World/Arc/Memory"
+Workers --> "LLM Service"
+Workers --> "Prompt Compiler"
+"LLM Service" --> MongoDB
+Services --> MongoDB
 Services --> Redis
+"Domain Models" --> MongoDB
 StoryGraph --> Router
 @enduml
