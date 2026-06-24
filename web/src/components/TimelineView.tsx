@@ -24,6 +24,17 @@ export default function TimelineView({ storyId }: TimelineViewProps) {
   const [filter, setFilter] = useState<FilterMode>("all")
   const [page, setPage] = useState(1)
 
+  const local = useMemo(() => localEvents || [], [localEvents])
+  const cross = useMemo(() => crossEvents || [], [crossEvents])
+  const crossIds = useMemo(() => new Set(cross.map((c) => c.id)), [cross])
+
+  const filtered = useMemo(() => {
+    const events = filter === "cross" ? cross :
+                 filter === "local" ? local :
+                 [...local, ...cross]
+    return events.sort((a, b) => a.order - b.order || (a.created_at || "").localeCompare(b.created_at || ""))
+  }, [local, cross, filter])
+
   if (localLoading || crossLoading) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}>
@@ -31,17 +42,6 @@ export default function TimelineView({ storyId }: TimelineViewProps) {
       </div>
     )
   }
-
-  const local = localEvents || []
-  const cross = crossEvents || []
-  const crossIds = new Set(cross.map((c) => c.id))
-
-  const filtered = useMemo(() => {
-    let events = filter === "cross" ? cross :
-                 filter === "local" ? local :
-                 [...local, ...cross]
-    return events.sort((a, b) => a.order - b.order || a.created_at.localeCompare(b.created_at))
-  }, [local, cross, filter])
 
   const totalCount = filtered.length
   const hasMore = totalCount > page * PAGE_SIZE

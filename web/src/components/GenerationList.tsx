@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from "react"
+import { memo, useCallback, useState } from "react"
 import type { Generation } from "../api/types"
 import { spinnerStyle, badgeStyle } from "../api/types"
 import GenerationCompare from "./GenerationCompare"
@@ -76,7 +76,7 @@ const GenerationCard = memo(function GenerationCard({
           )}
         </span>
         <span style={{ fontSize: 9, color: "var(--text-faint)" }}>
-          {new Date(g.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+           {g.created_at ? new Date(g.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}
         </span>
       </div>
 
@@ -201,7 +201,7 @@ const GenerationCard = memo(function GenerationCard({
 })
 
 export default function GenerationList({
-  generations, gensLoading, selectedNodeId, onAccept,
+  generations, gensLoading, selectedNodeId, storyId, onAccept,
   hasPending, onRetry, isError,
 }: GenerationListProps) {
   const [expandedGen, setExpandedGen] = useState<string | null>(null)
@@ -211,18 +211,8 @@ export default function GenerationList({
 
   const toggleExpand = useCallback((id: string) => setExpandedGen(id), [])
 
-  const acceptedGen = useMemo(() => generations.find((g) => g.accepted), [generations])
-  const unaccepted = useMemo(() => generations.filter((g) => g.output && !g.accepted), [generations])
   const hasOutput = generations.some((g) => g.output)
   const hasMultipleOutputs = generations.filter((g) => g.output).length >= 2
-
-  const statusBadge = (g: Generation) => {
-    if (g.accepted) return badgeStyle("#1a1512", "var(--accent)")
-    if (g.status === "failed") return badgeStyle("var(--error)", "rgba(176,92,80,0.15)")
-    if (g.output) return badgeStyle("var(--success)", "rgba(107,143,94,0.15)")
-    if (g.status === "running" || g.status === "pending") return badgeStyle("var(--warn)", "rgba(201,115,74,0.15)")
-    return badgeStyle("var(--text-dim)", "rgba(140,126,112,0.15)")
-  }
 
   const handleAccept = useCallback(async (nodeId: string, genId: string) => {
     setAccepting(genId)

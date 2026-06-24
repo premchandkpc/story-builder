@@ -12,7 +12,7 @@
 // useQuery: fetches and caches data (GET requests)
 // useMutation: sends changes (POST/PUT/DELETE) and can invalidate caches
 // useQueryClient: gives access to the query cache for invalidation
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useMemo } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 // useNavigate: React Router hook to programmatically navigate between pages
 import { useNavigate } from "react-router-dom"
@@ -41,7 +41,7 @@ export function useStoryNodeStats(storyId: string) {
       const generated = nodes.filter((n) => n.status === "generated").length
       const accepted = nodes.filter((n) => n.status === "accepted").length
       const stale = nodes.filter((n) => n.status === "stale").length
-      return { total, generated, accepted, stale }
+      return { total, generated, accepted, stale, pending: total - accepted }
     },
   })
 }
@@ -66,9 +66,9 @@ export function useAllStoryStats(stories: Story[]) {
               const generated = nodes.filter((n) => n.status === "generated").length
               const accepted = nodes.filter((n) => n.status === "accepted").length
               const stale = nodes.filter((n) => n.status === "stale").length
-              return [s.id, { total, generated, accepted, stale }] as const
+              return [s.id, { total, generated, accepted, stale, pending: total - accepted }] as const
             } catch {
-              return [s.id, { total: 0, generated: 0, accepted: 0, stale: 0 }] as const
+              return [s.id, { total: 0, generated: 0, accepted: 0, stale: 0, pending: 0 }] as const
             }
           }),
         )
@@ -103,7 +103,7 @@ export function useCreateStory() {
       queryClient.setQueryData<Story[]>(["stories"], (old) => [...(old || []), placeholder])
       return { prev }
     },
-    onSuccess: (story, _title) => {
+    onSuccess: (story) => {
       // Replace placeholder with real story
       queryClient.setQueryData<Story[]>(["stories"], (old) =>
         (old || []).map((s) => s.id.startsWith("new-") ? story : s),
@@ -427,7 +427,7 @@ export function useTurn(storyId: string, nodeId: string, turnId: string) {
 export function useAgentRuns(storyId: string, nodeId: string | null) {
   return useQuery<AgentRun[]>({
     queryKey: ["agentRuns", storyId, nodeId],
-    queryFn: () => api.agentRuns.list(storyId, nodeId!),
+    queryFn: () => api.agentRuns.list(),
     enabled: !!nodeId,
   })
 }
@@ -447,22 +447,24 @@ export function useLlmMetrics(storyId: string) {
 // Polls generations every 2s while enabled, skips invalidation when no pending gens.
 export function useGenerationStatusPolling(storyId: string, nodeId: string | null, enabled = false) {
   const queryClient = useQueryClient()
-  const queryKey = ["generations", storyId, nodeId]
+  const queryKey = useMemo(() => ["generations", storyId, nodeId], [storyId, nodeId])
 
-  const { data: generations = [], isLoading, isError, refetch } = useQuery<Generation[]>({
+  const { data: generations, isLoading, isError, refetch } = useQuery<Generation[]>({
     queryKey,
     queryFn: () => api.generations.list(storyId, nodeId!),
     enabled: !!nodeId,
     staleTime: 1000,
   })
 
-  const hasPending = generations.some((g) =>
+  const hasPending = (generations || []).some((g) =>
     g.status === "pending" || g.status === "running" || g.status === "queued"
   )
 
-  // Track hasPending in ref so the interval callback sees latest value
   const hasPendingRef = useRef(hasPending)
-  hasPendingRef.current = hasPending
+
+  useEffect(() => {
+    hasPendingRef.current = hasPending
+  }, [hasPending])
 
   useEffect(() => {
     if (!enabled || !nodeId) return
@@ -471,9 +473,9 @@ export function useGenerationStatusPolling(storyId: string, nodeId: string | nul
       await queryClient.invalidateQueries({ queryKey })
     }, 2000)
     return () => clearInterval(interval)
-  }, [enabled, nodeId, queryClient])
+  }, [enabled, nodeId, queryClient, queryKey])
 
-  return { generations, isLoading, isError, refetch, hasPending }
+  return { generations: generations || [], isLoading, isError, refetch, hasPending }
 }
 
 // ---- useCriticScores(storyId) ----

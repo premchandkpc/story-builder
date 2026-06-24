@@ -191,7 +191,7 @@ export const api = {
   // Agent Runs — agent execution logs
   // ==========================================
   agentRuns: {
-    list: (_storyId: string, _nodeId: string) =>
+    list: () =>
       request<AgentRun[]>(`/experimental/agent-runs`),
   },
 

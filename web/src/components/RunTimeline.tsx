@@ -20,7 +20,7 @@ export default function RunTimeline({ steps, onStepClick }: RunTimelineProps) {
     <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
       {steps.map((step) => {
         const start = step.started_at ? new Date(step.started_at).getTime() : 0
-        const end = step.finished_at ? new Date(step.finished_at).getTime() : Date.now()
+        const end = step.finished_at ? new Date(step.finished_at).getTime() : 0
         const dur = end - start
         const pct = Math.max((dur / maxDuration) * 100, 5)
         const color = stepColor[step.status] || "var(--text-faint)"

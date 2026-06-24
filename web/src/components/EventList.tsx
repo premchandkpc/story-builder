@@ -1,6 +1,6 @@
 import { useState } from "react"
 import type { NarrativeEvent } from "../api/types"
-import { labelStyle, cardStyle } from "../api/types"
+import { cardStyle } from "../api/types"
 
 interface EventListProps {
   events: NarrativeEvent[]

@@ -1,6 +1,5 @@
 import { useState, useCallback, useRef } from "react"
-import { useNavigate } from "react-router-dom"
-import { useTopology, useUpdateNode, useCreateEdge, useDeleteEdge } from "../api/hooks"
+import { useTopology, useUpdateNode, useCreateEdge } from "../api/hooks"
 import type { GraphNode } from "../api/types"
 
 interface StoryOutlineViewProps {
@@ -17,11 +16,9 @@ const statusDotStyle = (status: string): React.CSSProperties => ({
 })
 
 export default function StoryOutlineView({ storyId }: StoryOutlineViewProps) {
-  const navigate = useNavigate()
   const { data: topology, isLoading } = useTopology(storyId)
   const updateNode = useUpdateNode(storyId)
   const createEdge = useCreateEdge(storyId)
-  const deleteEdge = useDeleteEdge(storyId)
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({ beat_intent: "", pov: "", tone: "", target_words: 0 })

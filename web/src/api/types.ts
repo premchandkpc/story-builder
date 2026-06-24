@@ -36,6 +36,7 @@ export interface StoryStats {
   generated: number
   accepted: number
   stale: number
+  pending: number
 }
 
 export type NodeStatus = "draft" | "generated" | "accepted" | "stale"

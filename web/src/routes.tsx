@@ -4,8 +4,6 @@
 // createBrowserRouter: creates a router that uses the HTML5 History API
 // (normal URLs like /stories/abc, no hash fragments).
 import { createBrowserRouter } from "react-router-dom"
-
-import { Navigate } from "react-router-dom"
 import Layout from "./components/Layout"
 import HomeView from "./components/HomeView"
 import StoryWorkspace from "./components/StoryWorkspace"

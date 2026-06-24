@@ -1,7 +1,7 @@
 import { useState } from "react"
-import { useStoryRuns, useRunDetails, useRunSteps, useRunPromptSections, useRunEvents, useRunCost, useRunStats } from "../api/hooks"
+import { useStoryRuns, useRunSteps, useRunPromptSections, useRunEvents, useRunCost, useRunStats } from "../api/hooks"
 import { fadeInStyle, cardStyle, badgeStyle } from "../api/types"
-import type { StoryRun, RunStep } from "../api/types"
+import type { StoryRun } from "../api/types"
 import RunTimeline from "./RunTimeline"
 import PromptSectionViewer from "./PromptSectionViewer"
 import EventList from "./EventList"
@@ -132,7 +132,7 @@ function RunCard({ run, isSelected, onSelect }: { run: StoryRun; isSelected: boo
           <span style={badgeStyle("#1a1512", statusColor[run.status] || "var(--text-faint)")}>{run.status}</span>
         </div>
         <div style={{ fontSize: 10, color: "var(--text-faint)" }}>
-          {new Date(run.created_at).toLocaleString()}
+          {run.created_at ? new Date(run.created_at).toLocaleString() : ""}
         </div>
       </div>
 

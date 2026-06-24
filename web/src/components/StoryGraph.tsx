@@ -114,7 +114,7 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
   const [edges, setEdges, onEdgesChange] = useEdgesState([] as Edge[])
   const [selectedNode, setSelectedNode] = useState<Node<SceneNodeData> | null>(null)
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null)
-  const [activeTab, setActiveTab] = useState<"edit" | "info" | "generations" | "turns" | "agents">("edit")
+  const [activeTab, setActiveTab] = useState<"edit" | "info" | "generations" | "plan" | "turns" | "agents" | "critic" | "run">("edit")
   const { generations, isLoading: gensLoading, refetch: refetchGens, hasPending: gensPending, isError: gensError }
     = useGenerationStatusPolling(storyId, selectedNode?.id || null, !!selectedNode)
   const [pendingEdgeType, setPendingEdgeType] = useState<EdgeType>(
@@ -307,12 +307,12 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
   /** Track node positions before drag for rollback on save failure. */
   const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map())
 
-  const onNodeDragStart = useCallback((_event: any, node: Node) => {
+  const onNodeDragStart: OnNodeDrag<Node<SceneNodeData>> = useCallback((_event, node) => {
     nodePositionsRef.current.set(node.id, { ...node.position })
   }, [])
 
-  const onNodeDragEnd: OnNodeDrag = useCallback(
-    async (_event: any, node: Node) => {
+  const onNodeDragEnd: OnNodeDrag<Node<SceneNodeData>> = useCallback(
+    async (_event, node) => {
       try {
         await updatePositionMutation.mutateAsync({
           nodeId: node.id,
@@ -450,7 +450,7 @@ export default function StoryGraph({ storyId }: StoryGraphProps) {
     setConfirmingGenerate(false)
   }, [])
 
-  const handleTabChange = useCallback((tab: "edit" | "info" | "generations" | "turns" | "agents") => {
+  const handleTabChange = useCallback((tab: "edit" | "info" | "generations" | "plan" | "turns" | "agents" | "critic" | "run") => {
     setActiveTab(tab)
     if (tab === "generations" && selectedNode) refetchGens()
   }, [selectedNode, refetchGens])

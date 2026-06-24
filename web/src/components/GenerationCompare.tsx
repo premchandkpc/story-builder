@@ -1,5 +1,5 @@
 import { useState } from "react"
-import type { Generation, GenDiff, EventDiff } from "../api/types"
+import type { Generation, EventDiff } from "../api/types"
 import { useGenDiff } from "../api/hooks"
 import CompressionStats from "./CompressionStats"
 import { cardStyle, labelStyle, skeletonStyle, badgeStyle } from "../api/types"
@@ -51,6 +51,16 @@ export default function GenerationCompare({ generations, storyId, nodeId }: Gene
   const [showDiff, setShowDiff] = useState(false)
 
   const nonEmpty = generations.filter(g => g.output)
+  const left = nonEmpty[leftIdx] || nonEmpty[0]
+  const right = nonEmpty[rightIdx] || (nonEmpty.length > 1 ? nonEmpty[1] : nonEmpty[0])
+
+  const { data: diffData, isLoading: diffLoading } = useGenDiff(
+    storyId || "",
+    nodeId || "",
+    showDiff && nonEmpty.length >= 2 ? left?.id ?? null : null,
+    showDiff && nonEmpty.length >= 2 ? right?.id ?? null : null,
+  )
+
   if (nonEmpty.length < 2) {
     return (
       <div style={{ color: "var(--text-dim)", fontSize: 12, fontStyle: "italic", padding: 8 }}>
@@ -58,16 +68,6 @@ export default function GenerationCompare({ generations, storyId, nodeId }: Gene
       </div>
     )
   }
-
-  const left = nonEmpty[leftIdx] || nonEmpty[0]
-  const right = nonEmpty[rightIdx] || nonEmpty[nonEmpty.length > 1 ? 1 : 0]
-
-  const { data: diffData, isLoading: diffLoading } = useGenDiff(
-    storyId || "",
-    nodeId || "",
-    showDiff ? left.id : null,
-    showDiff ? right.id : null,
-  )
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -86,7 +86,7 @@ export default function GenerationCompare({ generations, storyId, nodeId }: Gene
           >
             {nonEmpty.map((g, i) => (
               <option key={g.id} value={i}>
-                {g.model || "?"} — {new Date(g.created_at).toLocaleString()}
+                {g.model || "?"} — {g.created_at ? new Date(g.created_at).toLocaleString() : ""}
                 {g.accepted ? " (accepted)" : ""}
               </option>
             ))}
@@ -107,7 +107,7 @@ export default function GenerationCompare({ generations, storyId, nodeId }: Gene
           >
             {nonEmpty.map((g, i) => (
               <option key={g.id} value={i}>
-                {g.model || "?"} — {new Date(g.created_at).toLocaleString()}
+                {g.model || "?"} — {g.created_at ? new Date(g.created_at).toLocaleString() : ""}
                 {g.accepted ? " (accepted)" : ""}
               </option>
             ))}

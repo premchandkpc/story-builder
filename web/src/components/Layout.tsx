@@ -80,11 +80,6 @@ export default function Layout() {
     [stories, searchQuery],
   )
 
-  const placeholderCount = useMemo(
-    () => stories.filter((s) => s.id.startsWith("new-")).length,
-    [stories],
-  )
-
   return (
     <div style={{
       display: "flex",

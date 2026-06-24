@@ -43,7 +43,7 @@ export default function SceneDrawer({ storyId, sceneId, onClose }: SceneDrawerPr
 
   if (!sceneId || !node) return null
 
-  const sceneTimeline = timelineEvents?.filter((e) => e.node_id === sceneId) || []
+  const sceneTimeline = timelineEvents?.filter((e) => e.scene_id === sceneId) || []
 
   return (
     <>
@@ -154,9 +154,9 @@ export default function SceneDrawer({ storyId, sceneId, onClose }: SceneDrawerPr
               {sceneTimeline.map((evt) => (
                 <div key={evt.id} style={{ padding: "2px 0", fontSize: 11, color: "var(--text-dim)" }}>
                   <span style={{ color: "var(--text-faint)", marginRight: 6 }}>
-                    {new Date(evt.created_at).toLocaleTimeString()}
+                    {evt.created_at ? new Date(evt.created_at).toLocaleTimeString() : ""}
                   </span>
-                  {evt.event_type}: {evt.description || evt.event_data?.progression}
+                  {evt.event_type}: {evt.description || ""}
                 </div>
               ))}
             </SceneSlideDown>
@@ -166,7 +166,7 @@ export default function SceneDrawer({ storyId, sceneId, onClose }: SceneDrawerPr
             <SceneSlideDown label="Narrative Events" badge={events.length}>
               {events.map((evt) => (
                 <div key={evt.id} style={{ padding: "2px 0", fontSize: 11, color: "var(--text-dim)" }}>
-                  [{evt.event_type}] {evt.description}
+                  [{evt.event_type}] {evt.payload?.description as string || ""}
                 </div>
               ))}
             </SceneSlideDown>

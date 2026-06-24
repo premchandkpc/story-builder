@@ -20,9 +20,9 @@ export default function PromptSectionViewer({ snapshot }: PromptSectionViewerPro
     return <div style={{ color: "var(--text-faint)", fontStyle: "italic", fontSize: 11, padding: 8 }}>No prompt data.</div>
   }
 
-  const allSections = [
-    { name: "System", tokens: snapshot.tokenCount, snippet: snapshot.system },
-    ...(snapshot.sections || []),
+  const allSections: { name: string; tokens: number; contentSnippet: string }[] = [
+    { name: "System", tokens: snapshot.tokenCount, contentSnippet: snapshot.system },
+    ...(snapshot.sections || []).map(s => ({ name: s.name, tokens: s.tokens, contentSnippet: s.contentSnippet || "" })),
   ]
 
   return (
@@ -41,7 +41,7 @@ export default function PromptSectionViewer({ snapshot }: PromptSectionViewerPro
             {open && (
               <div style={{ marginTop: 6, maxHeight: 200, overflowY: "auto" }}>
                 <pre style={{ fontSize: 10, color: "var(--text-dim)", whiteSpace: "pre-wrap", margin: 0 }}>
-                  {s.snippet || "No content"}
+                  {s.contentSnippet || "No content"}
                 </pre>
               </div>
             )}
