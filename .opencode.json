@@ -1,12 +1,47 @@
 {
   "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/premchand/projects/git/story-builder"],
+      "type": "stdio"
+    },
+    "git": {
+      "command": "uvx",
+      "args": ["mcp-server-git", "--repository", "/Users/premchand/projects/git/story-builder"],
+      "type": "stdio"
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "type": "stdio"
+    },
+    "fetch": {
+      "command": "uvx",
+      "args": ["mcp-server-fetch"],
+      "type": "stdio"
+    },
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "type": "stdio"
+    },
     "code-review-graph": {
       "command": "/Users/premchand/.local/pipx/venvs/code-review-graph/bin/python",
-      "args": [
-        "-m",
-        "code_review_graph",
-        "serve"
-      ],
+      "args": ["-m", "code_review_graph", "serve"],
+      "cwd": "/Users/premchand/projects/git/story-builder",
+      "type": "stdio",
+      "env": []
+    },
+    "mcp-story-context": {
+      "command": "/Users/premchand/projects/git/story-builder/mcp-story-context",
+      "args": [],
+      "cwd": "/Users/premchand/projects/git/story-builder",
+      "type": "stdio",
+      "env": []
+    },
+    "mcp-narrative-score": {
+      "command": "/Users/premchand/projects/git/story-builder/mcp-narrative-score",
+      "args": [],
       "cwd": "/Users/premchand/projects/git/story-builder",
       "type": "stdio",
       "env": []

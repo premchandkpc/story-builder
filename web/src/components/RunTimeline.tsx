@@ -14,7 +14,7 @@ interface RunTimelineProps {
 }
 
 export default function RunTimeline({ steps, onStepClick }: RunTimelineProps) {
-  const maxDuration = Math.max(...steps.map(s => (s.finished_at && s.started_at ? new Date(s.finished_at).getTime() - new Date(s.started_at).getTime() : 0), 1000)
+  const maxDuration = Math.max(...steps.map(s => (s.finished_at && s.started_at ? new Date(s.finished_at).getTime() - new Date(s.started_at).getTime() : 0)), 1000)
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>

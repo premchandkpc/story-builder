@@ -1,3 +1,4 @@
+import { useState } from "react"
 import type { Node, Edge } from "@xyflow/react"
 import type { Generation, EdgeType, SceneNodeData } from "../api/types"
 import { slideUpStyle } from "../api/types"
@@ -8,12 +9,8 @@ import GenerationList from "./GenerationList"
 import TurnTimeline from "./TurnTimeline"
 import AgentRunPanel from "./AgentRunPanel"
 import RunInspector from "./RunInspector"
-import LlmMetricsDashboard from "./LlmMetricsDashboard"
 import CriticScoreDashboard from "./CriticScoreDashboard"
 import ScenePlanPanel from "./ScenePlanPanel"
-import BiblePanel from "./BiblePanel"
-import TimelineView from "./TimelineView"
-import CharacterListPanel from "./CharacterListPanel"
 
 interface GraphPanelProps {
   storyId: string
@@ -89,6 +86,12 @@ export default function GraphPanel({
   pendingEdgeType, setPendingEdgeType,
 }: GraphPanelProps) {
   const selectedNodeData = selectedNode?.data as SceneNodeData | undefined
+  const [showDiagnostics, setShowDiagnostics] = useState(false)
+
+  const authoringTabs = ["edit", "info", "generations", "plan"] as const
+  const diagnosticsTabs = ["turns", "agents", "critic", "run"] as const
+
+  const isDiagnostics = (diagnosticsTabs as readonly string[]).includes(activeTab)
 
   const renderPanelContent = () => {
     if (selectedNode && activeTab === "edit") {
@@ -173,24 +176,15 @@ export default function GraphPanel({
     }
 
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
-        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 20 }}>
-          <TimelineView storyId={storyId} />
-          <BiblePanel storyId={storyId} />
-          <CharacterListPanel storyId={storyId} />
-          <LlmMetricsDashboard storyId={storyId} />
-          <CriticScoreDashboard storyId={storyId} />
-        </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, alignItems: "center", justifyContent: "center" }}>
         <div style={{
-          padding: "14px 16px", textAlign: "center",
-          borderTop: "1px solid var(--border)",
-          lineHeight: 1.7,
+          textAlign: "center", padding: "0 16px",
         }}>
           <span style={{
             fontSize: 12, color: "var(--text-dim)", fontStyle: "italic",
             fontFamily: "var(--font-heading)",
           }}>
-            Select a node to begin editing
+            Select a scene to begin editing
           </span>
           <br />
           <span style={{ fontSize: 10, color: "var(--text-faint)", letterSpacing: "0.03em" }}>
@@ -284,25 +278,83 @@ export default function GraphPanel({
         </button>
       </div>
 
-      {(selectedNode || selectedEdge) && (
-        <div style={{ display: "flex", borderBottom: "1px solid var(--border)", padding: "0 16px", gap: 0 }}>
-          {selectedNode && (["edit", "info", "generations", "plan", "turns", "agents", "critic", "run"] as const).map((tab) => (
+      {selectedNode && (
+        <>
+          <div style={{
+            display: "flex", borderBottom: "1px solid var(--border)",
+            padding: "0 16px", gap: 0,
+          }}>
+            {authoringTabs.map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                style={tabBtnStyle(activeTab === tab)}
+                className="btn-press"
+                onMouseEnter={(e) => {
+                  if (activeTab !== tab) e.currentTarget.style.color = "var(--text)"
+                }}
+                onMouseLeave={(e) => {
+                  if (activeTab !== tab) e.currentTarget.style.color = "var(--text-dim)"
+                }}
+              >
+                {tab === "edit" ? "Edit" : tab === "info" ? "Info" : tab === "generations" ? "Gen" : "Plan"}
+              </button>
+            ))}
+          </div>
+
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "0 16px", marginTop: 8,
+          }}>
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              style={tabBtnStyle(activeTab === tab)}
-              className="btn-press"
-              onMouseEnter={(e) => {
-                if (activeTab !== tab) e.currentTarget.style.color = "var(--text)"
+              onClick={() => {
+                const next = !showDiagnostics
+                setShowDiagnostics(next)
+                if (!next && isDiagnostics) {
+                  setActiveTab("edit")
+                }
               }}
-              onMouseLeave={(e) => {
-                if (activeTab !== tab) e.currentTarget.style.color = "var(--text-dim)"
+              className="btn-press"
+              style={{
+                background: "none", border: "none", color: "var(--text-faint)",
+                cursor: "pointer", fontSize: 10, letterSpacing: "0.05em",
+                textTransform: "uppercase", display: "flex", alignItems: "center", gap: 4,
+                padding: "2px 0",
               }}
             >
-              {tab === "edit" ? "Edit" : tab === "info" ? "Info" : tab === "generations" ? "Gen" : tab === "plan" ? "Plan" : tab === "turns" ? "Turns" : tab === "agents" ? "Agents" : tab === "critic" ? "Critic" : "Run"}
+              <span style={{
+                display: "inline-block",
+                transform: showDiagnostics ? "rotate(90deg)" : "rotate(0deg)",
+                transition: "transform 0.15s",
+              }}>▸</span>
+              Diagnostics
             </button>
-          ))}
-        </div>
+          </div>
+
+          {showDiagnostics && (
+            <div style={{
+              display: "flex", borderBottom: "1px solid var(--border)",
+              padding: "0 16px", gap: 0,
+            }}>
+              {diagnosticsTabs.map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  style={tabBtnStyle(activeTab === tab)}
+                  className="btn-press"
+                  onMouseEnter={(e) => {
+                    if (activeTab !== tab) e.currentTarget.style.color = "var(--text)"
+                  }}
+                  onMouseLeave={(e) => {
+                    if (activeTab !== tab) e.currentTarget.style.color = "var(--text-dim)"
+                  }}
+                >
+                  {tab === "turns" ? "Turns" : tab === "agents" ? "Agents" : tab === "critic" ? "Critic" : "Run"}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       <div style={{

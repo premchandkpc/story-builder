@@ -43,6 +43,7 @@ export type NodeStatus = "draft" | "generated" | "accepted" | "stale"
 export type EdgeType = "seq" | "fork" | "join" | "choice"
 
 export type FlowType = "monologue" | "dialogue" | "round_robin" | "parallel" | "custom"
+export type StoryViewMode = "read" | "outline" | "graph" | "inspect"
 
 export interface SceneNodeData extends Record<string, unknown> {
   label: string

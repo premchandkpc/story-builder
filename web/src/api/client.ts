@@ -8,7 +8,7 @@ import type {
   SceneTurn, AgentRun, LlmMetrics,
   Story, StoryGenerateResult, StorySummary, Topology, UpdateNodePayload,
   StoryRun, RunStep, NarrativeEvent, PromptSnapshot, CostSummary, RunStats,
-  ScenePlan, GenDiff,
+  ScenePlan, GenDiff, TimelineEvent, StoryBible,
 } from "./types"
 
 // ---- Base URL ----

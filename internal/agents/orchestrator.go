@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/premchand/story-builder/internal/domain"
 	"github.com/premchand/story-builder/internal/events"
@@ -12,12 +15,19 @@ import (
 	"github.com/premchand/story-builder/internal/trace"
 )
 
+const maxConcurrentAgents = 5
+
+type CharManager interface {
+	BroadcastEvent(evt CharacterEvent)
+	QueryProposals(ctx context.Context) []CharacterProposal
+}
+
 type OrchestratorConfig struct {
 	Registry      *AgentRegistry
 	LLMClient     llm.LLMClient
 	EventBus      events.Bus
 	Timeouts      map[string]time.Duration
-	CharManager   *CharacterManager
+	CharManager   CharManager
 	BudgetChecker TokenBudgetChecker
 }
 
@@ -26,7 +36,7 @@ type Orchestrator struct {
 	llm           llm.LLMClient
 	eventBus      events.Bus
 	timeouts      map[string]time.Duration
-	charManager   *CharacterManager
+	charManager   CharManager
 	budgetChecker TokenBudgetChecker
 }
 
@@ -202,142 +212,101 @@ func (o *Orchestrator) Execute(ctx context.Context, plan *OrchestrationPlan, age
 		})
 	}
 
-	for i, step := range plan.TurnOrder {
-		spec, ok := o.registry.Get(step.AgentType)
-		if !ok {
-			slog.Warn("orchestrator: agent not registered, skipping", "agentType", step.AgentType)
-			if step.Required {
-				err := fmt.Errorf("required agent %s not registered", step.AgentType)
-				trace.SetError(execSpan, err)
-				return nil, err
-			}
-			continue
-		}
+	var (
+		turnNumber int
+		turns      []*domain.SceneTurn
+		turnsMu    sync.Mutex
+	)
+	sem := make(chan struct{}, maxConcurrentAgents)
 
-		timeout := o.timeouts[step.AgentType]
-		if timeout == 0 {
-			timeout = 30 * time.Second
-		}
-
-		turnCtx, turnSpan := trace.StartSpan(execCtx, "turn."+step.AgentType+"."+step.Phase)
-		turnCtx, cancel := context.WithTimeout(turnCtx, timeout)
-
-		turn := &domain.SceneTurn{
-			SceneID:   plan.SceneID,
-			StoryID:   agentCtx.StoryID,
-			Number:    i + 1,
-			AgentID:   spec.Name,
-			Role:      spec.Role,
-			Status:    domain.TurnStatusPending,
-		}
-		if turnRepo != nil {
-			if err := turnRepo.Create(turnCtx, turn); err != nil {
-				cancel()
-				trace.SetError(execSpan, err)
-				return nil, fmt.Errorf("create turn: %w", err)
-			}
-		}
-		if turnSpan != nil {
-			trace.SetAttribute(turnSpan, "agentType", step.AgentType)
-			trace.SetAttribute(turnSpan, "phase", step.Phase)
-			trace.SetAttribute(turnSpan, "turnNumber", i+1)
-			trace.SetAttribute(turnSpan, "turnId", turn.ID)
-		}
-		turnAgentCtx := *agentCtx
-		turnAgentCtx.TurnID = turn.ID
-
-		turn.Status = domain.TurnStatusRunning
-		if turnRepo != nil {
-			_ = turnRepo.Update(turnCtx, turn)
-		}
-
-		payload := map[string]any{"phase": step.Phase, "turnNumber": i + 1}
-		if step.AgentType == domain.AgentTypeDirector && len(plan.Proposals) > 0 {
-			payload["proposals"] = plan.Proposals
-		}
-
-		if o.budgetChecker != nil {
-			promptEst, compEst := agentBudgetEstimate(step.AgentType, spec.Model)
-			if err := o.budgetChecker.CheckAndConsume(turnCtx, turnAgentCtx.StoryID, spec.Model, step.AgentType, promptEst, compEst); err != nil {
-				cancel()
-				turn.Status = domain.TurnStatusFailed
-				turn.Error = err.Error()
-				trace.SetError(turnSpan, err)
-				if turnRepo != nil {
-					_ = turnRepo.Update(ctx, turn)
-				}
-				trace.End(turnSpan)
-				return nil, fmt.Errorf("budget exceeded for %s: %w", step.AgentType, err)
-			}
-		}
-
-		start := time.Now()
-		output, err := spec.Runner(turnCtx, AgentInput{
-			Ctx:       &turnAgentCtx,
-			Payload:   payload,
-			Directive: step.Phase,
-		})
-		cancel()
-
-		turn.DurationMs = time.Since(start).Milliseconds()
-
-		if err != nil {
-			turn.Status = domain.TurnStatusFailed
-			turn.Error = err.Error()
-			trace.SetError(turnSpan, err)
-			errMsg := fmt.Errorf("required step %s failed: %w", step.AgentType, err)
-			result.Error = errMsg.Error()
-			if turnRepo != nil {
-				_ = turnRepo.Update(ctx, turn)
-			}
-			trace.End(turnSpan)
-			return result, errMsg
-		} else {
-			turn.Status = domain.TurnStatusDone
-			turn.Output = output.Content
-		}
-		trace.End(turnSpan)
-		if turnRepo != nil {
-			_ = turnRepo.Update(ctx, turn)
-		}
-		result.Turns = append(result.Turns, turn)
-
-		if o.charManager != nil {
-			evtType := EventTurnComplete
-			isCharacter := spec.Role == "character"
-			if isCharacter {
-				evtType = EventCharAction
-			}
-			o.charManager.BroadcastEvent(CharacterEvent{
-				Type:      evtType,
-				StoryID:   agentCtx.StoryID,
-				SceneID:   plan.SceneID,
-				TurnID:    turn.ID,
-				Data: map[string]any{
-					"agentType": step.AgentType,
-					"phase":     step.Phase,
-					"content":   output.Content,
-					"role":      spec.Role,
-					"emotion":   extractEmotion(output),
-				},
-				Timestamp: time.Now(),
-			})
-		}
-
-		if o.eventBus != nil {
-			_ = o.eventBus.Publish(ctx, events.Event{
-				Type:    events.EventAgentTurnCompleted,
-				StoryID: agentCtx.StoryID,
-				SceneID: plan.SceneID,
-				Data: map[string]any{
-					"turnId":    turn.ID,
-					"agentType": step.AgentType,
-					"phase":     step.Phase,
-					"status":    turn.Status,
-				},
-			})
-		}
+	appendTurn := func(turn *domain.SceneTurn) {
+		turnsMu.Lock()
+		turns = append(turns, turn)
+		turnsMu.Unlock()
 	}
+
+	// runBatch executes all steps in the batch concurrently (non-blocking)
+	// or sequentially (blocking). It drains the pending parallel group and
+	// serializes blocking steps as barriers.
+	var runBatch func([]TurnStep) error
+	runBatch = func(steps []TurnStep) error {
+		// We batch non-blocking steps into wave groups separated by blocking
+		// barriers. Each wave gets its own errgroup to avoid the errgroup.Wait()
+		// cleanup cancellation poisoning subsequent blocking steps.
+		var waveStart int
+		for waveStart < len(steps) {
+			// Find the end of this wave (up to but not including the next blocking step)
+			waveEnd := waveStart
+			for waveEnd < len(steps) && !steps[waveEnd].Blocking {
+				waveEnd++
+			}
+			// Include the barrier step if any
+			if waveEnd < len(steps) && steps[waveEnd].Blocking {
+				waveEnd++
+			}
+
+			wave := steps[waveStart:waveEnd]
+			waveStart = waveEnd
+
+			// Separate the barrier (last blocking step, if present)
+			var barrier *TurnStep
+			if len(wave) > 0 && wave[len(wave)-1].Blocking {
+				barrier = &wave[len(wave)-1]
+				wave = wave[:len(wave)-1]
+			}
+
+			if len(wave) > 0 {
+				g, gCtx := errgroup.WithContext(execCtx)
+				for _, step := range wave {
+					step := step
+					turnNumber++
+					n := turnNumber
+					sem <- struct{}{}
+					g.Go(func() error {
+						defer func() { <-sem }()
+						turn, err := o.runStep(gCtx, plan, agentCtx, turnRepo, step, n)
+						if err != nil {
+							if turn != nil {
+								appendTurn(turn)
+							}
+							return err
+						}
+						if turn != nil {
+							appendTurn(turn)
+						}
+						return nil
+					})
+				}
+				if err := g.Wait(); err != nil {
+					return err
+				}
+			}
+
+			if barrier != nil {
+				turnNumber++
+				turn, err := o.runStep(execCtx, plan, agentCtx, turnRepo, *barrier, turnNumber)
+				if err != nil {
+					if turn != nil {
+						appendTurn(turn)
+					}
+					return err
+				}
+				appendTurn(turn)
+			}
+		}
+
+		return nil
+	}
+
+	if err := runBatch(plan.TurnOrder); err != nil {
+		trace.SetError(execSpan, err)
+		if result.Error == "" {
+			result.Error = err.Error()
+		}
+		return result, err
+	}
+
+	result.Turns = turns
 
 	if o.charManager != nil {
 		o.charManager.BroadcastEvent(CharacterEvent{
@@ -363,6 +332,138 @@ func (o *Orchestrator) Execute(ctx context.Context, plan *OrchestrationPlan, age
 	}
 
 	return result, nil
+}
+
+func (o *Orchestrator) runStep(ctx context.Context, plan *OrchestrationPlan, agentCtx *AgentContext, turnRepo SceneTurnRepository, step TurnStep, turnNumber int) (*domain.SceneTurn, error) {
+	spec, ok := o.registry.Get(step.AgentType)
+	if !ok {
+		slog.Warn("orchestrator: agent not registered, skipping", "agentType", step.AgentType)
+		if step.Required {
+			return nil, fmt.Errorf("required agent %s not registered", step.AgentType)
+		}
+		return nil, nil
+	}
+
+	timeout := o.timeouts[step.AgentType]
+	if timeout == 0 {
+		timeout = 30 * time.Second
+	}
+
+	turnCtx, turnSpan := trace.StartSpan(ctx, "turn."+step.AgentType+"."+step.Phase)
+	turnCtx, cancel := context.WithTimeout(turnCtx, timeout)
+	defer cancel()
+
+	turn := &domain.SceneTurn{
+		SceneID:   plan.SceneID,
+		StoryID:   agentCtx.StoryID,
+		Number:    turnNumber,
+		AgentID:   spec.Name,
+		Role:      spec.Role,
+		Status:    domain.TurnStatusPending,
+	}
+	if turnRepo != nil {
+		if err := turnRepo.Create(turnCtx, turn); err != nil {
+			trace.SetError(turnSpan, err)
+			return nil, fmt.Errorf("create turn: %w", err)
+		}
+	}
+	if turnSpan != nil {
+		trace.SetAttribute(turnSpan, "agentType", step.AgentType)
+		trace.SetAttribute(turnSpan, "phase", step.Phase)
+		trace.SetAttribute(turnSpan, "turnNumber", turnNumber)
+		trace.SetAttribute(turnSpan, "turnId", turn.ID)
+	}
+	turnAgentCtx := *agentCtx
+	turnAgentCtx.TurnID = turn.ID
+
+	turn.Status = domain.TurnStatusRunning
+	if turnRepo != nil {
+		_ = turnRepo.Update(turnCtx, turn)
+	}
+
+	payload := map[string]any{"phase": step.Phase, "turnNumber": turnNumber}
+	if step.AgentType == domain.AgentTypeDirector && len(plan.Proposals) > 0 {
+		payload["proposals"] = plan.Proposals
+	}
+
+	if o.budgetChecker != nil {
+		promptEst, compEst := agentBudgetEstimate(step.AgentType, spec.Model)
+		if err := o.budgetChecker.CheckAndConsume(turnCtx, turnAgentCtx.StoryID, spec.Model, step.AgentType, promptEst, compEst); err != nil {
+			turn.Status = domain.TurnStatusFailed
+			turn.Error = err.Error()
+			trace.SetError(turnSpan, err)
+			if turnRepo != nil {
+				_ = turnRepo.Update(ctx, turn)
+			}
+			trace.End(turnSpan)
+			return nil, fmt.Errorf("budget exceeded for %s: %w", step.AgentType, err)
+		}
+	}
+
+	start := time.Now()
+	output, err := spec.Runner(turnCtx, AgentInput{
+		Ctx:       &turnAgentCtx,
+		Payload:   payload,
+		Directive: step.Phase,
+	})
+
+	turn.DurationMs = time.Since(start).Milliseconds()
+
+	if err != nil {
+		turn.Status = domain.TurnStatusFailed
+		turn.Error = err.Error()
+		trace.SetError(turnSpan, err)
+		if turnRepo != nil {
+			_ = turnRepo.Update(ctx, turn)
+		}
+		trace.End(turnSpan)
+		return turn, fmt.Errorf("required step %s failed: %w", step.AgentType, err)
+	}
+
+	turn.Status = domain.TurnStatusDone
+	turn.Output = output.Content
+	trace.End(turnSpan)
+	if turnRepo != nil {
+		_ = turnRepo.Update(ctx, turn)
+	}
+
+	if o.charManager != nil {
+		evtType := EventTurnComplete
+		isCharacter := spec.Role == "character"
+		if isCharacter {
+			evtType = EventCharAction
+		}
+		o.charManager.BroadcastEvent(CharacterEvent{
+			Type:      evtType,
+			StoryID:   agentCtx.StoryID,
+			SceneID:   plan.SceneID,
+			TurnID:    turn.ID,
+			Data: map[string]any{
+				"agentType": step.AgentType,
+				"phase":     step.Phase,
+				"content":   output.Content,
+				"role":      spec.Role,
+				"emotion":   extractEmotion(output),
+			},
+			Timestamp: time.Now(),
+		})
+	}
+
+	if o.eventBus != nil {
+		_ = o.eventBus.Publish(ctx, events.Event{
+			Type:    events.EventAgentTurnCompleted,
+			StoryID: agentCtx.StoryID,
+			SceneID: plan.SceneID,
+			Data: map[string]any{
+				"turnId":    turn.ID,
+				"agentType": step.AgentType,
+				"phase":     step.Phase,
+				"status":    turn.Status,
+			},
+		})
+	}
+
+	return turn, nil
 }
 
 func agentBudgetEstimate(agentType, model string) (promptTokens, completionTokens int) {

@@ -5,26 +5,25 @@
 // (normal URLs like /stories/abc, no hash fragments).
 import { createBrowserRouter } from "react-router-dom"
 
-import Layout from "./components/Layout"     // main app shell (sidebar + content area)
-import HomeView from "./components/HomeView" // the home/landing page
-import StoryView from "./components/StoryView" // story detail page with graph
+import { Navigate } from "react-router-dom"
+import Layout from "./components/Layout"
+import HomeView from "./components/HomeView"
+import StoryWorkspace from "./components/StoryWorkspace"
 import AuditDashboard from "./components/AuditDashboard"
 
-// ---- Route Tree ----
-// createBrowserRouter takes an array of route objects (a "route tree").
-// Nested routes inherit their parent's UI.
 export const router = createBrowserRouter([
   {
-    path: "/",          // the root URL path
-    element: <Layout />, // Layout renders the sidebar + <Outlet/>
-    children: [         // child routes render INSIDE Layout via <Outlet/>
+    path: "/",
+    element: <Layout />,
+    children: [
+      { index: true, element: <HomeView /> },
       {
-        index: true,    // "index: true" means this matches the parent path exactly ("/")
-        element: <HomeView />,
+        path: "stories/:storyId",
+        element: <StoryWorkspace />,
       },
       {
-        path: "stories/:storyId", // "/stories/<some-id>" — :storyId is a URL parameter
-        element: <StoryView />,   // StoryView reads :storyId via useParams()
+        path: "stories/:storyId/:viewMode?",
+        element: <StoryWorkspace />,
       },
       {
         path: "audit",

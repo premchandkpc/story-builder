@@ -17,7 +17,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 // useNavigate: React Router hook to programmatically navigate between pages
 import { useNavigate } from "react-router-dom"
 import { api } from "./client"
-import type { Character, CriticScoreData, Story, StoryStats, SceneTurn, AgentRun, LlmMetrics, StoryBible, TimelineEvent, Generation, GraphNode, GraphEdge, Topology, StoryRun, RunStep, NarrativeEvent, PromptSnapshot, CostSummary, RunStats, ScenePlan, GenDiff } from "./types"
+import type { Character, CriticScoreData, Story, StoryStats, SceneTurn, AgentRun, LlmMetrics, StoryBible, TimelineEvent, Generation, GraphNode, GraphEdge, Topology, StoryRun, RunStep, NarrativeEvent, PromptSnapshot, CostSummary, RunStats, ScenePlan, GenDiff, CreateNodePayload, CreateEdgePayload } from "./types"
 
 // ---- useStories() ----
 // Custom hook that fetches the list of all stories.
@@ -103,7 +103,7 @@ export function useCreateStory() {
       queryClient.setQueryData<Story[]>(["stories"], (old) => [...(old || []), placeholder])
       return { prev }
     },
-    onSuccess: (story, _title, context) => {
+    onSuccess: (story, _title) => {
       // Replace placeholder with real story
       queryClient.setQueryData<Story[]>(["stories"], (old) =>
         (old || []).map((s) => s.id.startsWith("new-") ? story : s),
@@ -202,10 +202,7 @@ export function useCreateNode(storyId: string) {
   const key = TOPOLOGY_KEY(storyId)
   const { error: showError } = useToastExternal()
   return useMutation({
-    mutationFn: (data: Partial<{
-      beat_intent: string; character_refs: string[]; location_ref: string | null;
-      pov: string; tone: string; target_words: number;
-    }>) => api.nodes.create(storyId, data),
+    mutationFn: (data: CreateNodePayload) => api.nodes.create(storyId, data),
     onMutate: async () => {
       await qc.cancelQueries({ queryKey: key })
       const prev = qc.getQueryData<Topology>(key)
@@ -221,7 +218,10 @@ export function useCreateNode(storyId: string) {
         pov: "third-person",
         tone: "neutral",
         target_words: 300,
-        position: { x: 100, y: 100 },
+        position_x: 100,
+        position_y: 100,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       }
       qc.setQueryData<Topology>(key, (old) => old ? { ...old, nodes: [...old.nodes, tempNode] } : old)
       return { prev }
@@ -297,7 +297,7 @@ export function useCreateEdge(storyId: string) {
   const key = TOPOLOGY_KEY(storyId)
   const { error: showError } = useToastExternal()
   return useMutation({
-    mutationFn: (data: { from_node: string; to_node: string; edge_type: string }) =>
+    mutationFn: (data: CreateEdgePayload) =>
       api.edges.create(storyId, data),
     onMutate: async (data) => {
       await qc.cancelQueries({ queryKey: key })
@@ -364,7 +364,7 @@ export function useUpdateNodePosition(storyId: string) {
         return {
           ...old,
           nodes: old.nodes.map((n) =>
-            n.id === nodeId ? { ...n, position: { x, y } } as GraphNode : n,
+            n.id === nodeId ? { ...n, position_x: x, position_y: y } : n,
           ),
         }
       })
@@ -658,14 +658,5 @@ export function useSceneNarrativeEvents(storyId: string, nodeId: string | null, 
     queryKey: ["narrativeEvents", storyId, nodeId],
     queryFn: () => api.narrativeEvents.listByScene(storyId, nodeId!, limit),
     enabled: !!storyId && !!nodeId,
-  })
-}
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (bibleId: string) => api.bible.unlink(storyId, bibleId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["bible", storyId] })
-      qc.invalidateQueries({ queryKey: ["referencingBibles", storyId] })
-    },
   })
 }
