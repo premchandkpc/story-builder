@@ -23,6 +23,24 @@ type PlotThread struct {
 	Status      string `bson:"status" json:"status"`
 }
 
+type ScenePurpose struct {
+	SceneID        string   `bson:"sceneId" json:"sceneId"`
+	StoryID        string   `bson:"storyId" json:"storyId"`
+	AdvancingArcs  []string `bson:"advancingArcs,omitempty" json:"advancingArcs,omitempty"`
+	AdvancingThreads []string `bson:"advancingThreads,omitempty" json:"advancingThreads,omitempty"`
+	RequiredBeats  []BeatDef `bson:"requiredBeats,omitempty" json:"requiredBeats,omitempty"`
+	ForbiddenBeats []string `bson:"forbiddenBeats,omitempty" json:"forbiddenBeats,omitempty"`
+	EntryState     map[string]string `bson:"entryState,omitempty" json:"entryState,omitempty"`
+	ExitState      map[string]string `bson:"exitState,omitempty" json:"exitState,omitempty"`
+	ConflictType   string   `bson:"conflictType,omitempty" json:"conflictType,omitempty"`
+}
+
+type BeatDef struct {
+	Type        string `bson:"type" json:"type"`
+	Description string `bson:"description" json:"description"`
+	Mandatory   bool   `bson:"mandatory" json:"mandatory"`
+}
+
 type StoryBlueprint struct {
 	Premise      string          `bson:"premise,omitempty" json:"premise,omitempty"`
 	Theme        string          `bson:"theme,omitempty" json:"theme,omitempty"`

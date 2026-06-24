@@ -13,6 +13,7 @@ import (
 	"github.com/premchand/story-builder/internal/events"
 	"github.com/premchand/story-builder/internal/llm"
 	"github.com/premchand/story-builder/internal/prompt"
+	"github.com/premchand/story-builder/internal/projection"
 	mgorepo "github.com/premchand/story-builder/internal/repository/mongo"
 	"github.com/premchand/story-builder/internal/service"
 	"github.com/premchand/story-builder/internal/validation"
@@ -163,7 +164,9 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 		&rules.ValueBounds{},
 		&rules.DuplicateDetector{},
 	})
-	_, _ = charViewRepo, sceneLockRepo
+	charProjection := projection.NewCharacterProjection(narrativeEventRepo, charViewRepo)
+	tlProjection := projection.NewTimelineProjection(narrativeEventRepo, tlRepo)
+	projScheduler := projection.NewScheduler(charProjection, tlProjection)
 
 	agentRegistry := agents.NewAgentRegistry()
 	agents.RegisterAll(agentRegistry, router, proseSvc, extractSvc, validateSvc)
@@ -198,7 +201,7 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 
 	progressHub := api.NewProgressHub()
 	genJobWorker := service.NewGenerationJobWorker(service.GenerationJobWorkerConfig{
-		JobRepo: jobRepo, RunRepo: runRepo, StepRepo: stepRepo,
+		JobRepo: jobRepo, LockRepo: sceneLockRepo, RunRepo: runRepo, StepRepo: stepRepo,
 		GenRepo: genRepo, SceneRepo: sceneRepo,
 		StoryRepo: storyRepo, CharRepo: charRepo, StateRepo: stateRepo,
 		EdgeRepo: edgeRepo, BibleRepo: bibleRepo, MemRepo: memRepo, TlRepo: tlRepo,

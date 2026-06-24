@@ -168,6 +168,12 @@ type TokenBudgetRepository interface {
 	DeleteByStory(ctx context.Context, storyID string) error
 }
 
+type BlueprintRepository interface {
+	GetByStory(ctx context.Context, storyID string) (*domain.StoryBlueprint, error)
+	Upsert(ctx context.Context, bp *domain.StoryBlueprint) error
+	DeleteByStory(ctx context.Context, storyID string) error
+}
+
 type ChapterRepository interface {
 	Create(ctx context.Context, c *domain.Chapter) error
 	Get(ctx context.Context, id string) (*domain.Chapter, error)

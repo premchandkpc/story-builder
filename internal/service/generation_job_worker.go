@@ -19,6 +19,7 @@ import (
 
 type GenerationJobWorkerConfig struct {
 	JobRepo        repository.JobRepository
+	LockRepo       repository.SceneLockRepository
 	RunRepo        repository.RunRepository
 	StepRepo       repository.RunStepRepository
 	GenRepo        repository.GenerationRepository
@@ -59,6 +60,7 @@ func NewGenerationJobWorker(cfg GenerationJobWorkerConfig) *GenerationJobWorker 
 	wrk := orchestration.NewWorker(orchestration.WorkerConfig{
 		JobRepo:           cfg.JobRepo,
 		GenRepo:           cfg.GenRepo,
+		LockRepo:          cfg.LockRepo,
 		Recorder:          recorder,
 		Pipelines:         []*orchestration.PipelineDef{pipe},
 		PollInterval:      cfg.PollInterval,

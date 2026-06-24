@@ -14,6 +14,7 @@ import (
 type WorkerConfig struct {
 	JobRepo        repository.JobRepository
 	GenRepo        repository.GenerationRepository
+	LockRepo       repository.SceneLockRepository
 	Recorder       *RunRecorder
 	Pipelines      []*PipelineDef
 	PollInterval   time.Duration
@@ -148,6 +149,29 @@ func (w *Worker) tryProcess(pipe *PipelineDef) {
 		return
 	}
 	defer w.inFlight.Delete(job.SceneID)
+
+	if w.cfg.LockRepo != nil && job.SceneID != "" {
+		lock := &domain.SceneLock{
+			SceneID:    job.SceneID,
+			StoryID:    job.StoryID,
+			GenID:      job.GenID,
+			WorkerID:   w.cfg.WorkerID,
+			AcquiredAt: time.Now(),
+			TTL:        time.Now().Add(w.cfg.LeaseTime),
+		}
+		if acquired, err := w.cfg.LockRepo.Acquire(ctx, lock); err != nil || !acquired {
+			if err != nil {
+				slog.Warn("scene lock acquire failed", "sceneId", job.SceneID, "error", err)
+			} else {
+				slog.Warn("scene already locked elsewhere, skipping job", "sceneId", job.SceneID, "jobId", job.ID)
+				w.failJob(ctx, job, "scene locked by another worker")
+				return
+			}
+		}
+		defer func() {
+			_ = w.cfg.LockRepo.Release(context.Background(), job.SceneID)
+		}()
+	}
 
 	pCtx, pCancel := context.WithTimeout(context.Background(), w.cfg.LeaseTime)
 	defer pCancel()
