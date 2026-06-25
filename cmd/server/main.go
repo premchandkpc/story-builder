@@ -40,7 +40,7 @@ func main() {
 	}
 	slog.Info("mongo indexes ensured")
 
-	deps := initAll(cfg, db)
+	deps := initAll(ctx, cfg, db)
 	deps.genJobWorker.Start()
 	defer deps.genJobWorker.Stop()
 
@@ -55,6 +55,7 @@ func main() {
 		deps.agentSvc, deps.agentSvc,
 		deps.runSvc, deps.narrativeSvc,
 		deps.plannerSvc, deps.diffSvc,
+		deps.searchSvc,
 	)
 
 	srv := api.NewServer(h, deps.rateLimiter, func(ctx context.Context) error {

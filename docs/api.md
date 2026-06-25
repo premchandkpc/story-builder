@@ -37,6 +37,52 @@ Response 200: {"status": "ok"}
 
 ---
 
+## Search
+
+### `GET /api/v1/search`
+
+Full-text search across stories, scenes, and characters (requires Elasticsearch).
+
+**Query params:**
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `q` | string | required | Search query |
+| `entity` | string | `""` (all) | Entity type: `story`, `scene`, `character` |
+| `story_id` | string | `""` (all) | Filter by story |
+| `limit` | int | `20` | Max results (≤100) |
+| `offset` | int | `0` | Pagination offset |
+
+**Response 200:**
+```json
+{
+  "total": 42,
+  "hits": [
+    {
+      "id": "story_1",
+      "score": 5.2,
+      "entity": "story",
+      "title": "Empire of Ash",
+      "excerpt": "A sprawling fantasy epic...",
+      "data": {}
+    },
+    {
+      "id": "scene_100",
+      "score": 3.1,
+      "entity": "scene",
+      "title": "Arrival at Castle",
+      "excerpt": "Hero arrives at the castle...",
+      "data": {}
+    }
+  ]
+}
+```
+
+**Response 400:** `{"error": "query parameter q is required"}`
+
+Requires `ES_ADDR` env var. Returns empty result set when Elasticsearch is unavailable.
+
+---
+
 ## Stories
 
 ### `POST /api/v1/stories`

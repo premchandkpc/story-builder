@@ -60,6 +60,9 @@ func NewServer(h *Handlers, limiter *cache.SlidingWindowRateLimiter, healthCheck
 	})
 
 	r.Route("/api/v1", func(r chi.Router) {
+		// Search — cross-entity full-text search via Elasticsearch
+		r.Get("/search", h.Search)
+
 		// Stories CRUD + LLM generation
 		r.Route("/stories", func(r chi.Router) {
 			r.Post("/", h.CreateStory)

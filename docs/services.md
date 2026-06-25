@@ -316,6 +316,30 @@ On failure, `Generation.Error` is set and `Generation.Status` reflects the outco
 
 ---
 
+## Search Service
+
+`internal/service/search.go` — Optional full-text search backed by Elasticsearch:
+
+| Method | Description |
+|--------|-------------|
+| `Search(ctx, query, entityType, storyID, limit, offset)` | Cross-entity search across stories, scenes, characters. Routes to entity-specific index when `entityType` is set, otherwise searches all indices. |
+| `EnsureIndices(ctx)` | Creates ES indices with field mappings on startup. No-op if indices already exist. Graceful degradation: logs warning and disables search on failure. |
+| `IndexStory(ctx, story)` | Indexes a story document for full-text search. |
+| `DeleteStoryIndex(ctx, storyID)` | Removes a story from the search index. |
+| `IndexScene(ctx, scene)` | Indexes a scene (title, beatIntent, generatedContent, summary). |
+| `DeleteSceneIndex(ctx, sceneID)` | Removes a scene from the search index. |
+| `IndexCharacter(ctx, char)` | Indexes a character (name, persona, backstory, goals). |
+| `DeleteCharacterIndex(ctx, charID)` | Removes a character from the search index. |
+| `DeleteByStory(ctx, storyID)` | Removes all documents for a story (story + scenes + characters). |
+
+Dependencies: `repository.SearchRepository` (interface) → `elasticsearch.SearchRepo` (implementation).
+
+Config: `ES_ADDR` env var (comma-separated URLs). Empty = disabled. Example: `ES_ADDR=http://localhost:9200`.
+
+Docker: `docker compose --profile search up -d elasticsearch`
+
+---
+
 ## Validation Service
 
 | Method | Description |

@@ -8,6 +8,8 @@ type Config struct {
 	MongoDB       string
 	RedisAddr     string
 	RedisPass     string
+	ESAddr        string
+	ESPassword    string
 	AnthropicKey  string
 	OpenCodeURL   string
 	OpenCodeModel string
@@ -25,6 +27,8 @@ func FromEnv() Config {
 		MongoDB:       env("MONGO_DB", "storybuilder"),
 		RedisAddr:     env("REDIS_ADDR", "localhost:6379"),
 		RedisPass:     env("REDIS_PASSWORD", ""),
+		ESAddr:        env("ES_ADDR", ""),
+		ESPassword:    env("ES_PASSWORD", ""),
 		AnthropicKey:  env("ANTHROPIC_API_KEY", ""),
 		OpenCodeURL:   env("OPENCODE_URL", "https://opencode.ai/zen"),
 		OpenCodeModel: env("OPENCODE_MODEL", "mimo-v2.5-free"),

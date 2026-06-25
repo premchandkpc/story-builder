@@ -757,6 +757,61 @@ Durable generation job queue. Workers poll for pending jobs with lease semantics
 
 ---
 
+---
+
+## Elasticsearch Indices
+
+Optional full-text search layer. Three indices mirror the MongoDB collections for searchable entities.
+
+### `storybuilder_stories`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | text + keyword | Story ID |
+| `title` | text | Story title |
+| `description` | text | Theme or main prompt |
+| `theme` | text | Story theme |
+| `genre` | keyword | Story genre |
+| `status` | keyword | Draft/active/completed |
+| `createdAt` | date | Creation timestamp |
+| `updatedAt` | date | Update timestamp |
+
+### `storybuilder_scenes`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | text + keyword | Scene ID |
+| `storyId` | keyword | Parent story ID |
+| `title` | text | Scene title |
+| `beatIntent` | text | Scene purpose |
+| `content` | text | Generated prose |
+| `summary` | text | Scene summary |
+| `status` | keyword | Draft/generated/accepted |
+| `pov` | keyword | Point of view |
+| `locationRef` | text | Location reference |
+| `participants` | keyword | Character IDs |
+| `timelinePosition` | int | Order in story |
+| `targetWords` | int | Target word count |
+| `createdAt` | date | Creation timestamp |
+| `updatedAt` | date | Update timestamp |
+
+### `storybuilder_characters`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | text + keyword | Document ID |
+| `storyId` | keyword | Parent story ID |
+| `charId` | keyword | Logical character ID |
+| `name` | text | Character name |
+| `persona` | text | Character persona/role |
+| `backstory` | text | Character backstory |
+| `goals` | text | Character goals |
+| `flaws` | text | Character flaws |
+| `arcType` | keyword | Redemption/fall/etc |
+| `createdAt` | date | Creation timestamp |
+
+Indexes are created on startup via `elasticsearch.Client.EnsureIndices()`. Requires `ES_ADDR` env var. Graceful degradation: no ES → no search.
+
 ## Frontend Types
 
 The frontend mirrors backend models as TypeScript interfaces in `web/src/api/types.ts`. Key mappings:

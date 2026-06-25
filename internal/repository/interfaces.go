@@ -184,3 +184,30 @@ type ChapterRepository interface {
 	Delete(ctx context.Context, id string) error
 	DeleteByStory(ctx context.Context, storyID string) error
 }
+
+type SearchResult struct {
+	Total int64         `json:"total"`
+	Hits  []SearchHit   `json:"hits"`
+}
+
+type SearchHit struct {
+	ID     string  `json:"id"`
+	Score  float64 `json:"score"`
+	Entity string  `json:"entity"`
+	Title  string  `json:"title,omitempty"`
+	Excerpt string `json:"excerpt,omitempty"`
+	Data   any     `json:"data,omitempty"`
+}
+
+type SearchRepository interface {
+	EnsureIndices(ctx context.Context) error
+	IndexStory(ctx context.Context, s *domain.Story) error
+	DeleteStoryIndex(ctx context.Context, storyID string) error
+	IndexScene(ctx context.Context, s *domain.Scene) error
+	DeleteSceneIndex(ctx context.Context, sceneID string) error
+	IndexCharacter(ctx context.Context, c *domain.Character) error
+	DeleteCharacterIndex(ctx context.Context, charID string) error
+	DeleteByStory(ctx context.Context, storyID string) error
+	Search(ctx context.Context, query string, storyID string, limit, offset int) (*SearchResult, error)
+	SearchByEntity(ctx context.Context, query string, entityType string, storyID string, limit, offset int) (*SearchResult, error)
+}

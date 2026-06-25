@@ -56,16 +56,17 @@
 │  └────────┬───────────┘  │
 └───────────┼──────────────┘
             │
-     ┌──────┴──────┐
-     ▼             ▼
-┌──────────┐ ┌──────────┐
-│ MongoDB  │ │  Redis   │
-│ SSOT     │ │ cache    │
-│          │ │ rate lim │
-│          │ │ locks    │
-└──────────┘ └──────────┘
-              │
-              ▼
+     ┌──────┴───────┐
+      ▼              ▼
+┌──────────┐  ┌──────────┐    ┌──────────────┐
+│ MongoDB  │  │  Redis   │    │ Elasticsearch│
+│ SSOT     │  │ cache    │    │ full-text    │
+│          │  │ rate lim │    │ search       │
+│          │  │ locks    │    │ (optional)   │
+└──────────┘  └──────────┘    └──────────────┘
+                                    │
+               ┌────────────────────┘
+               ▼
 ┌──────────────────────────┐
 │  Narrative Analysis      │
 │  (Java Spring Boot)      │
@@ -138,7 +139,8 @@ cmd/server/
     │   └── narrative_event.go ─── NarrativeEventService — append-only state event log
     │
     ├── internal/repository    ─── Data access interfaces
-    │   └── mongo/             ─── MongoDB implementations
+    │   ├── mongo/             ─── MongoDB implementations
+    │   └── elasticsearch/     ─── Elasticsearch full-text search (optional)
     │
     ├── internal/agents        ─── Runtime narrative agents
     │   ├── types.go           ─── Agent, AgentSpec, AgentContext, OrchestrationPlan

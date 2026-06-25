@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/premchand/story-builder/internal/agents"
@@ -14,6 +16,7 @@ import (
 	"github.com/premchand/story-builder/internal/llm"
 	"github.com/premchand/story-builder/internal/prompt"
 	"github.com/premchand/story-builder/internal/projection"
+	esrepo "github.com/premchand/story-builder/internal/repository/elasticsearch"
 	mgorepo "github.com/premchand/story-builder/internal/repository/mongo"
 	"github.com/premchand/story-builder/internal/service"
 	"github.com/premchand/story-builder/internal/validation"
@@ -46,9 +49,10 @@ type appDependencies struct {
 	narrativeSvc *service.NarrativeEventService
 	plannerSvc   *service.PlannerService
 	diffSvc      *service.DiffService
+	searchSvc    *service.SearchService
 }
 
-func initAll(cfg config.Config, db *mongo.Database) appDependencies {
+func initAll(ctx context.Context, cfg config.Config, db *mongo.Database) appDependencies {
 	// Repositories
 	storyRepo := mgorepo.NewStoryRepo(db)
 	sceneRepo := mgorepo.NewSceneRepo(db)
@@ -133,6 +137,29 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 		}
 	} else {
 		slog.Info("no REDIS_ADDR set, running without cache")
+	}
+
+	// Elasticsearch — optional full-text search
+	var searchSvc *service.SearchService
+	if cfg.ESAddr != "" {
+		addrs := strings.Split(cfg.ESAddr, ",")
+		for i, a := range addrs {
+			addrs[i] = strings.TrimSpace(a)
+		}
+		esClient, err := esrepo.Connect(addrs)
+		if err != nil {
+			slog.Warn("elasticsearch unavailable, running without search", "error", err)
+		} else {
+			if err := esClient.EnsureIndices(ctx); err != nil {
+				slog.Warn("elasticsearch indices setup failed, running without search", "error", err)
+			} else {
+				searchRepo := esrepo.NewSearchRepo(esClient)
+				searchSvc = service.NewSearchService(searchRepo)
+				slog.Info("elasticsearch enabled", "addrs", cfg.ESAddr)
+			}
+		}
+	} else {
+		slog.Info("no ES_ADDR set, running without search")
 	}
 
 	// Domain services
@@ -248,5 +275,6 @@ func initAll(cfg config.Config, db *mongo.Database) appDependencies {
 		narrativeSvc: narrativeSvc,
 		plannerSvc:   plannerSvc,
 		diffSvc:      diffSvc,
+		searchSvc:    searchSvc,
 	}
 }
