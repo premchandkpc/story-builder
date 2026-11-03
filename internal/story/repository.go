@@ -14,4 +14,10 @@ type Repository interface {
 	ListScenes(context.Context, string) ([]Scene, error)
 	CreateEdge(context.Context, Edge) error
 	ListEdges(context.Context, string) ([]Edge, error)
+	CreateDraft(context.Context, Draft) error
+	FindDraft(context.Context, string, string) (Draft, error)
+	GetDraft(context.Context, string) (Draft, error)
+	UpdateDraft(context.Context, Draft) error
+	DeleteDraft(context.Context, string) error
+	AcceptDraft(context.Context, string) (Scene, error)
 }

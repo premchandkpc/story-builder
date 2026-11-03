@@ -1,7 +1,7 @@
 # Architecture — Slice 1
 
 V2 is a modular Go monolith and React single-page application. Slice 1 has no
-LLM, draft, canon, queue, or authentication subsystem.
+canon, queue, or authentication subsystem.
 
 ```
 React Flow workspace → /api/v1 (chi) → story.Service → story.Repository
@@ -20,6 +20,17 @@ It is for local development only: a restart clears all data.
 lookup and unique edge indexes at startup. Set `MONGO_URI` and optionally
 `MONGO_DB` to use it; otherwise the server deliberately reports that it is
 using in-memory persistence.
+
+## Draft boundary — Slice 2
+
+`story.Draft` is a temporary document with a 24-hour TTL and a pinned
+`base_canon_version`. Generation sends prose chunks through the `ProseGenerator`
+port and only writes the draft. It cannot update a scene or a story.
+
+Accept is implemented by the repository adapter: the in-memory adapter holds
+one mutex; Mongo runs a transaction that verifies the pinned version, stores
+the accepted prose, increments `canonVersion`, and marks the draft accepted.
+Reject deletes the draft. Canon events and character projections remain Slice 3.
 
 ## Graph invariant
 

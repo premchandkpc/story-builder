@@ -28,10 +28,53 @@ func New(stories *story.Service) *Server {
 		r.Get("/stories/{storyID}/graph", s.graph)
 		r.Post("/stories/{storyID}/scenes", s.createScene)
 		r.Post("/stories/{storyID}/edges", s.createEdge)
+		r.Post("/scenes/{sceneID}/generate", s.generate)
+		r.Post("/drafts/{draftID}/accept", s.acceptDraft)
+		r.Post("/drafts/{draftID}/reject", s.rejectDraft)
 		r.Patch("/scenes/{sceneID}", s.updateScene)
 	})
 	s.router = r
 	return s
+}
+func (s *Server) generate(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "stream_unavailable", "Streaming is not supported.")
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.WriteHeader(http.StatusOK)
+	draft, err := s.stories.GenerateDraft(r.Context(), chi.URLParam(r, "sceneID"), story.TemplateGenerator{}, func(chunk string) error {
+		payload, _ := json.Marshal(map[string]string{"text": chunk})
+		_, err := w.Write([]byte("event: chunk\ndata: " + string(payload) + "\n\n"))
+		flusher.Flush()
+		return err
+	})
+	if err != nil {
+		payload, _ := json.Marshal(map[string]string{"message": err.Error()})
+		_, _ = w.Write([]byte("event: error\ndata: " + string(payload) + "\n\n"))
+		flusher.Flush()
+		return
+	}
+	payload, _ := json.Marshal(draft)
+	_, _ = w.Write([]byte("event: complete\ndata: " + string(payload) + "\n\n"))
+	flusher.Flush()
+}
+func (s *Server) acceptDraft(w http.ResponseWriter, r *http.Request) {
+	value, err := s.stories.AcceptDraft(r.Context(), chi.URLParam(r, "draftID"))
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, value)
+}
+func (s *Server) rejectDraft(w http.ResponseWriter, r *http.Request) {
+	if err := s.stories.RejectDraft(r.Context(), chi.URLParam(r, "draftID")); err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 func (s *Server) Handler() http.Handler { return s.router }
 func (s *Server) listStories(w http.ResponseWriter, r *http.Request) {
@@ -144,6 +187,10 @@ func writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusUnprocessableEntity, "cycle_detected", "That connection would create a cycle.")
 	case errors.Is(err, story.ErrCrossStoryEdge), errors.Is(err, story.ErrDuplicateEdge):
 		writeError(w, http.StatusConflict, "invalid_edge", err.Error())
+	case errors.Is(err, story.ErrStaleDraft):
+		writeError(w, http.StatusConflict, "stale_draft", "Canon changed. Regenerate this draft.")
+	case errors.Is(err, story.ErrDraftNotReady):
+		writeError(w, http.StatusConflict, "draft_not_ready", err.Error())
 	default:
 		writeError(w, http.StatusInternalServerError, "internal_error", "The graph could not be saved.")
 	}

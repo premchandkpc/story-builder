@@ -12,10 +12,11 @@ type memoryRepo struct {
 	stories map[string]Story
 	scenes  map[string]Scene
 	edges   map[string]Edge
+	drafts  map[string]Draft
 }
 
 func newMemoryRepo() *memoryRepo {
-	return &memoryRepo{stories: map[string]Story{}, scenes: map[string]Scene{}, edges: map[string]Edge{}}
+	return &memoryRepo{stories: map[string]Story{}, scenes: map[string]Scene{}, edges: map[string]Edge{}, drafts: map[string]Draft{}}
 }
 func (r *memoryRepo) CreateStory(_ context.Context, s Story) error {
 	r.mu.Lock()
@@ -93,6 +94,72 @@ func (r *memoryRepo) ListEdges(_ context.Context, storyID string) ([]Edge, error
 	}
 	return out, nil
 }
+func (r *memoryRepo) CreateDraft(_ context.Context, d Draft) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.drafts[d.ID] = d
+	return nil
+}
+func (r *memoryRepo) FindDraft(_ context.Context, sceneID, hash string) (Draft, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, d := range r.drafts {
+		if d.SceneID == sceneID && d.ContextHash == hash {
+			return d, nil
+		}
+	}
+	return Draft{}, ErrNotFound
+}
+func (r *memoryRepo) GetDraft(_ context.Context, id string) (Draft, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	d, ok := r.drafts[id]
+	if !ok {
+		return Draft{}, ErrNotFound
+	}
+	return d, nil
+}
+func (r *memoryRepo) UpdateDraft(_ context.Context, d Draft) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.drafts[d.ID] = d
+	return nil
+}
+func (r *memoryRepo) DeleteDraft(_ context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.drafts[id]; !ok {
+		return ErrNotFound
+	}
+	delete(r.drafts, id)
+	return nil
+}
+func (r *memoryRepo) AcceptDraft(_ context.Context, id string) (Scene, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	d, ok := r.drafts[id]
+	if !ok {
+		return Scene{}, ErrNotFound
+	}
+	scene := r.scenes[d.SceneID]
+	current := r.stories[d.StoryID]
+	if d.Status == DraftAccepted {
+		return scene, nil
+	}
+	if d.Status != DraftReady {
+		return Scene{}, ErrDraftNotReady
+	}
+	if current.CanonVersion != d.BaseCanonVersion {
+		return Scene{}, ErrStaleDraft
+	}
+	scene.AcceptedDraftID, scene.Prose = d.ID, d.Prose
+	r.scenes[scene.ID] = scene
+	current.CanonVersion++
+	r.stories[current.ID] = current
+	d.Status = DraftAccepted
+	r.drafts[id] = d
+	return scene, nil
+}
 
 func TestCreateEdgeRejectsCycle(t *testing.T) {
 	ctx := context.Background()
@@ -121,5 +188,43 @@ func TestUpdateScenePersistsPosition(t *testing.T) {
 	updated, err := svc.UpdateScene(ctx, scene.ID, nil, nil, &position)
 	if err != nil || updated.Position != position {
 		t.Fatalf("position was not persisted: %#v, %v", updated.Position, err)
+	}
+}
+
+func TestRejectDraftLeavesStoryAndSceneUntouched(t *testing.T) {
+	ctx := context.Background()
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+	st, _ := svc.CreateStory(ctx, "Map")
+	sc, _ := svc.CreateScene(ctx, st.ID, "Start", "", Position{})
+	d, err := svc.GenerateDraft(ctx, sc.ID, TemplateGenerator{}, func(string) error { return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.RejectDraft(ctx, d.ID); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := repo.GetScene(ctx, sc.ID)
+	latest, _ := repo.GetStory(ctx, st.ID)
+	if after.Prose != "" || after.AcceptedDraftID != "" || latest.CanonVersion != 0 {
+		t.Fatal("reject changed canon")
+	}
+}
+func TestAcceptDraftIsIdempotent(t *testing.T) {
+	ctx := context.Background()
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+	st, _ := svc.CreateStory(ctx, "Map")
+	sc, _ := svc.CreateScene(ctx, st.ID, "Start", "", Position{})
+	d, _ := svc.GenerateDraft(ctx, sc.ID, TemplateGenerator{}, func(string) error { return nil })
+	if _, err := svc.AcceptDraft(ctx, d.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.AcceptDraft(ctx, d.ID); err != nil {
+		t.Fatal(err)
+	}
+	latest, _ := repo.GetStory(ctx, st.ID)
+	if latest.CanonVersion != 1 {
+		t.Fatalf("got version %d", latest.CanonVersion)
 	}
 }

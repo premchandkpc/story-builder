@@ -40,6 +40,8 @@ func (r *Repository) EnsureIndexes(ctx context.Context) error {
 	}{
 		{"scenes", mongo.IndexModel{Keys: bson.D{{Key: "storyId", Value: 1}}}},
 		{"edges", mongo.IndexModel{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "fromSceneId", Value: 1}, {Key: "toSceneId", Value: 1}}, Options: options.Index().SetUnique(true)}},
+		{"drafts", mongo.IndexModel{Keys: bson.D{{Key: "expiresAt", Value: 1}}, Options: options.Index().SetExpireAfterSeconds(0)}},
+		{"drafts", mongo.IndexModel{Keys: bson.D{{Key: "sceneId", Value: 1}, {Key: "contextHash", Value: 1}}}},
 	}
 	for _, item := range indexes {
 		if _, err := r.db.Collection(item.collection).Indexes().CreateOne(ctx, item.model); err != nil {
@@ -92,6 +94,86 @@ func (r *Repository) CreateEdge(ctx context.Context, value story.Edge) error {
 }
 func (r *Repository) ListEdges(ctx context.Context, storyID string) ([]story.Edge, error) {
 	return list[story.Edge](ctx, r.db.Collection("edges"), bson.M{"storyId": storyID}, options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}}))
+}
+func (r *Repository) CreateDraft(ctx context.Context, value story.Draft) error {
+	_, err := r.db.Collection("drafts").InsertOne(ctx, value)
+	return err
+}
+func (r *Repository) FindDraft(ctx context.Context, sceneID, hash string) (story.Draft, error) {
+	var value story.Draft
+	err := r.db.Collection("drafts").FindOne(ctx, bson.M{"sceneId": sceneID, "contextHash": hash}).Decode(&value)
+	return value, findError(err)
+}
+func (r *Repository) GetDraft(ctx context.Context, id string) (story.Draft, error) {
+	var value story.Draft
+	err := r.db.Collection("drafts").FindOne(ctx, bson.M{"_id": id}).Decode(&value)
+	return value, findError(err)
+}
+func (r *Repository) UpdateDraft(ctx context.Context, value story.Draft) error {
+	result, err := r.db.Collection("drafts").ReplaceOne(ctx, bson.M{"_id": value.ID}, value)
+	if err != nil {
+		return err
+	}
+	if result.MatchedCount == 0 {
+		return story.ErrNotFound
+	}
+	return nil
+}
+func (r *Repository) DeleteDraft(ctx context.Context, id string) error {
+	result, err := r.db.Collection("drafts").DeleteOne(ctx, bson.M{"_id": id})
+	if err != nil {
+		return err
+	}
+	if result.DeletedCount == 0 {
+		return story.ErrNotFound
+	}
+	return nil
+}
+func (r *Repository) AcceptDraft(ctx context.Context, id string) (story.Scene, error) {
+	var accepted story.Scene
+	session, err := r.db.Client().StartSession()
+	if err != nil {
+		return accepted, err
+	}
+	defer session.EndSession(ctx)
+	_, err = session.WithTransaction(ctx, func(sc mongo.SessionContext) (any, error) {
+		draft, err := r.GetDraft(sc, id)
+		if err != nil {
+			return nil, err
+		}
+		var scene story.Scene
+		if err := r.db.Collection("scenes").FindOne(sc, bson.M{"_id": draft.SceneID}).Decode(&scene); err != nil {
+			return nil, findError(err)
+		}
+		if draft.Status == story.DraftAccepted {
+			accepted = scene
+			return nil, nil
+		}
+		if draft.Status != story.DraftReady {
+			return nil, story.ErrDraftNotReady
+		}
+		var current story.Story
+		if err := r.db.Collection("stories").FindOne(sc, bson.M{"_id": draft.StoryID}).Decode(&current); err != nil {
+			return nil, findError(err)
+		}
+		if current.CanonVersion != draft.BaseCanonVersion {
+			return nil, story.ErrStaleDraft
+		}
+		scene.AcceptedDraftID = draft.ID
+		scene.Prose = draft.Prose
+		if _, err := r.db.Collection("scenes").ReplaceOne(sc, bson.M{"_id": scene.ID}, scene); err != nil {
+			return nil, err
+		}
+		if _, err := r.db.Collection("stories").UpdateOne(sc, bson.M{"_id": current.ID, "canonVersion": current.CanonVersion}, bson.M{"$inc": bson.M{"canonVersion": 1}}); err != nil {
+			return nil, err
+		}
+		if _, err := r.db.Collection("drafts").UpdateOne(sc, bson.M{"_id": draft.ID}, bson.M{"$set": bson.M{"status": story.DraftAccepted}}); err != nil {
+			return nil, err
+		}
+		accepted = scene
+		return nil, nil
+	})
+	return accepted, err
 }
 
 func findError(err error) error {

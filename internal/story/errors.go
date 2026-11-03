@@ -9,4 +9,6 @@ var (
 	ErrCrossStoryEdge = errors.New("both scenes must belong to the story")
 	ErrCycle          = errors.New("edge would create a cycle")
 	ErrDuplicateEdge  = errors.New("edge already exists")
+	ErrStaleDraft     = errors.New("draft is stale")
+	ErrDraftNotReady  = errors.New("draft is not ready")
 )

@@ -2,6 +2,7 @@ package story
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"strings"
 	"time"
@@ -9,10 +10,60 @@ import (
 	"github.com/google/uuid"
 )
 
+type ProseGenerator interface {
+	Generate(context.Context, Scene, func(string) error) error
+}
+
 type Service struct {
 	repo  Repository
 	now   func() time.Time
 	newID func() string
+}
+
+func (s *Service) GenerateDraft(ctx context.Context, sceneID string, generator ProseGenerator, send func(string) error) (Draft, error) {
+	scene, err := s.repo.GetScene(ctx, sceneID)
+	if err != nil {
+		return Draft{}, fmt.Errorf("get scene: %w", err)
+	}
+	current, err := s.repo.GetStory(ctx, scene.StoryID)
+	if err != nil {
+		return Draft{}, fmt.Errorf("get story: %w", err)
+	}
+	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(scene.ID+fmt.Sprint(current.CanonVersion)+scene.Title+scene.Brief+"template-v1")))
+	if existing, err := s.repo.FindDraft(ctx, scene.ID, hash); err == nil && existing.Status == DraftReady {
+		_ = send(existing.Prose)
+		return existing, nil
+	}
+	now := s.now().UTC()
+	draft := Draft{ID: s.newID(), StoryID: scene.StoryID, SceneID: scene.ID, Status: DraftGenerating, BaseCanonVersion: current.CanonVersion, ContextHash: hash, CreatedAt: now, ExpiresAt: now.Add(24 * time.Hour)}
+	if err := s.repo.CreateDraft(ctx, draft); err != nil {
+		return Draft{}, fmt.Errorf("create draft: %w", err)
+	}
+	var prose strings.Builder
+	if err := generator.Generate(ctx, scene, func(chunk string) error { prose.WriteString(chunk); return send(chunk) }); err != nil {
+		draft.Status = DraftFailed
+		_ = s.repo.UpdateDraft(context.Background(), draft)
+		return draft, err
+	}
+	draft.Prose = prose.String()
+	draft.Status = DraftReady
+	if err := s.repo.UpdateDraft(ctx, draft); err != nil {
+		return Draft{}, fmt.Errorf("complete draft: %w", err)
+	}
+	return draft, nil
+}
+func (s *Service) AcceptDraft(ctx context.Context, id string) (Scene, error) {
+	value, err := s.repo.AcceptDraft(ctx, id)
+	if err != nil {
+		return Scene{}, fmt.Errorf("accept draft: %w", err)
+	}
+	return value, nil
+}
+func (s *Service) RejectDraft(ctx context.Context, id string) error {
+	if err := s.repo.DeleteDraft(ctx, id); err != nil {
+		return fmt.Errorf("reject draft: %w", err)
+	}
+	return nil
 }
 
 func NewService(repo Repository) *Service {

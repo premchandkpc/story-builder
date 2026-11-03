@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ReactFlow, Background, Controls, MiniMap, type Connection, type Edge as FlowEdge, type Node, type NodeMouseHandler } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { api, type Graph, type Scene, type Story } from "./api";
+import { api, type Draft, type Scene, type Story } from "./api";
 import "./styles.css";
 
 const queryClient = new QueryClient();
@@ -14,6 +14,9 @@ function App() {
   const [selectedScene, setSelectedScene] = useState<Scene | null>(null);
   const [newTitle, setNewTitle] = useState("");
   const [notice, setNotice] = useState("");
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [draftText, setDraftText] = useState("");
+  const [generating, setGenerating] = useState(false);
   const stories = useQuery({ queryKey: ["stories"], queryFn: api.listStories });
   const graph = useQuery({ queryKey: ["graph", selectedStoryID], queryFn: () => api.graph(selectedStoryID), enabled: Boolean(selectedStoryID) });
 
@@ -25,6 +28,9 @@ function App() {
   const moveScene = useMutation({ mutationFn: ({ id, position }: { id:string; position:{x:number;y:number} }) => api.moveScene(id, position), onError: (error) => setNotice(error.message) });
   const connect = useMutation({ mutationFn: (connection: Connection) => api.createEdge(selectedStoryID, connection.source ?? "", connection.target ?? ""), onSuccess: refreshGraph, onError: (error) => setNotice(error.message) });
   const saveScene = useMutation({ mutationFn: ({ id, title, brief }: { id:string; title:string; brief:string }) => api.updateScene(id,title,brief), onSuccess: (scene) => { refreshGraph(); setSelectedScene(scene); setNotice("Scene notes saved."); }, onError: (error) => setNotice(error.message) });
+  const generateDraft = async () => { if (!selectedScene) return; setGenerating(true); setDraft(null); setDraftText(""); try { const value = await api.generate(selectedScene.id, (chunk) => setDraftText((text) => text + chunk)); setDraft(value); } catch (error) { setNotice(error instanceof Error ? error.message : "Generation failed."); } finally { setGenerating(false); } };
+  const acceptDraft = async () => { if (!draft) return; try { await api.acceptDraft(draft.id); setNotice("Draft accepted into the story."); setDraft(null); setDraftText(""); refreshGraph(); } catch (error) { setNotice(error instanceof Error ? error.message : "Draft could not be accepted."); } };
+  const rejectDraft = async () => { if (!draft) return; try { await api.rejectDraft(draft.id); setDraft(null); setDraftText(""); setNotice("Draft rejected. The story is unchanged."); } catch (error) { setNotice(error instanceof Error ? error.message : "Draft could not be rejected."); } };
 
   const nodes = useMemo<Node[]>(() => (graph.data?.scenes ?? []).map((scene) => ({ id: scene.id, position: scene.position, data: { label: <><span className="node-kicker">SCENE</span><strong>{scene.title}</strong><small>{scene.brief || "Add a scene brief"}</small></> }, className: selectedScene?.id === scene.id ? "scene-node is-selected" : "scene-node" })), [graph.data, selectedScene?.id]);
   const edges = useMemo<FlowEdge[]>(() => (graph.data?.edges ?? []).map((edge) => ({ id: edge.id, source: edge.fromSceneId, target: edge.toSceneId, type: "smoothstep", animated: false })), [graph.data]);
@@ -39,10 +45,10 @@ function App() {
       {notice && <div className="notice" role="status">{notice}<button onClick={() => setNotice("")}>×</button></div>}
       {selectedStoryID ? <div className="map-frame"><ReactFlow nodes={nodes} edges={edges} fitView minZoom={0.25} onNodeClick={onNodeClick} onConnect={(connection) => connect.mutate(connection)} onNodeDragStop={(_, node) => moveScene.mutate({ id: node.id, position: node.position })} proOptions={{ hideAttribution: true }}><Background gap={24} size={1} /><Controls showInteractive={false} /><MiniMap pannable zoomable /></ReactFlow><div className="map-hint">Drag from a scene handle to draw a new path.</div></div> : <section className="empty-map"><span>✦</span><h2>Begin with a story map</h2><p>Name the story in the left rail, then place its first scene.</p></section>}
     </section>
-    <aside className="scene-inspector">{selectedScene ? <SceneInspector scene={selectedScene} saving={saveScene.isPending} onSave={(title,brief) => saveScene.mutate({id:selectedScene.id,title,brief})} /> : <div className="inspector-empty"><span>⌁</span><h2>Scene details</h2><p>Select a waypoint to give it a title and a concise dramatic purpose.</p></div>}</aside>
+    <aside className="scene-inspector">{selectedScene ? <SceneInspector scene={selectedScene} saving={saveScene.isPending} onSave={(title,brief) => saveScene.mutate({id:selectedScene.id,title,brief})} onGenerate={generateDraft} generating={generating} draft={draft} draftText={draftText} onAccept={acceptDraft} onReject={rejectDraft} /> : <div className="inspector-empty"><span>⌁</span><h2>Scene details</h2><p>Select a waypoint to give it a title and a concise dramatic purpose.</p></div>}</aside>
   </main>;
 }
 
-function SceneInspector({ scene, saving, onSave }: { scene: Scene; saving: boolean; onSave: (title:string, brief:string) => void }) { const [title, setTitle] = useState(scene.title); const [brief, setBrief] = useState(scene.brief); useEffect(() => { setTitle(scene.title); setBrief(scene.brief); }, [scene]); return <form className="inspector-form" onSubmit={(event) => { event.preventDefault(); onSave(title,brief); }}><span className="eyebrow">Selected waypoint</span><h2>Shape this scene</h2><label>Title<input value={title} onChange={(event) => setTitle(event.target.value)} /></label><label>Scene brief<textarea value={brief} onChange={(event) => setBrief(event.target.value)} placeholder="What must change by the end of this scene?" rows={8} /></label><button className="save-action" disabled={saving} type="submit">{saving ? "Saving…" : "Save scene notes"}</button><div className="scene-id">{scene.id.slice(0, 8)}</div></form> }
+function SceneInspector({ scene, saving, onSave, onGenerate, generating, draft, draftText, onAccept, onReject }: { scene: Scene; saving: boolean; onSave: (title:string, brief:string) => void; onGenerate:()=>void; generating:boolean; draft:Draft|null; draftText:string; onAccept:()=>void; onReject:()=>void }) { const [title, setTitle] = useState(scene.title); const [brief, setBrief] = useState(scene.brief); useEffect(() => { setTitle(scene.title); setBrief(scene.brief); }, [scene]); return <form className="inspector-form" onSubmit={(event) => { event.preventDefault(); onSave(title,brief); }}><span className="eyebrow">Selected waypoint</span><h2>Shape this scene</h2><label>Title<input value={title} onChange={(event) => setTitle(event.target.value)} /></label><label>Scene brief<textarea value={brief} onChange={(event) => setBrief(event.target.value)} placeholder="What must change by the end of this scene?" rows={5} /></label><button className="save-action" disabled={saving} type="submit">{saving ? "Saving…" : "Save scene notes"}</button><button className="generate-action" type="button" onClick={onGenerate} disabled={generating}>{generating ? "Drafting…" : "Generate draft"}</button>{(draftText || draft) && <section className="draft-panel"><span className="eyebrow">Unaccepted draft</span><p>{draftText}</p>{draft && <div className="draft-actions"><button type="button" onClick={onReject}>Reject</button><button type="button" onClick={onAccept}>Accept into story</button></div>}</section>}<div className="scene-id">{scene.id.slice(0, 8)}</div></form> }
 
 createRoot(document.getElementById("root")!).render(<QueryClientProvider client={queryClient}><App /></QueryClientProvider>);
