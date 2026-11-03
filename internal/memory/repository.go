@@ -40,10 +40,7 @@ func (r *Repository) GetStory(_ context.Context, id string) (story.Story, error)
 func (r *Repository) ListStories(_ context.Context) ([]story.Story, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	values := make([]story.Story, 0, len(r.stories))
-	for _, value := range r.stories {
-		values = append(values, value)
-	}
+	values := mapValues(r.stories, nil)
 	sort.Slice(values, func(i, j int) bool { return values[i].CreatedAt.After(values[j].CreatedAt) })
 	return values, nil
 }
@@ -70,12 +67,7 @@ func (r *Repository) UpdateScene(_ context.Context, value story.Scene) error {
 func (r *Repository) ListScenes(_ context.Context, storyID string) ([]story.Scene, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	var values []story.Scene
-	for _, value := range r.scenes {
-		if value.StoryID == storyID {
-			values = append(values, value)
-		}
-	}
+	values := mapValues(r.scenes, func(value story.Scene) bool { return value.StoryID == storyID })
 	sort.Slice(values, func(i, j int) bool { return values[i].CreatedAt.Before(values[j].CreatedAt) })
 	return values, nil
 }
@@ -87,12 +79,7 @@ func (r *Repository) CreateEdge(_ context.Context, value story.Edge) error {
 			return story.ErrDuplicateEdge
 		}
 	}
-	edges := make([]story.Edge, 0, len(r.edges)+1)
-	for _, edge := range r.edges {
-		if edge.StoryID == value.StoryID {
-			edges = append(edges, edge)
-		}
-	}
+	edges := mapValues(r.edges, func(edge story.Edge) bool { return edge.StoryID == value.StoryID })
 	if story.HasCycle(append(edges, value)) {
 		return story.ErrCycle
 	}
@@ -102,12 +89,7 @@ func (r *Repository) CreateEdge(_ context.Context, value story.Edge) error {
 func (r *Repository) ListEdges(_ context.Context, storyID string) ([]story.Edge, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	var values []story.Edge
-	for _, value := range r.edges {
-		if value.StoryID == storyID {
-			values = append(values, value)
-		}
-	}
+	values := mapValues(r.edges, func(value story.Edge) bool { return value.StoryID == storyID })
 	sort.Slice(values, func(i, j int) bool { return values[i].CreatedAt.Before(values[j].CreatedAt) })
 	return values, nil
 }
@@ -208,24 +190,12 @@ func (r *Repository) CreateCharacter(_ context.Context, value story.Character) e
 func (r *Repository) ListCharacters(_ context.Context, storyID string) ([]story.Character, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	var out []story.Character
-	for _, value := range r.characters {
-		if value.StoryID == storyID {
-			out = append(out, value)
-		}
-	}
-	return out, nil
+	return mapValues(r.characters, func(value story.Character) bool { return value.StoryID == storyID }), nil
 }
 func (r *Repository) ListCanonEvents(_ context.Context, storyID string) ([]story.CanonEvent, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	var out []story.CanonEvent
-	for _, event := range r.events {
-		if event.StoryID == storyID {
-			out = append(out, event)
-		}
-	}
-	return out, nil
+	return filter(r.events, func(event story.CanonEvent) bool { return event.StoryID == storyID }), nil
 }
 func (r *Repository) ListCharacterStates(ctx context.Context, storyID string) ([]story.CharacterState, error) {
 	events, _ := r.ListCanonEvents(ctx, storyID)
@@ -239,4 +209,24 @@ func get[T any](values map[string]T, id string) (T, error) {
 		return zero, story.ErrNotFound
 	}
 	return value, nil
+}
+
+func mapValues[T any](items map[string]T, include func(T) bool) []T {
+	result := make([]T, 0, len(items))
+	for _, item := range items {
+		if include == nil || include(item) {
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+func filter[T any](items []T, include func(T) bool) []T {
+	result := make([]T, 0, len(items))
+	for _, item := range items {
+		if include(item) {
+			result = append(result, item)
+		}
+	}
+	return result
 }

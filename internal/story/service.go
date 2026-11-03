@@ -78,10 +78,11 @@ func (s *Service) CreateCharacter(ctx context.Context, storyID, name string, tra
 	if _, err := s.repo.GetStory(ctx, storyID); err != nil {
 		return Character{}, err
 	}
-	if strings.TrimSpace(name) == "" {
+	name, err := requiredText(name)
+	if err != nil {
 		return Character{}, ErrInvalidTitle
 	}
-	value := Character{CharacterID: s.newID(), Version: 1, StoryID: storyID, Name: strings.TrimSpace(name), Traits: traits, CreatedAt: s.now().UTC()}
+	value := Character{CharacterID: s.newID(), Version: 1, StoryID: storyID, Name: name, Traits: traits, CreatedAt: s.now().UTC()}
 	if err := s.repo.CreateCharacter(ctx, value); err != nil {
 		return Character{}, err
 	}
@@ -140,8 +141,8 @@ func NewService(repo Repository) *Service {
 }
 
 func (s *Service) CreateStory(ctx context.Context, title string) (Story, error) {
-	title = strings.TrimSpace(title)
-	if title == "" {
+	title, err := requiredText(title)
+	if err != nil {
 		return Story{}, ErrInvalidTitle
 	}
 	story := Story{ID: s.newID(), Title: title, CreatedAt: s.now().UTC()}
@@ -179,8 +180,8 @@ func (s *Service) CreateScene(ctx context.Context, storyID, title, brief string,
 	if _, err := s.repo.GetStory(ctx, storyID); err != nil {
 		return Scene{}, fmt.Errorf("get story: %w", err)
 	}
-	title = strings.TrimSpace(title)
-	if title == "" {
+	title, err := requiredText(title)
+	if err != nil {
 		return Scene{}, ErrInvalidTitle
 	}
 	now := s.now().UTC()
@@ -197,8 +198,8 @@ func (s *Service) UpdateScene(ctx context.Context, sceneID string, title, brief 
 		return Scene{}, fmt.Errorf("get scene: %w", err)
 	}
 	if title != nil {
-		trimmed := strings.TrimSpace(*title)
-		if trimmed == "" {
+		trimmed, err := requiredText(*title)
+		if err != nil {
 			return Scene{}, ErrInvalidTitle
 		}
 		scene.Title = trimmed
@@ -214,6 +215,14 @@ func (s *Service) UpdateScene(ctx context.Context, sceneID string, title, brief 
 		return Scene{}, fmt.Errorf("update scene: %w", err)
 	}
 	return scene, nil
+}
+
+func requiredText(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", ErrInvalidTitle
+	}
+	return value, nil
 }
 
 func (s *Service) CreateEdge(ctx context.Context, storyID, fromID, toID string) (Edge, error) {

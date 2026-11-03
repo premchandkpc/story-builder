@@ -56,8 +56,7 @@ func (r *Repository) EnsureIndexes(ctx context.Context) error {
 }
 
 func (r *Repository) CreateStory(ctx context.Context, value story.Story) error {
-	_, err := r.db.Collection("stories").InsertOne(ctx, value)
-	return err
+	return insert(ctx, r.db.Collection("stories"), value)
 }
 func (r *Repository) GetStory(ctx context.Context, id string) (story.Story, error) {
 	return get[story.Story](ctx, r.db.Collection("stories"), bson.M{"_id": id})
@@ -66,21 +65,13 @@ func (r *Repository) ListStories(ctx context.Context) ([]story.Story, error) {
 	return list[story.Story](ctx, r.db.Collection("stories"), bson.M{}, options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}}))
 }
 func (r *Repository) CreateScene(ctx context.Context, value story.Scene) error {
-	_, err := r.db.Collection("scenes").InsertOne(ctx, value)
-	return err
+	return insert(ctx, r.db.Collection("scenes"), value)
 }
 func (r *Repository) GetScene(ctx context.Context, id string) (story.Scene, error) {
 	return get[story.Scene](ctx, r.db.Collection("scenes"), bson.M{"_id": id})
 }
 func (r *Repository) UpdateScene(ctx context.Context, value story.Scene) error {
-	result, err := r.db.Collection("scenes").ReplaceOne(ctx, bson.M{"_id": value.ID}, value)
-	if err != nil {
-		return err
-	}
-	if result.MatchedCount == 0 {
-		return story.ErrNotFound
-	}
-	return nil
+	return replace(ctx, r.db.Collection("scenes"), value.ID, value)
 }
 func (r *Repository) ListScenes(ctx context.Context, storyID string) ([]story.Scene, error) {
 	return list[story.Scene](ctx, r.db.Collection("scenes"), bson.M{"storyId": storyID}, options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}}))
@@ -145,14 +136,7 @@ func (r *Repository) GetDraft(ctx context.Context, id string) (story.Draft, erro
 	return get[story.Draft](ctx, r.db.Collection("drafts"), bson.M{"_id": id})
 }
 func (r *Repository) UpdateDraft(ctx context.Context, value story.Draft) error {
-	result, err := r.db.Collection("drafts").ReplaceOne(ctx, bson.M{"_id": value.ID}, value)
-	if err != nil {
-		return err
-	}
-	if result.MatchedCount == 0 {
-		return story.ErrNotFound
-	}
-	return nil
+	return replace(ctx, r.db.Collection("drafts"), value.ID, value)
 }
 func (r *Repository) DeleteDraft(ctx context.Context, id string) error {
 	result, err := r.db.Collection("drafts").DeleteOne(ctx, bson.M{"_id": id})
@@ -226,8 +210,7 @@ func (r *Repository) AcceptDraft(ctx context.Context, id string) (story.Scene, e
 	return accepted, err
 }
 func (r *Repository) CreateCharacter(ctx context.Context, value story.Character) error {
-	_, err := r.db.Collection("characters").InsertOne(ctx, value)
-	return err
+	return insert(ctx, r.db.Collection("characters"), value)
 }
 func (r *Repository) ListCharacters(ctx context.Context, storyID string) ([]story.Character, error) {
 	return list[story.Character](ctx, r.db.Collection("characters"), bson.M{"storyId": storyID}, options.Find())
@@ -253,6 +236,20 @@ func get[T any](ctx context.Context, collection *mongo.Collection, filter any) (
 	var value T
 	err := collection.FindOne(ctx, filter).Decode(&value)
 	return value, findError(err)
+}
+func insert[T any](ctx context.Context, collection *mongo.Collection, value T) error {
+	_, err := collection.InsertOne(ctx, value)
+	return err
+}
+func replace[T any](ctx context.Context, collection *mongo.Collection, id string, value T) error {
+	result, err := collection.ReplaceOne(ctx, bson.M{"_id": id}, value)
+	if err != nil {
+		return err
+	}
+	if result.MatchedCount == 0 {
+		return story.ErrNotFound
+	}
+	return nil
 }
 func list[T any](ctx context.Context, collection *mongo.Collection, filter any, options *options.FindOptions) ([]T, error) {
 	cursor, err := collection.Find(ctx, filter, options)
