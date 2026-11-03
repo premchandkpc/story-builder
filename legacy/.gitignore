@@ -1,0 +1,62 @@
+### Go
+go.sum
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+/vendor/
+
+### Node
+node_modules/
+web/dist/
+
+### Env
+.env
+.env.local
+
+### IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+### OS
+.DS_Store
+Thumbs.db
+
+### Misc
+/tmp/
+/coverage/
+# Added by code-review-graph
+.code-review-graph/
+
+### AI config (single source: AGENTS.md)
+.cursorrules
+.windsurfrules
+CLAUDE.md
+GEMINI.md
+QODER.md
+.gemini/
+.kiro/
+.qoder/
+
+### Stale root docs (see docs/)
+/ARCHITECTURE.md
+/ARCHITECTURE_REDESIGN.md
+
+### Build artifacts
+/server
+/out/
+*.out
+
+### Java
+services/narrative-analysis/target/
+
+### Dead config / simulation
+/config/
+/cmd/simulate/
+
+.agents/
