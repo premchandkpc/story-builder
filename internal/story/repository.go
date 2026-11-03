@@ -20,4 +20,8 @@ type Repository interface {
 	UpdateDraft(context.Context, Draft) error
 	DeleteDraft(context.Context, string) error
 	AcceptDraft(context.Context, string) (Scene, error)
+	CreateCharacter(context.Context, Character) error
+	ListCharacters(context.Context, string) ([]Character, error)
+	ListCanonEvents(context.Context, string) ([]CanonEvent, error)
+	ListCharacterStates(context.Context, string) ([]CharacterState, error)
 }

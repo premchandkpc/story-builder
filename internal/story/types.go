@@ -36,15 +36,47 @@ const (
 )
 
 type Draft struct {
-	ID               string      `bson:"_id" json:"id"`
-	StoryID          string      `bson:"storyId" json:"storyId"`
-	SceneID          string      `bson:"sceneId" json:"sceneId"`
-	Status           DraftStatus `bson:"status" json:"status"`
-	Prose            string      `bson:"prose" json:"prose"`
-	BaseCanonVersion int64       `bson:"baseCanonVersion" json:"baseCanonVersion"`
-	ContextHash      string      `bson:"contextHash" json:"contextHash"`
-	ExpiresAt        time.Time   `bson:"expiresAt" json:"expiresAt"`
-	CreatedAt        time.Time   `bson:"createdAt" json:"createdAt"`
+	ID               string          `bson:"_id" json:"id"`
+	StoryID          string          `bson:"storyId" json:"storyId"`
+	SceneID          string          `bson:"sceneId" json:"sceneId"`
+	Status           DraftStatus     `bson:"status" json:"status"`
+	Prose            string          `bson:"prose" json:"prose"`
+	BaseCanonVersion int64           `bson:"baseCanonVersion" json:"baseCanonVersion"`
+	ContextHash      string          `bson:"contextHash" json:"contextHash"`
+	ExpiresAt        time.Time       `bson:"expiresAt" json:"expiresAt"`
+	CreatedAt        time.Time       `bson:"createdAt" json:"createdAt"`
+	ProposedEvents   []ProposedEvent `bson:"proposedEvents,omitempty" json:"proposedEvents,omitempty"`
+}
+
+type Character struct {
+	CharacterID string    `bson:"characterId" json:"characterId"`
+	Version     int       `bson:"version" json:"version"`
+	StoryID     string    `bson:"storyId" json:"storyId"`
+	Name        string    `bson:"name" json:"name"`
+	Traits      []string  `bson:"traits" json:"traits"`
+	CreatedAt   time.Time `bson:"createdAt" json:"createdAt"`
+}
+type ProposedEvent struct {
+	Type        string   `bson:"type" json:"type"`
+	CharacterID string   `bson:"characterId" json:"characterId"`
+	Emotion     string   `bson:"emotion" json:"emotion"`
+	Learned     []string `bson:"learned" json:"learned"`
+}
+type CanonEvent struct {
+	ID            string `bson:"_id" json:"id"`
+	StoryID       string `bson:"storyId" json:"storyId"`
+	Seq           int64  `bson:"seq" json:"seq"`
+	SceneID       string `bson:"sceneId" json:"sceneId"`
+	DraftID       string `bson:"draftId" json:"draftId"`
+	ProposedEvent `bson:",inline"`
+	At            time.Time `bson:"at" json:"at"`
+}
+type CharacterState struct {
+	StoryID          string   `bson:"storyId" json:"storyId"`
+	CharacterID      string   `bson:"characterId" json:"characterId"`
+	AsOfCanonVersion int64    `bson:"asOfCanonVersion" json:"asOfCanonVersion"`
+	Emotion          string   `bson:"emotion" json:"emotion"`
+	Knowledge        []string `bson:"knowledge" json:"knowledge"`
 }
 
 type Edge struct {

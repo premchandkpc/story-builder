@@ -160,6 +160,16 @@ func (r *memoryRepo) AcceptDraft(_ context.Context, id string) (Scene, error) {
 	r.drafts[id] = d
 	return scene, nil
 }
+func (r *memoryRepo) CreateCharacter(_ context.Context, _ Character) error { return nil }
+func (r *memoryRepo) ListCharacters(_ context.Context, _ string) ([]Character, error) {
+	return nil, nil
+}
+func (r *memoryRepo) ListCanonEvents(_ context.Context, _ string) ([]CanonEvent, error) {
+	return nil, nil
+}
+func (r *memoryRepo) ListCharacterStates(_ context.Context, _ string) ([]CharacterState, error) {
+	return nil, nil
+}
 
 func TestCreateEdgeRejectsCycle(t *testing.T) {
 	ctx := context.Background()
@@ -226,5 +236,13 @@ func TestAcceptDraftIsIdempotent(t *testing.T) {
 	latest, _ := repo.GetStory(ctx, st.ID)
 	if latest.CanonVersion != 1 {
 		t.Fatalf("got version %d", latest.CanonVersion)
+	}
+}
+
+func TestProjectCharacterStatesReplaysCanonEvents(t *testing.T) {
+	events := []CanonEvent{{StoryID: "story", Seq: 2, ProposedEvent: ProposedEvent{Type: "character_state", CharacterID: "c1", Emotion: "calm", Learned: []string{"the key"}}}, {StoryID: "story", Seq: 1, ProposedEvent: ProposedEvent{Type: "character_state", CharacterID: "c1", Emotion: "alert", Learned: []string{"the door"}}}}
+	states := ProjectCharacterStates(events)
+	if len(states) != 1 || states[0].Emotion != "calm" || states[0].AsOfCanonVersion != 2 || len(states[0].Knowledge) != 2 {
+		t.Fatalf("unexpected replay: %#v", states)
 	}
 }

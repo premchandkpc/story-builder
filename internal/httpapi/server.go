@@ -28,6 +28,9 @@ func New(stories *story.Service) *Server {
 		r.Get("/stories/{storyID}/graph", s.graph)
 		r.Post("/stories/{storyID}/scenes", s.createScene)
 		r.Post("/stories/{storyID}/edges", s.createEdge)
+		r.Post("/stories/{storyID}/characters", s.createCharacter)
+		r.Get("/stories/{storyID}/characters", s.listCharacters)
+		r.Get("/stories/{storyID}/character-states", s.characterStates)
 		r.Post("/scenes/{sceneID}/generate", s.generate)
 		r.Post("/drafts/{draftID}/accept", s.acceptDraft)
 		r.Post("/drafts/{draftID}/reject", s.rejectDraft)
@@ -35,6 +38,37 @@ func New(stories *story.Service) *Server {
 	})
 	s.router = r
 	return s
+}
+func (s *Server) createCharacter(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name   string   `json:"name"`
+		Traits []string `json:"traits"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	value, err := s.stories.CreateCharacter(r.Context(), chi.URLParam(r, "storyID"), body.Name, body.Traits)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, value)
+}
+func (s *Server) listCharacters(w http.ResponseWriter, r *http.Request) {
+	values, err := s.stories.ListCharacters(r.Context(), chi.URLParam(r, "storyID"))
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, values)
+}
+func (s *Server) characterStates(w http.ResponseWriter, r *http.Request) {
+	values, err := s.stories.ReplayCharacterStates(r.Context(), chi.URLParam(r, "storyID"))
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, values)
 }
 func (s *Server) generate(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)

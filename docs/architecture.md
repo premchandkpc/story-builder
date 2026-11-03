@@ -32,6 +32,13 @@ one mutex; Mongo runs a transaction that verifies the pinned version, stores
 the accepted prose, increments `canonVersion`, and marks the draft accepted.
 Reject deletes the draft. Canon events and character projections remain Slice 3.
 
+## Canon events — Slice 3
+
+Characters use stable `characterId` values and immutable version documents.
+The deterministic local extractor creates proposed `character_state` events on
+the draft. Accept appends them as gap-free per-story `canon_events`; current
+character state is a pure replay projection (`ProjectCharacterStates`).
+
 ## Graph invariant
 
 `story.Service.CreateEdge` confirms that both scenes belong to the requested

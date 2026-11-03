@@ -11,15 +11,17 @@ import (
 // Repository makes the graph workspace runnable without external services.
 // It is intentionally only a local-development adapter; restarting clears it.
 type Repository struct {
-	mu      sync.RWMutex
-	stories map[string]story.Story
-	scenes  map[string]story.Scene
-	edges   map[string]story.Edge
-	drafts  map[string]story.Draft
+	mu         sync.RWMutex
+	stories    map[string]story.Story
+	scenes     map[string]story.Scene
+	edges      map[string]story.Edge
+	drafts     map[string]story.Draft
+	characters map[string]story.Character
+	events     []story.CanonEvent
 }
 
 func NewRepository() *Repository {
-	return &Repository{stories: map[string]story.Story{}, scenes: map[string]story.Scene{}, edges: map[string]story.Edge{}, drafts: map[string]story.Draft{}}
+	return &Repository{stories: map[string]story.Story{}, scenes: map[string]story.Scene{}, edges: map[string]story.Edge{}, drafts: map[string]story.Draft{}, characters: map[string]story.Character{}}
 }
 
 func (r *Repository) CreateStory(_ context.Context, value story.Story) error {
@@ -168,9 +170,47 @@ func (r *Repository) AcceptDraft(_ context.Context, id string) (story.Scene, err
 	scene.AcceptedDraftID = draft.ID
 	scene.Prose = draft.Prose
 	r.scenes[scene.ID] = scene
-	current.CanonVersion++
+	if len(draft.ProposedEvents) == 0 {
+		current.CanonVersion++
+	}
+	for _, proposal := range draft.ProposedEvents {
+		current.CanonVersion++
+		r.events = append(r.events, story.CanonEvent{ID: draft.ID + proposal.CharacterID, StoryID: draft.StoryID, Seq: current.CanonVersion, SceneID: draft.SceneID, DraftID: draft.ID, ProposedEvent: proposal, At: draft.CreatedAt})
+	}
 	r.stories[current.ID] = current
 	draft.Status = story.DraftAccepted
 	r.drafts[id] = draft
 	return scene, nil
+}
+func (r *Repository) CreateCharacter(_ context.Context, value story.Character) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.characters[value.CharacterID] = value
+	return nil
+}
+func (r *Repository) ListCharacters(_ context.Context, storyID string) ([]story.Character, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var out []story.Character
+	for _, value := range r.characters {
+		if value.StoryID == storyID {
+			out = append(out, value)
+		}
+	}
+	return out, nil
+}
+func (r *Repository) ListCanonEvents(_ context.Context, storyID string) ([]story.CanonEvent, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var out []story.CanonEvent
+	for _, event := range r.events {
+		if event.StoryID == storyID {
+			out = append(out, event)
+		}
+	}
+	return out, nil
+}
+func (r *Repository) ListCharacterStates(ctx context.Context, storyID string) ([]story.CharacterState, error) {
+	events, _ := r.ListCanonEvents(ctx, storyID)
+	return story.ProjectCharacterStates(events), nil
 }

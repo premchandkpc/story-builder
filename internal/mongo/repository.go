@@ -42,6 +42,8 @@ func (r *Repository) EnsureIndexes(ctx context.Context) error {
 		{"edges", mongo.IndexModel{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "fromSceneId", Value: 1}, {Key: "toSceneId", Value: 1}}, Options: options.Index().SetUnique(true)}},
 		{"drafts", mongo.IndexModel{Keys: bson.D{{Key: "expiresAt", Value: 1}}, Options: options.Index().SetExpireAfterSeconds(0)}},
 		{"drafts", mongo.IndexModel{Keys: bson.D{{Key: "sceneId", Value: 1}, {Key: "contextHash", Value: 1}}}},
+		{"characters", mongo.IndexModel{Keys: bson.D{{Key: "characterId", Value: 1}, {Key: "version", Value: 1}}, Options: options.Index().SetUnique(true)}},
+		{"canon_events", mongo.IndexModel{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "seq", Value: 1}}, Options: options.Index().SetUnique(true)}},
 	}
 	for _, item := range indexes {
 		if _, err := r.db.Collection(item.collection).Indexes().CreateOne(ctx, item.model); err != nil {
@@ -164,7 +166,17 @@ func (r *Repository) AcceptDraft(ctx context.Context, id string) (story.Scene, e
 		if _, err := r.db.Collection("scenes").ReplaceOne(sc, bson.M{"_id": scene.ID}, scene); err != nil {
 			return nil, err
 		}
-		if _, err := r.db.Collection("stories").UpdateOne(sc, bson.M{"_id": current.ID, "canonVersion": current.CanonVersion}, bson.M{"$inc": bson.M{"canonVersion": 1}}); err != nil {
+		increment := int64(len(draft.ProposedEvents))
+		if increment == 0 {
+			increment = 1
+		}
+		for i, proposal := range draft.ProposedEvents {
+			event := story.CanonEvent{ID: draft.ID + proposal.CharacterID, StoryID: draft.StoryID, Seq: current.CanonVersion + int64(i) + 1, SceneID: draft.SceneID, DraftID: draft.ID, ProposedEvent: proposal, At: draft.CreatedAt}
+			if _, err := r.db.Collection("canon_events").InsertOne(sc, event); err != nil {
+				return nil, err
+			}
+		}
+		if _, err := r.db.Collection("stories").UpdateOne(sc, bson.M{"_id": current.ID, "canonVersion": current.CanonVersion}, bson.M{"$inc": bson.M{"canonVersion": increment}}); err != nil {
 			return nil, err
 		}
 		if _, err := r.db.Collection("drafts").UpdateOne(sc, bson.M{"_id": draft.ID}, bson.M{"$set": bson.M{"status": story.DraftAccepted}}); err != nil {
@@ -174,6 +186,23 @@ func (r *Repository) AcceptDraft(ctx context.Context, id string) (story.Scene, e
 		return nil, nil
 	})
 	return accepted, err
+}
+func (r *Repository) CreateCharacter(ctx context.Context, value story.Character) error {
+	_, err := r.db.Collection("characters").InsertOne(ctx, value)
+	return err
+}
+func (r *Repository) ListCharacters(ctx context.Context, storyID string) ([]story.Character, error) {
+	return list[story.Character](ctx, r.db.Collection("characters"), bson.M{"storyId": storyID}, options.Find())
+}
+func (r *Repository) ListCanonEvents(ctx context.Context, storyID string) ([]story.CanonEvent, error) {
+	return list[story.CanonEvent](ctx, r.db.Collection("canon_events"), bson.M{"storyId": storyID}, options.Find().SetSort(bson.D{{Key: "seq", Value: 1}}))
+}
+func (r *Repository) ListCharacterStates(ctx context.Context, storyID string) ([]story.CharacterState, error) {
+	events, err := r.ListCanonEvents(ctx, storyID)
+	if err != nil {
+		return nil, err
+	}
+	return story.ProjectCharacterStates(events), nil
 }
 
 func findError(err error) error {

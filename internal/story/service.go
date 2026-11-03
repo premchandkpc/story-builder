@@ -46,11 +46,45 @@ func (s *Service) GenerateDraft(ctx context.Context, sceneID string, generator P
 		return draft, err
 	}
 	draft.Prose = prose.String()
+	characters, err := s.repo.ListCharacters(ctx, scene.StoryID)
+	if err != nil {
+		return Draft{}, fmt.Errorf("list characters: %w", err)
+	}
+	for _, character := range characters {
+		draft.ProposedEvents = append(draft.ProposedEvents, ProposedEvent{Type: "character_state", CharacterID: character.CharacterID, Emotion: "alert", Learned: []string{scene.Title}})
+	}
 	draft.Status = DraftReady
 	if err := s.repo.UpdateDraft(ctx, draft); err != nil {
 		return Draft{}, fmt.Errorf("complete draft: %w", err)
 	}
 	return draft, nil
+}
+func (s *Service) CreateCharacter(ctx context.Context, storyID, name string, traits []string) (Character, error) {
+	if _, err := s.repo.GetStory(ctx, storyID); err != nil {
+		return Character{}, err
+	}
+	if strings.TrimSpace(name) == "" {
+		return Character{}, ErrInvalidTitle
+	}
+	value := Character{CharacterID: s.newID(), Version: 1, StoryID: storyID, Name: strings.TrimSpace(name), Traits: traits, CreatedAt: s.now().UTC()}
+	if err := s.repo.CreateCharacter(ctx, value); err != nil {
+		return Character{}, err
+	}
+	return value, nil
+}
+func (s *Service) ListCharacters(ctx context.Context, storyID string) ([]Character, error) {
+	values, err := s.repo.ListCharacters(ctx, storyID)
+	if err != nil {
+		return nil, fmt.Errorf("list characters: %w", err)
+	}
+	return values, nil
+}
+func (s *Service) ReplayCharacterStates(ctx context.Context, storyID string) ([]CharacterState, error) {
+	events, err := s.repo.ListCanonEvents(ctx, storyID)
+	if err != nil {
+		return nil, err
+	}
+	return ProjectCharacterStates(events), nil
 }
 func (s *Service) AcceptDraft(ctx context.Context, id string) (Scene, error) {
 	value, err := s.repo.AcceptDraft(ctx, id)

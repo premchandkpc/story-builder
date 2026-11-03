@@ -14,6 +14,8 @@ All responses are JSON. Error bodies have `{ "code", "message" }`.
 | POST | `/api/v1/scenes/{sceneID}/generate` | Streams a new or deduplicated draft as SSE. |
 | POST | `/api/v1/drafts/{draftID}/accept` | Accept a ready draft; returns 409 for a stale draft. |
 | POST | `/api/v1/drafts/{draftID}/reject` | Delete a draft; returns 204. |
+| GET/POST | `/api/v1/stories/{storyID}/characters` | List or create immutable character version 1 definitions. |
+| GET | `/api/v1/stories/{storyID}/character-states` | Replay canonical events into current character state. |
 
 Generation currently uses a deterministic local template generator. The gateway
 port streams chunks, so a provider adapter can replace it without changing the
