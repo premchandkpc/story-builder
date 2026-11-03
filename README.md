@@ -19,3 +19,10 @@ make web       # workspace at http://localhost:5173
 
 For Mongo persistence, set `MONGO_URI` and optionally `MONGO_DB` before
 starting the server. The current API is documented in [`docs/API.md`](docs/API.md).
+
+## Deployment checks
+
+`docker compose up --build` starts Mongo as a single-node replica set, which is
+required for draft acceptance transactions. Set `AUTH_TOKEN` in deployment and
+send it as `Authorization: Bearer <token>` on every API request except health.
+Leaving it unset is intentionally development-only behavior.

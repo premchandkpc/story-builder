@@ -34,7 +34,7 @@ func main() {
 	if disconnect != nil {
 		defer disconnect(context.Background())
 	}
-	server := &http.Server{Addr: env("PORT", ":8080"), Handler: httpapi.New(story.NewService(repo)).Handler(), ReadHeaderTimeout: 5 * time.Second}
+	server := &http.Server{Addr: env("PORT", ":8080"), Handler: httpapi.New(story.NewService(repo), env("AUTH_TOKEN", "")).Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 5 * time.Minute, IdleTimeout: 60 * time.Second}
 	go func() {
 		slog.Info("server listening", "addr", server.Addr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {

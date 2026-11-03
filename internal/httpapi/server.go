@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -15,10 +16,10 @@ type Server struct {
 	stories *story.Service
 }
 
-func New(stories *story.Service) *Server {
+func New(stories *story.Service, authToken string) *Server {
 	s := &Server{stories: stories}
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID, middleware.Recoverer, contentType)
+	r.Use(middleware.RequestID, middleware.Recoverer, contentType, authenticate(authToken))
 	r.Get("/api/v1/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
@@ -39,6 +40,7 @@ func New(stories *story.Service) *Server {
 	s.router = r
 	return s
 }
+func authenticate(token string) func(http.Handler) http.Handler { return func(next http.Handler) http.Handler { return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){ if token!="" && r.URL.Path!="/api/v1/healthz" && r.Header.Get("Authorization")!="Bearer "+token { writeError(w,http.StatusUnauthorized,"unauthorized","Provide a valid bearer token.");return }; next.ServeHTTP(w,r) }) } }
 func (s *Server) createCharacter(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Name   string   `json:"name"`
