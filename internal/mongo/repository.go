@@ -60,9 +60,7 @@ func (r *Repository) CreateStory(ctx context.Context, value story.Story) error {
 	return err
 }
 func (r *Repository) GetStory(ctx context.Context, id string) (story.Story, error) {
-	var value story.Story
-	err := r.db.Collection("stories").FindOne(ctx, bson.M{"_id": id}).Decode(&value)
-	return value, findError(err)
+	return get[story.Story](ctx, r.db.Collection("stories"), bson.M{"_id": id})
 }
 func (r *Repository) ListStories(ctx context.Context) ([]story.Story, error) {
 	return list[story.Story](ctx, r.db.Collection("stories"), bson.M{}, options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}}))
@@ -72,9 +70,7 @@ func (r *Repository) CreateScene(ctx context.Context, value story.Scene) error {
 	return err
 }
 func (r *Repository) GetScene(ctx context.Context, id string) (story.Scene, error) {
-	var value story.Scene
-	err := r.db.Collection("scenes").FindOne(ctx, bson.M{"_id": id}).Decode(&value)
-	return value, findError(err)
+	return get[story.Scene](ctx, r.db.Collection("scenes"), bson.M{"_id": id})
 }
 func (r *Repository) UpdateScene(ctx context.Context, value story.Scene) error {
 	result, err := r.db.Collection("scenes").ReplaceOne(ctx, bson.M{"_id": value.ID}, value)
@@ -126,6 +122,11 @@ func (r *Repository) ListEdges(ctx context.Context, storyID string) ([]story.Edg
 	return list[story.Edge](ctx, r.db.Collection("edges"), bson.M{"storyId": storyID}, options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}}))
 }
 func (r *Repository) CreateDraft(ctx context.Context, value story.Draft) error {
+	// TTL cleanup is asynchronous. Delete expired drafts before the unique
+	// active-draft insert so an expired READY draft cannot block a retry.
+	if _, err := r.db.Collection("drafts").DeleteMany(ctx, bson.M{"expiresAt": bson.M{"$lte": time.Now().UTC()}}); err != nil {
+		return err
+	}
 	_, err := r.db.Collection("drafts").InsertOne(ctx, value)
 	if mongo.IsDuplicateKeyError(err) {
 		return story.ErrDraftInProgress
@@ -133,14 +134,15 @@ func (r *Repository) CreateDraft(ctx context.Context, value story.Draft) error {
 	return err
 }
 func (r *Repository) FindDraft(ctx context.Context, sceneID, hash string) (story.Draft, error) {
-	var value story.Draft
-	err := r.db.Collection("drafts").FindOne(ctx, bson.M{"sceneId": sceneID, "contextHash": hash}).Decode(&value)
-	return value, findError(err)
+	return get[story.Draft](ctx, r.db.Collection("drafts"), bson.M{
+		"sceneId":     sceneID,
+		"contextHash": hash,
+		"status":      story.DraftReady,
+		"expiresAt":   bson.M{"$gt": time.Now().UTC()},
+	})
 }
 func (r *Repository) GetDraft(ctx context.Context, id string) (story.Draft, error) {
-	var value story.Draft
-	err := r.db.Collection("drafts").FindOne(ctx, bson.M{"_id": id}).Decode(&value)
-	return value, findError(err)
+	return get[story.Draft](ctx, r.db.Collection("drafts"), bson.M{"_id": id})
 }
 func (r *Repository) UpdateDraft(ctx context.Context, value story.Draft) error {
 	result, err := r.db.Collection("drafts").ReplaceOne(ctx, bson.M{"_id": value.ID}, value)
@@ -246,6 +248,11 @@ func findError(err error) error {
 		return story.ErrNotFound
 	}
 	return err
+}
+func get[T any](ctx context.Context, collection *mongo.Collection, filter any) (T, error) {
+	var value T
+	err := collection.FindOne(ctx, filter).Decode(&value)
+	return value, findError(err)
 }
 func list[T any](ctx context.Context, collection *mongo.Collection, filter any, options *options.FindOptions) ([]T, error) {
 	cursor, err := collection.Find(ctx, filter, options)

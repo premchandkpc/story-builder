@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/premchand/story-builder/internal/story"
 )
@@ -34,11 +35,7 @@ func (r *Repository) CreateStory(_ context.Context, value story.Story) error {
 func (r *Repository) GetStory(_ context.Context, id string) (story.Story, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	value, ok := r.stories[id]
-	if !ok {
-		return story.Story{}, story.ErrNotFound
-	}
-	return value, nil
+	return get(r.stories, id)
 }
 func (r *Repository) ListStories(_ context.Context) ([]story.Story, error) {
 	r.mu.RLock()
@@ -59,11 +56,7 @@ func (r *Repository) CreateScene(_ context.Context, value story.Scene) error {
 func (r *Repository) GetScene(_ context.Context, id string) (story.Scene, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	value, ok := r.scenes[id]
-	if !ok {
-		return story.Scene{}, story.ErrNotFound
-	}
-	return value, nil
+	return get(r.scenes, id)
 }
 func (r *Repository) UpdateScene(_ context.Context, value story.Scene) error {
 	r.mu.Lock()
@@ -121,6 +114,12 @@ func (r *Repository) ListEdges(_ context.Context, storyID string) ([]story.Edge,
 func (r *Repository) CreateDraft(_ context.Context, value story.Draft) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	now := time.Now().UTC()
+	for id, draft := range r.drafts {
+		if !draft.ExpiresAt.After(now) {
+			delete(r.drafts, id)
+		}
+	}
 	for _, draft := range r.drafts {
 		if draft.SceneID == value.SceneID && draft.ContextHash == value.ContextHash && (draft.Status == story.DraftGenerating || draft.Status == story.DraftReady) {
 			return story.ErrDraftInProgress
@@ -132,8 +131,9 @@ func (r *Repository) CreateDraft(_ context.Context, value story.Draft) error {
 func (r *Repository) FindDraft(_ context.Context, sceneID, hash string) (story.Draft, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	now := time.Now().UTC()
 	for _, value := range r.drafts {
-		if value.SceneID == sceneID && value.ContextHash == hash {
+		if value.SceneID == sceneID && value.ContextHash == hash && value.Status == story.DraftReady && value.ExpiresAt.After(now) {
 			return value, nil
 		}
 	}
@@ -142,11 +142,7 @@ func (r *Repository) FindDraft(_ context.Context, sceneID, hash string) (story.D
 func (r *Repository) GetDraft(_ context.Context, id string) (story.Draft, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	value, ok := r.drafts[id]
-	if !ok {
-		return story.Draft{}, story.ErrNotFound
-	}
-	return value, nil
+	return get(r.drafts, id)
 }
 func (r *Repository) UpdateDraft(_ context.Context, value story.Draft) error {
 	r.mu.Lock()
@@ -234,4 +230,13 @@ func (r *Repository) ListCanonEvents(_ context.Context, storyID string) ([]story
 func (r *Repository) ListCharacterStates(ctx context.Context, storyID string) ([]story.CharacterState, error) {
 	events, _ := r.ListCanonEvents(ctx, storyID)
 	return story.ProjectCharacterStates(events), nil
+}
+
+func get[T any](values map[string]T, id string) (T, error) {
+	value, ok := values[id]
+	if !ok {
+		var zero T
+		return zero, story.ErrNotFound
+	}
+	return value, nil
 }

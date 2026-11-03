@@ -27,13 +27,19 @@ func (s *Service) GenerateDraft(ctx context.Context, sceneID string, generator P
 	if err != nil {
 		return Draft{}, fmt.Errorf("get scene: %w", err)
 	}
-	if scene.AcceptedDraftID != "" {
-		return Draft{}, ErrSceneLocked
-	}
 	lockValue, _ := s.generationMu.LoadOrStore(scene.StoryID, &sync.Mutex{})
 	lock := lockValue.(*sync.Mutex)
 	lock.Lock()
 	defer lock.Unlock()
+	// Acceptance may have completed while this request waited for the story's
+	// generation slot, so re-read before creating a draft.
+	scene, err = s.repo.GetScene(ctx, sceneID)
+	if err != nil {
+		return Draft{}, fmt.Errorf("refresh scene: %w", err)
+	}
+	if scene.AcceptedDraftID != "" {
+		return Draft{}, ErrSceneLocked
+	}
 	current, err := s.repo.GetStory(ctx, scene.StoryID)
 	if err != nil {
 		return Draft{}, fmt.Errorf("get story: %w", err)
