@@ -12,6 +12,8 @@ type Repository interface {
 	GetScene(context.Context, string) (Scene, error)
 	UpdateScene(context.Context, Scene) error
 	ListScenes(context.Context, string) ([]Scene, error)
+	// CreateEdge must atomically revalidate the DAG before inserting the edge.
+	// Service-level validation is for prompt errors; this is the concurrency boundary.
 	CreateEdge(context.Context, Edge) error
 	ListEdges(context.Context, string) ([]Edge, error)
 	CreateDraft(context.Context, Draft) error

@@ -239,6 +239,45 @@ func TestAcceptDraftIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestAcceptRequiresAcceptedParents(t *testing.T) {
+	ctx := context.Background()
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+	st, _ := svc.CreateStory(ctx, "Map")
+	parent, _ := svc.CreateScene(ctx, st.ID, "Parent", "", Position{})
+	child, _ := svc.CreateScene(ctx, st.ID, "Child", "", Position{})
+	if _, err := svc.CreateEdge(ctx, st.ID, parent.ID, child.ID); err != nil {
+		t.Fatal(err)
+	}
+	childDraft, _ := svc.GenerateDraft(ctx, child.ID, TemplateGenerator{}, func(string) error { return nil })
+	if _, err := svc.AcceptDraft(ctx, childDraft.ID); !errors.Is(err, ErrParentsPending) {
+		t.Fatalf("expected pending-parent error, got %v", err)
+	}
+	parentDraft, _ := svc.GenerateDraft(ctx, parent.ID, TemplateGenerator{}, func(string) error { return nil })
+	if _, err := svc.AcceptDraft(ctx, parentDraft.ID); err != nil {
+		t.Fatal(err)
+	}
+	childDraft, _ = svc.GenerateDraft(ctx, child.ID, TemplateGenerator{}, func(string) error { return nil })
+	if _, err := svc.AcceptDraft(ctx, childDraft.ID); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAcceptedSceneCannotRegenerate(t *testing.T) {
+	ctx := context.Background()
+	repo := newMemoryRepo()
+	svc := NewService(repo)
+	st, _ := svc.CreateStory(ctx, "Map")
+	scene, _ := svc.CreateScene(ctx, st.ID, "Scene", "", Position{})
+	draft, _ := svc.GenerateDraft(ctx, scene.ID, TemplateGenerator{}, func(string) error { return nil })
+	if _, err := svc.AcceptDraft(ctx, draft.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.GenerateDraft(ctx, scene.ID, TemplateGenerator{}, func(string) error { return nil }); !errors.Is(err, ErrSceneLocked) {
+		t.Fatalf("expected scene locked error, got %v", err)
+	}
+}
+
 func TestProjectCharacterStatesReplaysCanonEvents(t *testing.T) {
 	events := []CanonEvent{{StoryID: "story", Seq: 2, ProposedEvent: ProposedEvent{Type: "character_state", CharacterID: "c1", Emotion: "calm", Learned: []string{"the key"}}}, {StoryID: "story", Seq: 1, ProposedEvent: ProposedEvent{Type: "character_state", CharacterID: "c1", Emotion: "alert", Learned: []string{"the door"}}}}
 	states := ProjectCharacterStates(events)

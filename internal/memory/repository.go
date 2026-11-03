@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 
@@ -88,6 +89,20 @@ func (r *Repository) ListScenes(_ context.Context, storyID string) ([]story.Scen
 func (r *Repository) CreateEdge(_ context.Context, value story.Edge) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	for _, edge := range r.edges {
+		if edge.StoryID == value.StoryID && edge.FromSceneID == value.FromSceneID && edge.ToSceneID == value.ToSceneID {
+			return story.ErrDuplicateEdge
+		}
+	}
+	edges := make([]story.Edge, 0, len(r.edges)+1)
+	for _, edge := range r.edges {
+		if edge.StoryID == value.StoryID {
+			edges = append(edges, edge)
+		}
+	}
+	if story.HasCycle(append(edges, value)) {
+		return story.ErrCycle
+	}
 	r.edges[value.ID] = value
 	return nil
 }
@@ -106,6 +121,11 @@ func (r *Repository) ListEdges(_ context.Context, storyID string) ([]story.Edge,
 func (r *Repository) CreateDraft(_ context.Context, value story.Draft) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	for _, draft := range r.drafts {
+		if draft.SceneID == value.SceneID && draft.ContextHash == value.ContextHash && (draft.Status == story.DraftGenerating || draft.Status == story.DraftReady) {
+			return story.ErrDraftInProgress
+		}
+	}
 	r.drafts[value.ID] = value
 	return nil
 }
@@ -170,12 +190,13 @@ func (r *Repository) AcceptDraft(_ context.Context, id string) (story.Scene, err
 	scene.AcceptedDraftID = draft.ID
 	scene.Prose = draft.Prose
 	r.scenes[scene.ID] = scene
-	if len(draft.ProposedEvents) == 0 {
-		current.CanonVersion++
+	events := draft.ProposedEvents
+	if len(events) == 0 {
+		events = []story.ProposedEvent{{Type: "scene_accepted"}}
 	}
-	for _, proposal := range draft.ProposedEvents {
+	for i, proposal := range events {
 		current.CanonVersion++
-		r.events = append(r.events, story.CanonEvent{ID: draft.ID + proposal.CharacterID, StoryID: draft.StoryID, Seq: current.CanonVersion, SceneID: draft.SceneID, DraftID: draft.ID, ProposedEvent: proposal, At: draft.CreatedAt})
+		r.events = append(r.events, story.CanonEvent{ID: fmt.Sprintf("%s:%d", draft.ID, i), StoryID: draft.StoryID, Seq: current.CanonVersion, SceneID: draft.SceneID, DraftID: draft.ID, ProposedEvent: proposal, At: draft.CreatedAt})
 	}
 	r.stories[current.ID] = current
 	draft.Status = story.DraftAccepted

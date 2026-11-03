@@ -70,6 +70,11 @@ The first working vertical slice uses a request-scoped SSE generation stream:
    when its base canon version is stale.
 5. `POST /api/v1/drafts/{id}/reject` deletes it.
 
+The browser consumes this POST stream with `fetch` and a stream reader, not
+`EventSource`. Only one Generate may run per story in a process. The current
+fixed-output generator needs no token limit; a paid provider adapter must impose
+a per-call output-token cap before it is enabled.
+
 This intentionally avoids a durable queue in the first release. If a client
 disconnects, the request context cancels the LLM call and the incomplete draft
 is marked failed. Persistent job leases are a later, separately justified
@@ -83,7 +88,7 @@ addition—not a prerequisite for a correct accept/reject loop.
 | `scenes` | `id`, `story_id`, `title`, `brief`, `position`, `accepted_draft_id` | Plain CRUD plus accepted draft reference. |
 | `edges` | `story_id`, `from_scene_id`, `to_scene_id` | Validated DAG. |
 | `characters` | `character_id`, `version`, `story_id`, `name`, `traits` | Immutable definitions. |
-| `drafts` | `id`, `story_id`, `scene_id`, `status`, `prose`, `proposed_events`, `base_canon_version`, `context_hash`, `expires_at` | TTL index; never canonical. |
+| `drafts` | `id`, `story_id`, `scene_id`, `status`, `prose`, `proposed_events`, `base_canon_version`, `context_hash`, `expires_at` | TTL and unique active `(scene_id, context_hash)` indexes; never canonical. |
 | `canon_events` | `story_id`, `seq`, `type`, `payload`, `scene_id`, `draft_id`, `at` | Unique `(story_id, seq)`; append-only. |
 | `character_state` | `story_id`, `character_id`, `as_of_canon_version`, state fields | Rebuildable projection. |
 
@@ -111,7 +116,7 @@ accept is a no-op; stale accept returns `409`; prose streams visibly in the UI.
 ### Slice 3 — characters and canon
 
 - Immutable character versions.
-- Structured extraction into proposed events; schema validation plus pure Go
+- Structured LLM extraction into proposed events; schema validation plus pure Go
   validators.
 - Event append and character-state projection inside Accept.
 - Replay test proving events reproduce the stored projection.
@@ -144,5 +149,5 @@ tests are:
 2. Generate then accept twice: one canonical effect.
 3. Generate two drafts from the same scene, accept one, then reject stale
    acceptance of the other.
-4. Add edges concurrently and never permit a cycle.
+4. Add edges concurrently on Mongo and never permit a cycle.
 5. Replay canon events and match the current character-state projection.

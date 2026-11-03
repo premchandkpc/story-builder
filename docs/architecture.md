@@ -17,7 +17,8 @@ codes. `internal/memory` makes the graph workspace runnable without services.
 It is for local development only: a restart clears all data.
 
 `internal/mongo` is the production persistence adapter. It creates the scene
-lookup and unique edge indexes at startup. Set `MONGO_URI` and optionally
+lookup, unique edge, active-draft, and unique `(story_id, seq)` canon-event
+indexes at startup. Set `MONGO_URI` and optionally
 `MONGO_DB` to use it; otherwise the server deliberately reports that it is
 using in-memory persistence.
 
@@ -27,20 +28,36 @@ using in-memory persistence.
 `base_canon_version`. Generation sends prose chunks through the `ProseGenerator`
 port and only writes the draft. It cannot update a scene or a story.
 
-Accept is implemented by the repository adapter: the in-memory adapter holds
-one mutex; Mongo runs a transaction that verifies the pinned version, stores
-the accepted prose, increments `canonVersion`, and marks the draft accepted.
-Reject deletes the draft. Canon events and character projections remain Slice 3.
+Accept is transactional in the production Mongo adapter: it verifies the pinned
+version, stores accepted prose, appends canon events, increments `canonVersion`,
+and marks the draft accepted in one transaction. Tests must run the same
+acceptance contract against Mongo replica-set storage; the in-memory adapter is
+only a fast local implementation, not evidence that Mongo transactions work.
+Reject deletes the draft.
 
 ## Canon events — Slice 3
 
 Characters use stable `characterId` values and immutable version documents.
-The deterministic local extractor creates proposed `character_state` events on
-the draft. Accept appends them as gap-free per-story `canon_events`; current
-character state is a pure replay projection (`ProjectCharacterStates`).
+The deterministic local extractor is a temporary Slice 2 scaffold, not proof
+that extraction is production-ready. Slice 3's exit condition requires an LLM
+extractor with schema validation and pure Go validation. Accept appends events
+as gap-free per-story `canon_events`; when no character event is proposed it
+appends a `scene_accepted` event so `canonVersion` always matches the final
+event sequence. Current character state is a pure replay projection
+(`ProjectCharacterStates`).
 
 ## Graph invariant
 
 `story.Service.CreateEdge` confirms that both scenes belong to the requested
-story, rejects duplicates and self-edges, then runs depth-first cycle detection
-against the candidate graph before writing. A cycle always maps to HTTP 422.
+story, rejects duplicates and self-edges. The persistence adapter then repeats
+cycle detection within its atomic write boundary. Mongo uses a transaction and
+a story-document write to force concurrent graph mutations to conflict and
+retry against fresh edges. A cycle always maps to HTTP 422.
+
+## Ordering and revision policy
+
+Accepted scenes are locked in v1: revision means creating a new scene, not
+overwriting an accepted scene or compensating old canon events. A scene may be
+accepted only after every incoming parent scene is accepted. Canon sequence is
+therefore a valid topological acceptance order, rather than arbitrary button
+press order.

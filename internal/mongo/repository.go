@@ -41,7 +41,9 @@ func (r *Repository) EnsureIndexes(ctx context.Context) error {
 		{"scenes", mongo.IndexModel{Keys: bson.D{{Key: "storyId", Value: 1}}}},
 		{"edges", mongo.IndexModel{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "fromSceneId", Value: 1}, {Key: "toSceneId", Value: 1}}, Options: options.Index().SetUnique(true)}},
 		{"drafts", mongo.IndexModel{Keys: bson.D{{Key: "expiresAt", Value: 1}}, Options: options.Index().SetExpireAfterSeconds(0)}},
-		{"drafts", mongo.IndexModel{Keys: bson.D{{Key: "sceneId", Value: 1}, {Key: "contextHash", Value: 1}}}},
+		// Only one live generation may own a scene/context. Failed and accepted
+		// drafts are deliberately excluded so retries and later canon versions work.
+		{"drafts", mongo.IndexModel{Keys: bson.D{{Key: "sceneId", Value: 1}, {Key: "contextHash", Value: 1}}, Options: options.Index().SetUnique(true).SetPartialFilterExpression(bson.M{"status": bson.M{"$in": bson.A{story.DraftGenerating, story.DraftReady}}})}},
 		{"characters", mongo.IndexModel{Keys: bson.D{{Key: "characterId", Value: 1}, {Key: "version", Value: 1}}, Options: options.Index().SetUnique(true)}},
 		{"canon_events", mongo.IndexModel{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "seq", Value: 1}}, Options: options.Index().SetUnique(true)}},
 	}
@@ -88,10 +90,36 @@ func (r *Repository) ListScenes(ctx context.Context, storyID string) ([]story.Sc
 	return list[story.Scene](ctx, r.db.Collection("scenes"), bson.M{"storyId": storyID}, options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}}))
 }
 func (r *Repository) CreateEdge(ctx context.Context, value story.Edge) error {
-	_, err := r.db.Collection("edges").InsertOne(ctx, value)
-	if mongo.IsDuplicateKeyError(err) {
-		return story.ErrDuplicateEdge
+	session, err := r.db.Client().StartSession()
+	if err != nil {
+		return err
 	}
+	defer session.EndSession(ctx)
+	_, err = session.WithTransaction(ctx, func(sc mongo.SessionContext) (any, error) {
+		edges, err := list[story.Edge](sc, r.db.Collection("edges"), bson.M{"storyId": value.StoryID}, options.Find())
+		if err != nil {
+			return nil, err
+		}
+		if story.HasCycle(append(edges, value)) {
+			return nil, story.ErrCycle
+		}
+		if _, err := r.db.Collection("edges").InsertOne(sc, value); err != nil {
+			if mongo.IsDuplicateKeyError(err) {
+				return nil, story.ErrDuplicateEdge
+			}
+			return nil, err
+		}
+		// Every graph mutation writes its story document. Concurrent edge
+		// transactions therefore conflict and Mongo retries one against fresh edges.
+		result, err := r.db.Collection("stories").UpdateOne(sc, bson.M{"_id": value.StoryID}, bson.M{"$inc": bson.M{"graphVersion": 1}})
+		if err != nil {
+			return nil, err
+		}
+		if result.MatchedCount == 0 {
+			return nil, story.ErrNotFound
+		}
+		return nil, nil
+	})
 	return err
 }
 func (r *Repository) ListEdges(ctx context.Context, storyID string) ([]story.Edge, error) {
@@ -99,6 +127,9 @@ func (r *Repository) ListEdges(ctx context.Context, storyID string) ([]story.Edg
 }
 func (r *Repository) CreateDraft(ctx context.Context, value story.Draft) error {
 	_, err := r.db.Collection("drafts").InsertOne(ctx, value)
+	if mongo.IsDuplicateKeyError(err) {
+		return story.ErrDraftInProgress
+	}
 	return err
 }
 func (r *Repository) FindDraft(ctx context.Context, sceneID, hash string) (story.Draft, error) {
@@ -166,18 +197,23 @@ func (r *Repository) AcceptDraft(ctx context.Context, id string) (story.Scene, e
 		if _, err := r.db.Collection("scenes").ReplaceOne(sc, bson.M{"_id": scene.ID}, scene); err != nil {
 			return nil, err
 		}
-		increment := int64(len(draft.ProposedEvents))
-		if increment == 0 {
-			increment = 1
+		events := draft.ProposedEvents
+		if len(events) == 0 {
+			events = []story.ProposedEvent{{Type: "scene_accepted"}}
 		}
-		for i, proposal := range draft.ProposedEvents {
-			event := story.CanonEvent{ID: draft.ID + proposal.CharacterID, StoryID: draft.StoryID, Seq: current.CanonVersion + int64(i) + 1, SceneID: draft.SceneID, DraftID: draft.ID, ProposedEvent: proposal, At: draft.CreatedAt}
+		for i, proposal := range events {
+			event := story.CanonEvent{ID: fmt.Sprintf("%s:%d", draft.ID, i), StoryID: draft.StoryID, Seq: current.CanonVersion + int64(i) + 1, SceneID: draft.SceneID, DraftID: draft.ID, ProposedEvent: proposal, At: draft.CreatedAt}
 			if _, err := r.db.Collection("canon_events").InsertOne(sc, event); err != nil {
 				return nil, err
 			}
 		}
-		if _, err := r.db.Collection("stories").UpdateOne(sc, bson.M{"_id": current.ID, "canonVersion": current.CanonVersion}, bson.M{"$inc": bson.M{"canonVersion": increment}}); err != nil {
+		increment := int64(len(events))
+		result, err := r.db.Collection("stories").UpdateOne(sc, bson.M{"_id": current.ID, "canonVersion": current.CanonVersion}, bson.M{"$inc": bson.M{"canonVersion": increment}})
+		if err != nil {
 			return nil, err
+		}
+		if result.MatchedCount != 1 {
+			return nil, story.ErrStaleDraft
 		}
 		if _, err := r.db.Collection("drafts").UpdateOne(sc, bson.M{"_id": draft.ID}, bson.M{"$set": bson.M{"status": story.DraftAccepted}}); err != nil {
 			return nil, err

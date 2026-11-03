@@ -236,6 +236,12 @@ func writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "stale_draft", "Canon changed. Regenerate this draft.")
 	case errors.Is(err, story.ErrDraftNotReady):
 		writeError(w, http.StatusConflict, "draft_not_ready", err.Error())
+	case errors.Is(err, story.ErrSceneLocked):
+		writeError(w, http.StatusConflict, "scene_locked", "Accepted scenes cannot be regenerated.")
+	case errors.Is(err, story.ErrParentsPending):
+		writeError(w, http.StatusConflict, "parents_pending", "Accept all parent scenes first.")
+	case errors.Is(err, story.ErrDraftInProgress):
+		writeError(w, http.StatusConflict, "draft_in_progress", err.Error())
 	default:
 		writeError(w, http.StatusInternalServerError, "internal_error", "The graph could not be saved.")
 	}

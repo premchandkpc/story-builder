@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,9 +16,10 @@ type ProseGenerator interface {
 }
 
 type Service struct {
-	repo  Repository
-	now   func() time.Time
-	newID func() string
+	repo         Repository
+	now          func() time.Time
+	newID        func() string
+	generationMu sync.Map // map[storyID]*sync.Mutex; one generation per story
 }
 
 func (s *Service) GenerateDraft(ctx context.Context, sceneID string, generator ProseGenerator, send func(string) error) (Draft, error) {
@@ -25,6 +27,13 @@ func (s *Service) GenerateDraft(ctx context.Context, sceneID string, generator P
 	if err != nil {
 		return Draft{}, fmt.Errorf("get scene: %w", err)
 	}
+	if scene.AcceptedDraftID != "" {
+		return Draft{}, ErrSceneLocked
+	}
+	lockValue, _ := s.generationMu.LoadOrStore(scene.StoryID, &sync.Mutex{})
+	lock := lockValue.(*sync.Mutex)
+	lock.Lock()
+	defer lock.Unlock()
 	current, err := s.repo.GetStory(ctx, scene.StoryID)
 	if err != nil {
 		return Draft{}, fmt.Errorf("get story: %w", err)
@@ -87,6 +96,26 @@ func (s *Service) ReplayCharacterStates(ctx context.Context, storyID string) ([]
 	return ProjectCharacterStates(events), nil
 }
 func (s *Service) AcceptDraft(ctx context.Context, id string) (Scene, error) {
+	draft, err := s.repo.GetDraft(ctx, id)
+	if err != nil {
+		return Scene{}, fmt.Errorf("get draft: %w", err)
+	}
+	edges, err := s.repo.ListEdges(ctx, draft.StoryID)
+	if err != nil {
+		return Scene{}, fmt.Errorf("list edges: %w", err)
+	}
+	for _, edge := range edges {
+		if edge.ToSceneID != draft.SceneID {
+			continue
+		}
+		parent, err := s.repo.GetScene(ctx, edge.FromSceneID)
+		if err != nil {
+			return Scene{}, fmt.Errorf("get parent scene: %w", err)
+		}
+		if parent.AcceptedDraftID == "" {
+			return Scene{}, ErrParentsPending
+		}
+	}
 	value, err := s.repo.AcceptDraft(ctx, id)
 	if err != nil {
 		return Scene{}, fmt.Errorf("accept draft: %w", err)
