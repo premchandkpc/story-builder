@@ -2,6 +2,7 @@ package memory_test
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -64,5 +65,32 @@ func TestFindDraftReturnsOnlyLiveReadyDraft(t *testing.T) {
 	found, err := repo.FindDraft(ctx, "scene", "hash")
 	if err != nil || found.ID != "ready" {
 		t.Fatalf("want live ready draft, got %#v, %v", found, err)
+	}
+}
+
+func TestAcceptDraftEnforcesParentsAtPersistenceBoundary(t *testing.T) {
+	ctx := context.Background()
+	repo := memory.NewRepository()
+	now := time.Now().UTC()
+	storyValue := story.Story{ID: "story", Title: "Map", CreatedAt: now}
+	parent := story.Scene{ID: "parent", StoryID: storyValue.ID, Title: "Parent", CreatedAt: now, UpdatedAt: now}
+	child := story.Scene{ID: "child", StoryID: storyValue.ID, Title: "Child", CreatedAt: now, UpdatedAt: now}
+	for _, value := range []story.Scene{parent, child} {
+		if err := repo.CreateScene(ctx, value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := repo.CreateStory(ctx, storyValue); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CreateEdge(ctx, story.Edge{ID: "edge", StoryID: storyValue.ID, FromSceneID: parent.ID, ToSceneID: child.ID, CreatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	draft := story.Draft{ID: "draft", StoryID: storyValue.ID, SceneID: child.ID, Status: story.DraftReady, BaseCanonVersion: 0, ExpiresAt: now.Add(time.Hour)}
+	if err := repo.CreateDraft(ctx, draft); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.AcceptDraft(ctx, draft.ID); !errors.Is(err, story.ErrParentsPending) {
+		t.Fatalf("want persistence-level parent check, got %v", err)
 	}
 }

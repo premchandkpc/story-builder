@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/premchand/story-builder/internal/mongostore"
 	"github.com/premchand/story-builder/internal/story"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readconcern"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 )
 
 type Repository struct{ db *mongo.Database }
@@ -38,14 +41,14 @@ func (r *Repository) EnsureIndexes(ctx context.Context) error {
 		collection string
 		model      mongo.IndexModel
 	}{
-		{"scenes", mongo.IndexModel{Keys: bson.D{{Key: "storyId", Value: 1}}}},
-		{"edges", mongo.IndexModel{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "fromSceneId", Value: 1}, {Key: "toSceneId", Value: 1}}, Options: options.Index().SetUnique(true)}},
-		{"drafts", mongo.IndexModel{Keys: bson.D{{Key: "expiresAt", Value: 1}}, Options: options.Index().SetExpireAfterSeconds(0)}},
+		{collectionScenes, mongo.IndexModel{Keys: bson.D{{Key: fieldStoryID, Value: 1}}}},
+		{collectionEdges, mongo.IndexModel{Keys: bson.D{{Key: fieldStoryID, Value: 1}, {Key: fieldFromSceneID, Value: 1}, {Key: fieldToSceneID, Value: 1}}, Options: options.Index().SetUnique(true)}},
+		{collectionDrafts, mongo.IndexModel{Keys: bson.D{{Key: fieldExpiresAt, Value: 1}}, Options: options.Index().SetExpireAfterSeconds(0)}},
 		// Only one live generation may own a scene/context. Failed and accepted
 		// drafts are deliberately excluded so retries and later canon versions work.
-		{"drafts", mongo.IndexModel{Keys: bson.D{{Key: "sceneId", Value: 1}, {Key: "contextHash", Value: 1}}, Options: options.Index().SetUnique(true).SetPartialFilterExpression(bson.M{"status": bson.M{"$in": bson.A{story.DraftGenerating, story.DraftReady}}})}},
-		{"characters", mongo.IndexModel{Keys: bson.D{{Key: "characterId", Value: 1}, {Key: "version", Value: 1}}, Options: options.Index().SetUnique(true)}},
-		{"canon_events", mongo.IndexModel{Keys: bson.D{{Key: "storyId", Value: 1}, {Key: "seq", Value: 1}}, Options: options.Index().SetUnique(true)}},
+		{collectionDrafts, mongo.IndexModel{Keys: bson.D{{Key: fieldSceneID, Value: 1}, {Key: fieldContextHash, Value: 1}}, Options: options.Index().SetUnique(true).SetPartialFilterExpression(bson.M{fieldStatus: bson.M{"$in": bson.A{story.DraftGenerating, story.DraftReady}}})}},
+		{collectionCharacters, mongo.IndexModel{Keys: bson.D{{Key: fieldCharacterID, Value: 1}, {Key: fieldVersion, Value: 1}}, Options: options.Index().SetUnique(true)}},
+		{collectionCanonEvents, mongo.IndexModel{Keys: bson.D{{Key: fieldStoryID, Value: 1}, {Key: fieldSequence, Value: 1}}, Options: options.Index().SetUnique(true)}},
 	}
 	for _, item := range indexes {
 		if _, err := r.db.Collection(item.collection).Indexes().CreateOne(ctx, item.model); err != nil {
@@ -56,41 +59,36 @@ func (r *Repository) EnsureIndexes(ctx context.Context) error {
 }
 
 func (r *Repository) CreateStory(ctx context.Context, value story.Story) error {
-	return insert(ctx, r.db.Collection("stories"), value)
+	return mongostore.Insert(ctx, r.db.Collection(collectionStories), value)
 }
 func (r *Repository) GetStory(ctx context.Context, id string) (story.Story, error) {
-	return get[story.Story](ctx, r.db.Collection("stories"), bson.M{"_id": id})
+	return get[story.Story](ctx, r.db.Collection(collectionStories), bson.M{fieldID: id})
 }
 func (r *Repository) ListStories(ctx context.Context) ([]story.Story, error) {
-	return list[story.Story](ctx, r.db.Collection("stories"), bson.M{}, options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}}))
+	return mongostore.List[story.Story](ctx, r.db.Collection(collectionStories), bson.M{}, options.Find().SetSort(bson.D{{Key: fieldCreatedAt, Value: -1}}))
 }
 func (r *Repository) CreateScene(ctx context.Context, value story.Scene) error {
-	return insert(ctx, r.db.Collection("scenes"), value)
+	return mongostore.Insert(ctx, r.db.Collection(collectionScenes), value)
 }
 func (r *Repository) GetScene(ctx context.Context, id string) (story.Scene, error) {
-	return get[story.Scene](ctx, r.db.Collection("scenes"), bson.M{"_id": id})
+	return get[story.Scene](ctx, r.db.Collection(collectionScenes), bson.M{fieldID: id})
 }
 func (r *Repository) UpdateScene(ctx context.Context, value story.Scene) error {
-	return replace(ctx, r.db.Collection("scenes"), value.ID, value)
+	return replace(ctx, r.db.Collection(collectionScenes), value.ID, value)
 }
 func (r *Repository) ListScenes(ctx context.Context, storyID string) ([]story.Scene, error) {
-	return list[story.Scene](ctx, r.db.Collection("scenes"), bson.M{"storyId": storyID}, options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}}))
+	return mongostore.List[story.Scene](ctx, r.db.Collection(collectionScenes), bson.M{fieldStoryID: storyID}, options.Find().SetSort(bson.D{{Key: fieldCreatedAt, Value: 1}}))
 }
 func (r *Repository) CreateEdge(ctx context.Context, value story.Edge) error {
-	session, err := r.db.Client().StartSession()
-	if err != nil {
-		return err
-	}
-	defer session.EndSession(ctx)
-	_, err = session.WithTransaction(ctx, func(sc mongo.SessionContext) (any, error) {
-		edges, err := list[story.Edge](sc, r.db.Collection("edges"), bson.M{"storyId": value.StoryID}, options.Find())
+	_, err := r.withTransaction(ctx, func(sc mongo.SessionContext) (any, error) {
+		edges, err := mongostore.List[story.Edge](sc, r.db.Collection(collectionEdges), bson.M{fieldStoryID: value.StoryID}, options.Find())
 		if err != nil {
 			return nil, err
 		}
 		if story.HasCycle(append(edges, value)) {
 			return nil, story.ErrCycle
 		}
-		if _, err := r.db.Collection("edges").InsertOne(sc, value); err != nil {
+		if _, err := r.db.Collection(collectionEdges).InsertOne(sc, value); err != nil {
 			if mongo.IsDuplicateKeyError(err) {
 				return nil, story.ErrDuplicateEdge
 			}
@@ -98,7 +96,7 @@ func (r *Repository) CreateEdge(ctx context.Context, value story.Edge) error {
 		}
 		// Every graph mutation writes its story document. Concurrent edge
 		// transactions therefore conflict and Mongo retries one against fresh edges.
-		result, err := r.db.Collection("stories").UpdateOne(sc, bson.M{"_id": value.StoryID}, bson.M{"$inc": bson.M{"graphVersion": 1}})
+		result, err := r.db.Collection(collectionStories).UpdateOne(sc, bson.M{fieldID: value.StoryID}, bson.M{"$inc": bson.M{"graphVersion": 1}})
 		if err != nil {
 			return nil, err
 		}
@@ -110,36 +108,36 @@ func (r *Repository) CreateEdge(ctx context.Context, value story.Edge) error {
 	return err
 }
 func (r *Repository) ListEdges(ctx context.Context, storyID string) ([]story.Edge, error) {
-	return list[story.Edge](ctx, r.db.Collection("edges"), bson.M{"storyId": storyID}, options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}}))
+	return mongostore.List[story.Edge](ctx, r.db.Collection(collectionEdges), bson.M{fieldStoryID: storyID}, options.Find().SetSort(bson.D{{Key: fieldCreatedAt, Value: 1}}))
 }
 func (r *Repository) CreateDraft(ctx context.Context, value story.Draft) error {
 	// TTL cleanup is asynchronous. Delete expired drafts before the unique
 	// active-draft insert so an expired READY draft cannot block a retry.
-	if _, err := r.db.Collection("drafts").DeleteMany(ctx, bson.M{"expiresAt": bson.M{"$lte": time.Now().UTC()}}); err != nil {
+	if _, err := r.db.Collection(collectionDrafts).DeleteMany(ctx, bson.M{fieldExpiresAt: bson.M{"$lte": time.Now().UTC()}}); err != nil {
 		return err
 	}
-	_, err := r.db.Collection("drafts").InsertOne(ctx, value)
+	_, err := r.db.Collection(collectionDrafts).InsertOne(ctx, value)
 	if mongo.IsDuplicateKeyError(err) {
 		return story.ErrDraftInProgress
 	}
 	return err
 }
 func (r *Repository) FindDraft(ctx context.Context, sceneID, hash string) (story.Draft, error) {
-	return get[story.Draft](ctx, r.db.Collection("drafts"), bson.M{
-		"sceneId":     sceneID,
-		"contextHash": hash,
-		"status":      story.DraftReady,
-		"expiresAt":   bson.M{"$gt": time.Now().UTC()},
+	return get[story.Draft](ctx, r.db.Collection(collectionDrafts), bson.M{
+		fieldSceneID:     sceneID,
+		fieldContextHash: hash,
+		fieldStatus:      story.DraftReady,
+		fieldExpiresAt:   bson.M{"$gt": time.Now().UTC()},
 	})
 }
 func (r *Repository) GetDraft(ctx context.Context, id string) (story.Draft, error) {
-	return get[story.Draft](ctx, r.db.Collection("drafts"), bson.M{"_id": id})
+	return get[story.Draft](ctx, r.db.Collection(collectionDrafts), bson.M{fieldID: id})
 }
 func (r *Repository) UpdateDraft(ctx context.Context, value story.Draft) error {
-	return replace(ctx, r.db.Collection("drafts"), value.ID, value)
+	return replace(ctx, r.db.Collection(collectionDrafts), value.ID, value)
 }
 func (r *Repository) DeleteDraft(ctx context.Context, id string) error {
-	result, err := r.db.Collection("drafts").DeleteOne(ctx, bson.M{"_id": id})
+	result, err := r.db.Collection(collectionDrafts).DeleteOne(ctx, bson.M{fieldID: id})
 	if err != nil {
 		return err
 	}
@@ -150,18 +148,13 @@ func (r *Repository) DeleteDraft(ctx context.Context, id string) error {
 }
 func (r *Repository) AcceptDraft(ctx context.Context, id string) (story.Scene, error) {
 	var accepted story.Scene
-	session, err := r.db.Client().StartSession()
-	if err != nil {
-		return accepted, err
-	}
-	defer session.EndSession(ctx)
-	_, err = session.WithTransaction(ctx, func(sc mongo.SessionContext) (any, error) {
+	_, err := r.withTransaction(ctx, func(sc mongo.SessionContext) (any, error) {
 		draft, err := r.GetDraft(sc, id)
 		if err != nil {
 			return nil, err
 		}
 		var scene story.Scene
-		if err := r.db.Collection("scenes").FindOne(sc, bson.M{"_id": draft.SceneID}).Decode(&scene); err != nil {
+		if err := r.db.Collection(collectionScenes).FindOne(sc, bson.M{fieldID: draft.SceneID}).Decode(&scene); err != nil {
 			return nil, findError(err)
 		}
 		if draft.Status == story.DraftAccepted {
@@ -171,8 +164,11 @@ func (r *Repository) AcceptDraft(ctx context.Context, id string) (story.Scene, e
 		if draft.Status != story.DraftReady {
 			return nil, story.ErrDraftNotReady
 		}
+		if err := r.requireAcceptedParents(sc, draft); err != nil {
+			return nil, err
+		}
 		var current story.Story
-		if err := r.db.Collection("stories").FindOne(sc, bson.M{"_id": draft.StoryID}).Decode(&current); err != nil {
+		if err := r.db.Collection(collectionStories).FindOne(sc, bson.M{fieldID: draft.StoryID}).Decode(&current); err != nil {
 			return nil, findError(err)
 		}
 		if current.CanonVersion != draft.BaseCanonVersion {
@@ -180,7 +176,7 @@ func (r *Repository) AcceptDraft(ctx context.Context, id string) (story.Scene, e
 		}
 		scene.AcceptedDraftID = draft.ID
 		scene.Prose = draft.Prose
-		if _, err := r.db.Collection("scenes").ReplaceOne(sc, bson.M{"_id": scene.ID}, scene); err != nil {
+		if _, err := r.db.Collection(collectionScenes).ReplaceOne(sc, bson.M{fieldID: scene.ID}, scene); err != nil {
 			return nil, err
 		}
 		events := draft.ProposedEvents
@@ -189,19 +185,19 @@ func (r *Repository) AcceptDraft(ctx context.Context, id string) (story.Scene, e
 		}
 		for i, proposal := range events {
 			event := story.CanonEvent{ID: fmt.Sprintf("%s:%d", draft.ID, i), StoryID: draft.StoryID, Seq: current.CanonVersion + int64(i) + 1, SceneID: draft.SceneID, DraftID: draft.ID, ProposedEvent: proposal, At: draft.CreatedAt}
-			if _, err := r.db.Collection("canon_events").InsertOne(sc, event); err != nil {
+			if _, err := r.db.Collection(collectionCanonEvents).InsertOne(sc, event); err != nil {
 				return nil, err
 			}
 		}
 		increment := int64(len(events))
-		result, err := r.db.Collection("stories").UpdateOne(sc, bson.M{"_id": current.ID, "canonVersion": current.CanonVersion}, bson.M{"$inc": bson.M{"canonVersion": increment}})
+		result, err := r.db.Collection(collectionStories).UpdateOne(sc, bson.M{fieldID: current.ID, fieldCanonVersion: current.CanonVersion}, bson.M{"$inc": bson.M{fieldCanonVersion: increment}})
 		if err != nil {
 			return nil, err
 		}
 		if result.MatchedCount != 1 {
 			return nil, story.ErrStaleDraft
 		}
-		if _, err := r.db.Collection("drafts").UpdateOne(sc, bson.M{"_id": draft.ID}, bson.M{"$set": bson.M{"status": story.DraftAccepted}}); err != nil {
+		if _, err := r.db.Collection(collectionDrafts).UpdateOne(sc, bson.M{fieldID: draft.ID}, bson.M{"$set": bson.M{fieldStatus: story.DraftAccepted}}); err != nil {
 			return nil, err
 		}
 		accepted = scene
@@ -210,13 +206,13 @@ func (r *Repository) AcceptDraft(ctx context.Context, id string) (story.Scene, e
 	return accepted, err
 }
 func (r *Repository) CreateCharacter(ctx context.Context, value story.Character) error {
-	return insert(ctx, r.db.Collection("characters"), value)
+	return mongostore.Insert(ctx, r.db.Collection(collectionCharacters), value)
 }
 func (r *Repository) ListCharacters(ctx context.Context, storyID string) ([]story.Character, error) {
-	return list[story.Character](ctx, r.db.Collection("characters"), bson.M{"storyId": storyID}, options.Find())
+	return mongostore.List[story.Character](ctx, r.db.Collection(collectionCharacters), bson.M{fieldStoryID: storyID}, options.Find())
 }
 func (r *Repository) ListCanonEvents(ctx context.Context, storyID string) ([]story.CanonEvent, error) {
-	return list[story.CanonEvent](ctx, r.db.Collection("canon_events"), bson.M{"storyId": storyID}, options.Find().SetSort(bson.D{{Key: "seq", Value: 1}}))
+	return mongostore.List[story.CanonEvent](ctx, r.db.Collection(collectionCanonEvents), bson.M{fieldStoryID: storyID}, options.Find().SetSort(bson.D{{Key: fieldSequence, Value: 1}}))
 }
 func (r *Repository) ListCharacterStates(ctx context.Context, storyID string) ([]story.CharacterState, error) {
 	events, err := r.ListCanonEvents(ctx, storyID)
@@ -226,6 +222,34 @@ func (r *Repository) ListCharacterStates(ctx context.Context, storyID string) ([
 	return story.ProjectCharacterStates(events), nil
 }
 
+func (r *Repository) withTransaction(ctx context.Context, fn func(mongo.SessionContext) (any, error)) (any, error) {
+	session, err := r.db.Client().StartSession()
+	if err != nil {
+		return nil, err
+	}
+	defer session.EndSession(ctx)
+	return session.WithTransaction(ctx, fn,
+		options.Transaction().SetReadConcern(readconcern.Snapshot()).SetWriteConcern(writeconcern.Majority()),
+	)
+}
+
+func (r *Repository) requireAcceptedParents(ctx mongo.SessionContext, draft story.Draft) error {
+	edges, err := mongostore.List[story.Edge](ctx, r.db.Collection(collectionEdges), bson.M{fieldStoryID: draft.StoryID, fieldToSceneID: draft.SceneID}, nil)
+	if err != nil {
+		return err
+	}
+	for _, edge := range edges {
+		parent, err := get[story.Scene](ctx, r.db.Collection(collectionScenes), bson.M{fieldID: edge.FromSceneID})
+		if err != nil {
+			return err
+		}
+		if parent.AcceptedDraftID == "" {
+			return story.ErrParentsPending
+		}
+	}
+	return nil
+}
+
 func findError(err error) error {
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		return story.ErrNotFound
@@ -233,33 +257,16 @@ func findError(err error) error {
 	return err
 }
 func get[T any](ctx context.Context, collection *mongo.Collection, filter any) (T, error) {
-	var value T
-	err := collection.FindOne(ctx, filter).Decode(&value)
+	value, err := mongostore.Get[T](ctx, collection, filter)
 	return value, findError(err)
 }
-func insert[T any](ctx context.Context, collection *mongo.Collection, value T) error {
-	_, err := collection.InsertOne(ctx, value)
-	return err
-}
 func replace[T any](ctx context.Context, collection *mongo.Collection, id string, value T) error {
-	result, err := collection.ReplaceOne(ctx, bson.M{"_id": id}, value)
+	matched, err := mongostore.Replace(ctx, collection, bson.M{fieldID: id}, value)
 	if err != nil {
 		return err
 	}
-	if result.MatchedCount == 0 {
+	if !matched {
 		return story.ErrNotFound
 	}
 	return nil
-}
-func list[T any](ctx context.Context, collection *mongo.Collection, filter any, options *options.FindOptions) ([]T, error) {
-	cursor, err := collection.Find(ctx, filter, options)
-	if err != nil {
-		return nil, err
-	}
-	defer cursor.Close(ctx)
-	var values []T
-	if err := cursor.All(ctx, &values); err != nil {
-		return nil, err
-	}
-	return values, nil
 }

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/premchand/story-builder/internal/collection"
 	"github.com/premchand/story-builder/internal/story"
 )
 
@@ -40,7 +41,7 @@ func (r *Repository) GetStory(_ context.Context, id string) (story.Story, error)
 func (r *Repository) ListStories(_ context.Context) ([]story.Story, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	values := mapValues(r.stories, nil)
+	values := collection.MapValues(r.stories, nil)
 	sort.Slice(values, func(i, j int) bool { return values[i].CreatedAt.After(values[j].CreatedAt) })
 	return values, nil
 }
@@ -67,7 +68,7 @@ func (r *Repository) UpdateScene(_ context.Context, value story.Scene) error {
 func (r *Repository) ListScenes(_ context.Context, storyID string) ([]story.Scene, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	values := mapValues(r.scenes, func(value story.Scene) bool { return value.StoryID == storyID })
+	values := collection.MapValues(r.scenes, func(value story.Scene) bool { return value.StoryID == storyID })
 	sort.Slice(values, func(i, j int) bool { return values[i].CreatedAt.Before(values[j].CreatedAt) })
 	return values, nil
 }
@@ -79,7 +80,7 @@ func (r *Repository) CreateEdge(_ context.Context, value story.Edge) error {
 			return story.ErrDuplicateEdge
 		}
 	}
-	edges := mapValues(r.edges, func(edge story.Edge) bool { return edge.StoryID == value.StoryID })
+	edges := collection.MapValues(r.edges, func(edge story.Edge) bool { return edge.StoryID == value.StoryID })
 	if story.HasCycle(append(edges, value)) {
 		return story.ErrCycle
 	}
@@ -89,7 +90,7 @@ func (r *Repository) CreateEdge(_ context.Context, value story.Edge) error {
 func (r *Repository) ListEdges(_ context.Context, storyID string) ([]story.Edge, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	values := mapValues(r.edges, func(value story.Edge) bool { return value.StoryID == storyID })
+	values := collection.MapValues(r.edges, func(value story.Edge) bool { return value.StoryID == storyID })
 	sort.Slice(values, func(i, j int) bool { return values[i].CreatedAt.Before(values[j].CreatedAt) })
 	return values, nil
 }
@@ -162,6 +163,11 @@ func (r *Repository) AcceptDraft(_ context.Context, id string) (story.Scene, err
 	if draft.Status != story.DraftReady {
 		return story.Scene{}, story.ErrDraftNotReady
 	}
+	for _, edge := range r.edges {
+		if edge.StoryID == draft.StoryID && edge.ToSceneID == draft.SceneID && r.scenes[edge.FromSceneID].AcceptedDraftID == "" {
+			return story.Scene{}, story.ErrParentsPending
+		}
+	}
 	if current.CanonVersion != draft.BaseCanonVersion {
 		return story.Scene{}, story.ErrStaleDraft
 	}
@@ -190,12 +196,12 @@ func (r *Repository) CreateCharacter(_ context.Context, value story.Character) e
 func (r *Repository) ListCharacters(_ context.Context, storyID string) ([]story.Character, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return mapValues(r.characters, func(value story.Character) bool { return value.StoryID == storyID }), nil
+	return collection.MapValues(r.characters, func(value story.Character) bool { return value.StoryID == storyID }), nil
 }
 func (r *Repository) ListCanonEvents(_ context.Context, storyID string) ([]story.CanonEvent, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return filter(r.events, func(event story.CanonEvent) bool { return event.StoryID == storyID }), nil
+	return collection.Filter(r.events, func(event story.CanonEvent) bool { return event.StoryID == storyID }), nil
 }
 func (r *Repository) ListCharacterStates(ctx context.Context, storyID string) ([]story.CharacterState, error) {
 	events, _ := r.ListCanonEvents(ctx, storyID)
@@ -203,30 +209,10 @@ func (r *Repository) ListCharacterStates(ctx context.Context, storyID string) ([
 }
 
 func get[T any](values map[string]T, id string) (T, error) {
-	value, ok := values[id]
+	value, ok := collection.Get(values, id)
 	if !ok {
 		var zero T
 		return zero, story.ErrNotFound
 	}
 	return value, nil
-}
-
-func mapValues[T any](items map[string]T, include func(T) bool) []T {
-	result := make([]T, 0, len(items))
-	for _, item := range items {
-		if include == nil || include(item) {
-			result = append(result, item)
-		}
-	}
-	return result
-}
-
-func filter[T any](items []T, include func(T) bool) []T {
-	result := make([]T, 0, len(items))
-	for _, item := range items {
-		if include(item) {
-			result = append(result, item)
-		}
-	}
-	return result
 }
