@@ -11,7 +11,10 @@ import (
 // streaming port a real provider will implement.
 type TemplateGenerator struct{}
 
-func (TemplateGenerator) Generate(ctx context.Context, scene Scene, send func(string) error) error {
+func (TemplateGenerator) Version() string { return "template-v2" }
+
+func (TemplateGenerator) Generate(ctx context.Context, input GenerationContext, send func(string) error) error {
+	scene := input.Scene
 	brief := strings.TrimSpace(scene.Brief)
 	if brief == "" {
 		brief = "A choice changes the direction of the story."

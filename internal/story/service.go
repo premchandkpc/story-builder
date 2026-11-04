@@ -2,8 +2,8 @@ package story
 
 import (
 	"context"
-	"crypto/sha256"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -12,82 +12,21 @@ import (
 )
 
 type ProseGenerator interface {
-	Generate(context.Context, Scene, func(string) error) error
+	Version() string
+	Generate(context.Context, GenerationContext, func(string) error) error
 }
 
 type Service struct {
 	repo         Repository
 	now          func() time.Time
 	newID        func() string
-	generationMu sync.Map // map[storyID]*sync.Mutex; one generation per story
+	generationMu sync.Map // active story IDs; process-local admission control
 }
 
-func (s *Service) GenerateDraft(ctx context.Context, sceneID string, generator ProseGenerator, send func(string) error) (Draft, error) {
-	scene, err := s.repo.GetScene(ctx, sceneID)
-	if err != nil {
-		return Draft{}, fmt.Errorf("get scene: %w", err)
-	}
-	lockValue, _ := s.generationMu.LoadOrStore(scene.StoryID, &sync.Mutex{})
-	lock := lockValue.(*sync.Mutex)
-	lock.Lock()
-	defer lock.Unlock()
-	// Acceptance may have completed while this request waited for the story's
-	// generation slot, so re-read before creating a draft.
-	scene, err = s.repo.GetScene(ctx, sceneID)
-	if err != nil {
-		return Draft{}, fmt.Errorf("refresh scene: %w", err)
-	}
-	if scene.AcceptedDraftID != "" {
-		return Draft{}, ErrSceneLocked
-	}
-	current, err := s.repo.GetStory(ctx, scene.StoryID)
-	if err != nil {
-		return Draft{}, fmt.Errorf("get story: %w", err)
-	}
-	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(scene.ID+fmt.Sprint(current.CanonVersion)+scene.Title+scene.Brief+"template-v1")))
-	if existing, err := s.repo.FindDraft(ctx, scene.ID, hash); err == nil && existing.Status == DraftReady {
-		_ = send(existing.Prose)
-		return existing, nil
-	}
-	now := s.now().UTC()
-	draft := Draft{ID: s.newID(), StoryID: scene.StoryID, SceneID: scene.ID, Status: DraftGenerating, BaseCanonVersion: current.CanonVersion, ContextHash: hash, CreatedAt: now, ExpiresAt: now.Add(24 * time.Hour)}
-	if err := s.repo.CreateDraft(ctx, draft); err != nil {
-		return Draft{}, fmt.Errorf("create draft: %w", err)
-	}
-	var prose strings.Builder
-	if err := generator.Generate(ctx, scene, func(chunk string) error { prose.WriteString(chunk); return send(chunk) }); err != nil {
-		draft.Status = DraftFailed
-		_ = s.repo.UpdateDraft(context.Background(), draft)
-		return draft, err
-	}
-	draft.Prose = prose.String()
-	characters, err := s.repo.ListCharacters(ctx, scene.StoryID)
-	if err != nil {
-		return Draft{}, fmt.Errorf("list characters: %w", err)
-	}
-	for _, character := range characters {
-		draft.ProposedEvents = append(draft.ProposedEvents, ProposedEvent{Type: "character_state", CharacterID: character.CharacterID, Emotion: "alert", Learned: []string{scene.Title}})
-	}
-	draft.Status = DraftReady
-	if err := s.repo.UpdateDraft(ctx, draft); err != nil {
-		return Draft{}, fmt.Errorf("complete draft: %w", err)
-	}
-	return draft, nil
-}
 func (s *Service) CreateCharacter(ctx context.Context, storyID, name string, traits []string) (Character, error) {
-	if _, err := s.repo.GetStory(ctx, storyID); err != nil {
-		return Character{}, err
-	}
-	name, err := requiredText(name)
-	if err != nil {
-		return Character{}, ErrInvalidTitle
-	}
-	value := Character{CharacterID: s.newID(), Version: 1, StoryID: storyID, Name: name, Traits: traits, CreatedAt: s.now().UTC()}
-	if err := s.repo.CreateCharacter(ctx, value); err != nil {
-		return Character{}, err
-	}
-	return value, nil
+	return s.DefineCharacter(ctx, storyID, "", CharacterInput{Name: name, Traits: traits})
 }
+
 func (s *Service) ListCharacters(ctx context.Context, storyID string) ([]Character, error) {
 	values, err := s.repo.ListCharacters(ctx, storyID)
 	if err != nil {
@@ -100,12 +39,33 @@ func (s *Service) ReplayCharacterStates(ctx context.Context, storyID string) ([]
 	if err != nil {
 		return nil, err
 	}
-	return ProjectCharacterStates(events), nil
+	characters, err := s.repo.ListCharacters(ctx, storyID)
+	if err != nil {
+		return nil, err
+	}
+	states := ProjectCharacterStates(events)
+	byID := map[string]CharacterState{}
+	for _, state := range states {
+		byID[state.CharacterID] = state
+	}
+	out := make([]CharacterState, 0, len(characters))
+	for _, character := range characters {
+		state := byID[character.CharacterID]
+		state.StoryID = storyID
+		state.CharacterID = character.CharacterID
+		state.Knowledge = appendUnique(append([]string{}, character.InitialKnowledge...), state.Knowledge)
+		out = append(out, state)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CharacterID < out[j].CharacterID })
+	return out, nil
 }
 func (s *Service) AcceptDraft(ctx context.Context, id string) (Scene, error) {
 	draft, err := s.repo.GetDraft(ctx, id)
 	if err != nil {
 		return Scene{}, fmt.Errorf("get draft: %w", err)
+	}
+	if draft.Status == DraftAccepted {
+		return s.repo.AcceptDraft(ctx, id)
 	}
 	edges, err := s.repo.ListEdges(ctx, draft.StoryID)
 	if err != nil {
@@ -193,9 +153,22 @@ func (s *Service) CreateScene(ctx context.Context, storyID, title, brief string,
 }
 
 func (s *Service) UpdateScene(ctx context.Context, sceneID string, title, brief *string, position *Position) (Scene, error) {
+	return s.UpdateSceneAtRevision(ctx, sceneID, title, brief, position, nil)
+}
+func (s *Service) UpdateSceneAtRevision(ctx context.Context, sceneID string, title, brief *string, position *Position, expected *int64) (Scene, error) {
 	scene, err := s.repo.GetScene(ctx, sceneID)
 	if err != nil {
 		return Scene{}, fmt.Errorf("get scene: %w", err)
+	}
+	if expected != nil && *expected != scene.Revision {
+		return Scene{}, ErrConflict
+	}
+	if scene.AcceptedDraftID != "" && (title != nil || brief != nil) {
+		return Scene{}, ErrSceneLocked
+	}
+	scene.Revision++
+	if title != nil || brief != nil {
+		scene.ContentRevision++
 	}
 	if title != nil {
 		trimmed, err := requiredText(*title)
