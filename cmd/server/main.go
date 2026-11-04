@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -17,6 +19,12 @@ import (
 
 func main() {
 	ctx := context.Background()
+	address := env("PORT", "127.0.0.1:8080")
+	authToken := env("AUTH_TOKEN", "")
+	if err := validateListener(address, authToken); err != nil {
+		slog.Error("unsafe server configuration", "error", err)
+		os.Exit(1)
+	}
 	var repo story.Repository = memory.NewRepository()
 	var disconnect func(context.Context) error
 	if uri := os.Getenv("MONGO_URI"); uri != "" {
@@ -34,7 +42,7 @@ func main() {
 	if disconnect != nil {
 		defer disconnect(context.Background())
 	}
-	server := &http.Server{Addr: env("PORT", "127.0.0.1:8080"), Handler: httpapi.New(story.NewService(repo), env("AUTH_TOKEN", "")).Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 5 * time.Minute, IdleTimeout: 60 * time.Second}
+	server := &http.Server{Addr: address, Handler: httpapi.New(story.NewService(repo), authToken).Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 5 * time.Minute, IdleTimeout: 60 * time.Second}
 	go func() {
 		slog.Info("server listening", "addr", server.Addr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -54,4 +62,17 @@ func env(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+// Development without a token is allowed only on an explicit loopback listener.
+func validateListener(address, token string) error {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return fmt.Errorf("PORT must be host:port: %w", err)
+	}
+	ip := net.ParseIP(host)
+	if token == "" && host != "localhost" && (ip == nil || !ip.IsLoopback()) {
+		return fmt.Errorf("AUTH_TOKEN is required for a non-loopback listener")
+	}
+	return nil
 }

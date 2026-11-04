@@ -3,10 +3,12 @@ package story
 import "time"
 
 type Story struct {
-	ID           string    `bson:"_id" json:"id"`
-	Title        string    `bson:"title" json:"title"`
-	CanonVersion int64     `bson:"canonVersion" json:"canonVersion"`
-	CreatedAt    time.Time `bson:"createdAt" json:"createdAt"`
+	ID                string    `bson:"_id" json:"id"`
+	Title             string    `bson:"title" json:"title"`
+	GraphVersion      int64     `bson:"graphVersion" json:"graphVersion"`
+	CharacterRevision int64     `bson:"characterRevision" json:"characterRevision"`
+	CanonVersion      int64     `bson:"canonVersion" json:"canonVersion"`
+	CreatedAt         time.Time `bson:"createdAt" json:"createdAt"`
 }
 
 type Position struct {
@@ -15,6 +17,8 @@ type Position struct {
 }
 
 type Scene struct {
+	Revision        int64     `bson:"revision" json:"revision"`
+	ContentRevision int64     `bson:"contentRevision" json:"contentRevision"`
 	ID              string    `bson:"_id" json:"id"`
 	StoryID         string    `bson:"storyId" json:"storyId"`
 	Title           string    `bson:"title" json:"title"`
@@ -36,25 +40,31 @@ const (
 )
 
 type Draft struct {
-	ID               string          `bson:"_id" json:"id"`
-	StoryID          string          `bson:"storyId" json:"storyId"`
-	SceneID          string          `bson:"sceneId" json:"sceneId"`
-	Status           DraftStatus     `bson:"status" json:"status"`
-	Prose            string          `bson:"prose" json:"prose"`
-	BaseCanonVersion int64           `bson:"baseCanonVersion" json:"baseCanonVersion"`
-	ContextHash      string          `bson:"contextHash" json:"contextHash"`
-	ExpiresAt        time.Time       `bson:"expiresAt" json:"expiresAt"`
-	CreatedAt        time.Time       `bson:"createdAt" json:"createdAt"`
-	ProposedEvents   []ProposedEvent `bson:"proposedEvents,omitempty" json:"proposedEvents,omitempty"`
+	Input                 *GenerationContext `bson:"input,omitempty" json:"-"`
+	ID                    string             `bson:"_id" json:"id"`
+	StoryID               string             `bson:"storyId" json:"storyId"`
+	SceneID               string             `bson:"sceneId" json:"sceneId"`
+	Status                DraftStatus        `bson:"status" json:"status"`
+	Prose                 string             `bson:"prose" json:"prose"`
+	BaseCanonVersion      int64              `bson:"baseCanonVersion" json:"baseCanonVersion"`
+	BaseSceneRevision     int64              `bson:"baseSceneRevision" json:"baseSceneRevision"`
+	BaseCharacterRevision int64              `bson:"baseCharacterRevision" json:"baseCharacterRevision"`
+	BaseGraphVersion      int64              `bson:"baseGraphVersion" json:"baseGraphVersion"`
+	LeaseUntil            time.Time          `bson:"leaseUntil,omitempty" json:"-"`
+	ContextHash           string             `bson:"contextHash" json:"contextHash"`
+	ExpiresAt             time.Time          `bson:"expiresAt,omitempty" json:"expiresAt"`
+	CreatedAt             time.Time          `bson:"createdAt" json:"createdAt"`
+	ProposedEvents        []ProposedEvent    `bson:"proposedEvents,omitempty" json:"proposedEvents,omitempty"`
 }
 
 type Character struct {
-	CharacterID string    `bson:"characterId" json:"characterId"`
-	Version     int       `bson:"version" json:"version"`
-	StoryID     string    `bson:"storyId" json:"storyId"`
-	Name        string    `bson:"name" json:"name"`
-	Traits      []string  `bson:"traits" json:"traits"`
-	CreatedAt   time.Time `bson:"createdAt" json:"createdAt"`
+	CharacterDefinition `bson:",inline"`
+	CharacterID         string    `bson:"characterId" json:"characterId"`
+	Version             int       `bson:"version" json:"version"`
+	StoryID             string    `bson:"storyId" json:"storyId"`
+	Name                string    `bson:"name" json:"name"`
+	Traits              []string  `bson:"traits" json:"traits"`
+	CreatedAt           time.Time `bson:"createdAt" json:"createdAt"`
 }
 type ProposedEvent struct {
 	Type        string   `bson:"type" json:"type"`

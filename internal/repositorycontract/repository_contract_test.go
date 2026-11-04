@@ -27,6 +27,8 @@ func TestRepositoryContract(t *testing.T) {
 	}
 	for _, factory := range factories {
 		t.Run(factory.name, func(t *testing.T) {
+			testInvariants(t, factory)
+			testGenerationFailures(t, factory)
 			t.Run("accept_is_idempotent_and_orders_parents", func(t *testing.T) {
 				ctx := context.Background()
 				svc := story.NewService(factory.new(t))

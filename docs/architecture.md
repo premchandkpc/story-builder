@@ -1,7 +1,8 @@
 # Architecture — Slice 1
 
-V2 is a modular Go monolith and React single-page application. Slice 1 has no
-canon, queue, or authentication subsystem.
+V2 is a modular Go monolith and React single-page application. The current implementation includes draft acceptance, canon events, versioned
+character definitions, and optional single-user bearer authentication. It has no
+durable job queue or multi-user ownership subsystem.
 
 ```
 React Flow workspace → /api/v1 (chi) → story.Service → story.Repository
@@ -33,13 +34,12 @@ version, stores accepted prose, appends canon events, increments `canonVersion`,
 and marks the draft accepted in one transaction. Tests must run the same
 acceptance contract against Mongo replica-set storage; the in-memory adapter is
 only a fast local implementation, not evidence that Mongo transactions work.
-Reject deletes the draft.
+Reject deletes only READY or FAILED drafts. Accepted drafts have no expiry.
 
 ## Canon events — Slice 3
 
 Characters use stable `characterId` values and immutable version documents.
-The deterministic local extractor is a temporary Slice 2 scaffold, not proof
-that extraction is production-ready. Slice 3's exit condition requires an LLM
+The deterministic template proposes no character facts. Slice 3's exit condition requires an LLM
 extractor with schema validation and pure Go validation. Accept appends events
 as gap-free per-story `canon_events`; when no character event is proposed it
 appends a `scene_accepted` event so `canonVersion` always matches the final
@@ -61,3 +61,26 @@ overwriting an accepted scene or compensating old canon events. A scene may be
 accepted only after every incoming parent scene is accepted. Canon sequence is
 therefore a valid topological acceptance order, rather than arbitrary button
 press order.
+
+## Concurrency and pinned inputs
+
+Scene updates change only author-owned fields and compare an optimistic
+revision; acceptance increments that revision. Content revisions exclude layout
+changes. Drafts pin content, graph, character-definition, and canon revisions;
+acceptance validates them in the same transaction as canonical writes. Graph
+edits and character-version writes also update the story document, serializing
+those operations against acceptance. Incoming edges to accepted scenes are
+rejected at the persistence boundary.
+
+Character updates append immutable versions. Each generation snapshot includes
+latest definitions, initial knowledge plus accepted events, and direct parent
+scenes/prose. Character secrets are not copied into character knowledge. A
+revision barrier detects definition, graph, or canon changes while assembling
+the snapshot. Definition edits affect future context, not historical snapshots.
+
+Generation has a two-minute deadline, a persisted three-minute ownership lease,
+and a 1 MiB prose limit. Later generation attempts recover expired owners.
+Conditional draft state transitions fence recovered owners from completing.
+Process-local admission rejects overlaps promptly; it is not a distributed
+one-generation-per-story lock. Mongo's unique scene/context index prevents
+duplicate live drafts across processes.
