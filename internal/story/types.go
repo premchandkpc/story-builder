@@ -42,6 +42,7 @@ type Draft struct {
 	Status           DraftStatus     `bson:"status" json:"status"`
 	Prose            string          `bson:"prose" json:"prose"`
 	BaseCanonVersion int64           `bson:"baseCanonVersion" json:"baseCanonVersion"`
+	GeneratorKey     string          `bson:"generatorKey,omitempty" json:"generatorKey,omitempty"`
 	ContextHash      string          `bson:"contextHash" json:"contextHash"`
 	ExpiresAt        time.Time       `bson:"expiresAt" json:"expiresAt"`
 	CreatedAt        time.Time       `bson:"createdAt" json:"createdAt"`

@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -11,18 +12,37 @@ import (
 )
 
 type Server struct {
-	router  chi.Router
-	stories *story.Service
+	router    chi.Router
+	stories   *story.Service
+	generator story.ProseGenerator
 }
 
-func New(stories *story.Service, authToken string) *Server {
-	s := &Server{stories: stories}
+func New(stories *story.Service, authToken string, generators ...story.ProseGenerator) *Server {
+	generator := story.ProseGenerator(story.TemplateGenerator{})
+	if len(generators) > 0 {
+		generator = generators[0]
+	}
+	s := &Server{stories: stories, generator: generator}
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.Recoverer, contentType, authenticate(authToken))
 	r.Get("/api/v1/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 	r.Route("/api/v1", func(r chi.Router) {
+		r.Get("/generation", func(w http.ResponseWriter, _ *http.Request) {
+			mode, words, configured, model := "template", 0, true, ""
+			if sized, ok := s.generator.(interface{ MinimumWords() int }); ok {
+				mode, words = "openai", sized.MinimumWords()
+				if provider, ok := s.generator.(interface {
+					Ready() bool
+					ModelName() string
+				}); ok {
+					configured = provider.Ready()
+					model = provider.ModelName()
+				}
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"mode": mode, "minimumWords": words, "configured": configured, "model": model})
+		})
 		r.Get("/stories", s.listStories)
 		r.Post("/stories", s.createStory)
 		r.Get("/stories/{storyID}/graph", s.graph)
@@ -90,7 +110,7 @@ func (s *Server) generate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.WriteHeader(http.StatusOK)
-	draft, err := s.stories.GenerateDraft(r.Context(), chi.URLParam(r, "sceneID"), story.TemplateGenerator{}, func(chunk string) error {
+	draft, err := s.stories.GenerateDraft(r.Context(), chi.URLParam(r, "sceneID"), s.generator, func(chunk string) error {
 		payload, _ := json.Marshal(map[string]string{"text": chunk})
 		_, err := w.Write([]byte("event: chunk\ndata: " + string(payload) + "\n\n"))
 		flusher.Flush()
@@ -213,6 +233,10 @@ func decode(w http.ResponseWriter, r *http.Request, target any) bool {
 		writeError(w, http.StatusBadRequest, "invalid_request", "Request body must be valid JSON.")
 		return false
 	}
+	if err := decoder.Decode(new(any)); err != io.EOF {
+		writeError(w, http.StatusBadRequest, "invalid_request", "Request body must contain exactly one JSON value.")
+		return false
+	}
 	return true
 }
 func writeJSON(w http.ResponseWriter, status int, value any) {
@@ -233,11 +257,11 @@ func writeServiceError(w http.ResponseWriter, err error) {
 	case errors.Is(err, story.ErrCrossStoryEdge), errors.Is(err, story.ErrDuplicateEdge):
 		writeError(w, http.StatusConflict, "invalid_edge", err.Error())
 	case errors.Is(err, story.ErrStaleDraft):
-		writeError(w, http.StatusConflict, "stale_draft", "Canon changed. Regenerate this draft.")
+		writeError(w, http.StatusConflict, "stale_draft", "The scene, characters, or canon changed, or the draft expired. Regenerate this draft.")
 	case errors.Is(err, story.ErrDraftNotReady):
 		writeError(w, http.StatusConflict, "draft_not_ready", err.Error())
 	case errors.Is(err, story.ErrSceneLocked):
-		writeError(w, http.StatusConflict, "scene_locked", "Accepted scenes cannot be regenerated.")
+		writeError(w, http.StatusConflict, "scene_locked", "Accepted scenes cannot be regenerated or their drafts rejected.")
 	case errors.Is(err, story.ErrParentsPending):
 		writeError(w, http.StatusConflict, "parents_pending", "Accept all parent scenes first.")
 	case errors.Is(err, story.ErrDraftInProgress):

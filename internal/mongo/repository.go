@@ -74,7 +74,16 @@ func (r *Repository) GetScene(ctx context.Context, id string) (story.Scene, erro
 	return get[story.Scene](ctx, r.db.Collection(collectionScenes), bson.M{fieldID: id})
 }
 func (r *Repository) UpdateScene(ctx context.Context, value story.Scene) error {
-	return replace(ctx, r.db.Collection(collectionScenes), value.ID, value)
+	result, err := r.db.Collection(collectionScenes).UpdateOne(ctx, bson.M{fieldID: value.ID}, bson.M{"$set": bson.M{
+		"title": value.Title, "brief": value.Brief, "position": value.Position, "updatedAt": value.UpdatedAt,
+	}})
+	if err != nil {
+		return err
+	}
+	if result.MatchedCount == 0 {
+		return story.ErrNotFound
+	}
+	return nil
 }
 func (r *Repository) ListScenes(ctx context.Context, storyID string) ([]story.Scene, error) {
 	return mongostore.List[story.Scene](ctx, r.db.Collection(collectionScenes), bson.M{fieldStoryID: storyID}, options.Find().SetSort(bson.D{{Key: fieldCreatedAt, Value: 1}}))
@@ -137,11 +146,16 @@ func (r *Repository) UpdateDraft(ctx context.Context, value story.Draft) error {
 	return replace(ctx, r.db.Collection(collectionDrafts), value.ID, value)
 }
 func (r *Repository) DeleteDraft(ctx context.Context, id string) error {
-	result, err := r.db.Collection(collectionDrafts).DeleteOne(ctx, bson.M{fieldID: id})
+	result, err := r.db.Collection(collectionDrafts).DeleteOne(ctx, bson.M{fieldID: id, fieldStatus: bson.M{"$ne": story.DraftAccepted}})
 	if err != nil {
 		return err
 	}
 	if result.DeletedCount == 0 {
+		if draft, err := r.GetDraft(ctx, id); err == nil && draft.Status == story.DraftAccepted {
+			return story.ErrSceneLocked
+		} else if err != nil {
+			return err
+		}
 		return story.ErrNotFound
 	}
 	return nil
@@ -171,7 +185,11 @@ func (r *Repository) AcceptDraft(ctx context.Context, id string) (story.Scene, e
 		if err := r.db.Collection(collectionStories).FindOne(sc, bson.M{fieldID: draft.StoryID}).Decode(&current); err != nil {
 			return nil, findError(err)
 		}
-		if current.CanonVersion != draft.BaseCanonVersion {
+		characters, err := r.ListCharacters(sc, draft.StoryID)
+		if err != nil {
+			return nil, err
+		}
+		if current.CanonVersion != draft.BaseCanonVersion || !draft.ExpiresAt.After(time.Now()) || draft.ContextHash != story.DraftContextHashForGenerator(scene, current.CanonVersion, draft.GeneratorKey, characters...) {
 			return nil, story.ErrStaleDraft
 		}
 		scene.AcceptedDraftID = draft.ID

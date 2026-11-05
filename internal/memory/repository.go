@@ -59,10 +59,12 @@ func (r *Repository) GetScene(_ context.Context, id string) (story.Scene, error)
 func (r *Repository) UpdateScene(_ context.Context, value story.Scene) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, ok := r.scenes[value.ID]; !ok {
+	current, ok := r.scenes[value.ID]
+	if !ok {
 		return story.ErrNotFound
 	}
-	r.scenes[value.ID] = value
+	current.Title, current.Brief, current.Position, current.UpdatedAt = value.Title, value.Brief, value.Position, value.UpdatedAt
+	r.scenes[value.ID] = current
 	return nil
 }
 func (r *Repository) ListScenes(_ context.Context, storyID string) ([]story.Scene, error) {
@@ -139,8 +141,12 @@ func (r *Repository) UpdateDraft(_ context.Context, value story.Draft) error {
 func (r *Repository) DeleteDraft(_ context.Context, id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, ok := r.drafts[id]; !ok {
+	draft, ok := r.drafts[id]
+	if !ok {
 		return story.ErrNotFound
+	}
+	if draft.Status == story.DraftAccepted {
+		return story.ErrSceneLocked
 	}
 	delete(r.drafts, id)
 	return nil
@@ -168,7 +174,8 @@ func (r *Repository) AcceptDraft(_ context.Context, id string) (story.Scene, err
 			return story.Scene{}, story.ErrParentsPending
 		}
 	}
-	if current.CanonVersion != draft.BaseCanonVersion {
+	characters := collection.MapValues(r.characters, func(character story.Character) bool { return character.StoryID == draft.StoryID })
+	if current.CanonVersion != draft.BaseCanonVersion || !draft.ExpiresAt.After(time.Now()) || draft.ContextHash != story.DraftContextHashForGenerator(scene, current.CanonVersion, draft.GeneratorKey, characters...) {
 		return story.Scene{}, story.ErrStaleDraft
 	}
 	scene.AcceptedDraftID = draft.ID

@@ -17,6 +17,18 @@ All responses are JSON. Error bodies have `{ "code", "message" }`.
 | GET/POST | `/api/v1/stories/{storyID}/characters` | List or create immutable character version 1 definitions. |
 | GET | `/api/v1/stories/{storyID}/character-states` | Replay canonical events into current character state. |
 
-Generation currently uses a deterministic local template generator. The gateway
-port streams chunks, so a provider adapter can replace it without changing the
-HTTP or draft lifecycle contracts.
+Generation uses OpenAI's Responses API. The API key remains on the server.
+
+### Full-length OpenAI generation
+
+`GET /api/v1/generation` returns mode (`openai` or the test-only `template`),
+`minimumWords`, `configured`, and `model`. It never returns credentials.
+Set `OPENAI_API_KEY` and optionally `OPENAI_MODEL` (default `gpt-4.1`).
+`SCENE_WORDS` chooses a 100–5000 word minimum (default 1000).
+Without the key, `configured` is false and the UI disables generation.
+
+Generation uses the existing SSE draft lifecycle, allowing up to three capped
+OpenAI calls to reach the minimum. Failure, refusal, truncation, interrupted
+streams, and insufficient prose do not produce ready drafts. OpenAI settings
+use `store: false` and an output cap of `3 * SCENE_WORDS + 1024` per call.
+No prose becomes canonical before explicit acceptance. Ollama is not used.

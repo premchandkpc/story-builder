@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -34,7 +35,18 @@ func main() {
 	if disconnect != nil {
 		defer disconnect(context.Background())
 	}
-	server := &http.Server{Addr: env("PORT", "127.0.0.1:8080"), Handler: httpapi.New(story.NewService(repo), env("AUTH_TOKEN", "")).Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 5 * time.Minute, IdleTimeout: 60 * time.Second}
+	words, err := strconv.Atoi(env("SCENE_WORDS", "1000"))
+	if err != nil || words < 100 || words > 5000 {
+		slog.Error("SCENE_WORDS must be between 100 and 5000")
+		os.Exit(1)
+	}
+	generator := story.OpenAIGenerator{APIKey: os.Getenv("OPENAI_API_KEY"), Model: env("OPENAI_MODEL", "gpt-4.1"), TargetWords: words}
+	if !generator.Ready() {
+		slog.Warn("OpenAI generation unavailable; set OPENAI_API_KEY")
+	}
+	slog.Info("using OpenAI story generation", "model", generator.Model, "minimum_words", words)
+
+	server := &http.Server{Addr: env("PORT", "127.0.0.1:8080"), Handler: httpapi.New(story.NewService(repo), env("AUTH_TOKEN", ""), generator).Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Minute, IdleTimeout: 60 * time.Second}
 	go func() {
 		slog.Info("server listening", "addr", server.Addr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {

@@ -34,7 +34,7 @@ func List[T any](ctx context.Context, collection *mongo.Collection, filter any, 
 		return nil, err
 	}
 	defer cursor.Close(ctx)
-	var values []T
+	values := make([]T, 0)
 	if err := cursor.All(ctx, &values); err != nil {
 		return nil, err
 	}
