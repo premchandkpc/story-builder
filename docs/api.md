@@ -1,34 +1,73 @@
-# API — Slice 1
+# API
 
-All responses are JSON. Error bodies have `{ "code", "message" }`.
+JSON responses use error bodies `{ "code", "message" }`. Rejection returns an
+empty 204; generation uses SSE. With `AUTH_TOKEN` configured, send
+`Authorization: Bearer <token>` on every request except health.
 
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/v1/healthz` | Liveness check. |
-| GET | `/api/v1/stories` | List story maps. |
-| POST | `/api/v1/stories` | Create a story with `{ "title" }`. |
-| GET | `/api/v1/stories/{storyID}/graph` | Read story, scenes, and edges together. |
+| GET/POST | `/api/v1/stories` | List or create a story with `{ "title" }`. |
+| GET | `/api/v1/stories/{storyID}/graph` | Read story, scenes, and edges. |
 | POST | `/api/v1/stories/{storyID}/scenes` | Create `{ "title", "brief?", "position": { "x", "y" } }`. |
-| PATCH | `/api/v1/scenes/{sceneID}` | Update any supplied `title`, `brief`, or `position`. |
-| POST | `/api/v1/stories/{storyID}/edges` | Create `{ "from_scene_id", "to_scene_id" }`. Returns 422 if cyclic. |
-| POST | `/api/v1/scenes/{sceneID}/generate` | Streams a new or deduplicated draft as SSE. |
-| POST | `/api/v1/drafts/{draftID}/accept` | Accept a ready draft; returns 409 for a stale draft. |
-| POST | `/api/v1/drafts/{draftID}/reject` | Delete a draft; returns 204. |
-| GET/POST | `/api/v1/stories/{storyID}/characters` | List or create immutable character version 1 definitions. |
-| GET | `/api/v1/stories/{storyID}/character-states` | Replay canonical events into current character state. |
+| PATCH | `/api/v1/scenes/{sceneID}` | Update supplied `title`, `brief`, or `position`; include `expectedRevision` from the last scene read. A stale revision returns 409. |
+| POST | `/api/v1/stories/{storyID}/edges` | Create `{ "from_scene_id", "to_scene_id" }`. Edges mean **must happen before**, not alternative timelines. Cycles return 422. Incoming edges to accepted scenes return 409. |
+| POST | `/api/v1/scenes/{sceneID}/generate` | Stream a new or cached draft: `chunk`, then `complete`; `error` is terminal. |
+| POST | `/api/v1/drafts/{draftID}/accept` | Atomically accept a ready, unexpired draft with current scene, character, graph, and canon revisions. Stale input returns 409. Retries of accepted drafts are idempotent. |
+| POST | `/api/v1/drafts/{draftID}/reject` | Delete READY or FAILED drafts; returns 204. Accepted or actively generating drafts cannot be deleted. |
+| GET/POST | `/api/v1/stories/{storyID}/characters` | List latest definitions or create immutable version 1. |
+| PUT | `/api/v1/stories/{storyID}/characters/{characterID}` | Append a complete new definition with `expectedVersion`; concurrent edits return 409. |
+| GET | `/api/v1/stories/{storyID}/character-states` | Initial knowledge plus replay of accepted character events. Author secrets are excluded from knowledge. |
 
-Generation uses OpenAI's Responses API. The API key remains on the server.
+Accepted scene titles and briefs are locked. Layout remains editable. Revisions
+are new scenes; this API does not rewrite existing canon or provide branch-local
+canon. The shared bearer token is for a single-user installation, not multi-user
+identity or owner isolation.
 
-### Full-length OpenAI generation
+## Character definition example
 
-`GET /api/v1/generation` returns mode (`openai` or the test-only `template`),
-`minimumWords`, `configured`, and `model`. It never returns credentials.
-Set `OPENAI_API_KEY` and optionally `OPENAI_MODEL` (default `gpt-4.1`).
-`SCENE_WORDS` chooses a 100–5000 word minimum (default 1000).
-Without the key, `configured` is false and the UI disables generation.
+```json
+{
+  "name": "Mira",
+  "traits": ["observant", "guarded"],
+  "role": "investigator",
+  "pronouns": "she/her",
+  "description": "A meticulous investigator with ink-stained hands.",
+  "backstory": "Her brother vanished while charting the old city.",
+  "motivation": "Find her brother without betraying his trust.",
+  "goals": ["Find the archive key"],
+  "fears": ["Learning that he left voluntarily"],
+  "flaws": ["Confuses secrecy with protection"],
+  "values": ["Loyalty", "Evidence"],
+  "voice": "Short precise sentences; asks questions instead of making accusations.",
+  "constraints": ["Cannot read minds", "Does not know who holds the key"],
+  "secrets": ["Her brother has the key"],
+  "initialKnowledge": ["The archive door is locked"],
+  "relationships": []
+}
+```
 
-Generation uses the existing SSE draft lifecycle, allowing up to three capped
-OpenAI calls to reach the minimum. Failure, refusal, truncation, interrupted
-streams, and insufficient prose do not produce ready drafts. OpenAI settings
-use `store: false` and an output cap of `3 * SCENE_WORDS + 1024` per call.
-No prose becomes canonical before explicit acceptance. Ollama is not used.
+Relationships contain `{ "characterId", "kind", "description" }`. Targets must
+be other characters in the same story; duplicate targets are rejected. On PUT,
+include `expectedVersion` (e.g. 1 to create version 2). Lists permit up to 32
+nonblank items of at most 2,000 bytes each; name is 1–200 bytes; descriptive text
+fields permit 8,000 bytes. Definitions are author facts, separate from inferred
+runtime emotions and acquired knowledge. Changing a definition invalidates
+unaccepted drafts while their original snapshots remain preserved.
+
+Generation defaults to OpenAI Responses (`OPENAI_API_KEY`, optional
+`OPENAI_MODEL`, default `gpt-4.1`). `SCENE_WORDS` sets a 100–5000 word minimum
+(default 1000). Requests stream prose and permit at most three capped model
+calls. Each call has an output-token cap of `3 * SCENE_WORDS + 1024` and uses
+`store: false`. The service bounds the overall generation request to two minutes
+and stored output to 1 MiB. Failure to reach the word minimum fails the draft.
+
+`GET /api/v1/generation` returns `mode`, `model`, `minimumWords`, and
+`configured`, never credentials. The UI disables OpenAI generation when no key
+is configured. `GENERATION_PROVIDER=template` enables deterministic offline
+preview/testing. There is no automatic fallback to another provider.
+
+Providers receive a pinned `GenerationContext` containing the scene, direct
+parents and prose, character definitions/state, and revision identifiers.
+`Version()` includes OpenAI model/prompt/length settings. Character author
+secrets are context for the author, not knowledge every character may possess.

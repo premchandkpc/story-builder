@@ -31,15 +31,12 @@ func New(stories *story.Service, authToken string, generators ...story.ProseGene
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/generation", func(w http.ResponseWriter, _ *http.Request) {
 			mode, words, configured, model := "template", 0, true, ""
-			if sized, ok := s.generator.(interface{ MinimumWords() int }); ok {
-				mode, words = "openai", sized.MinimumWords()
-				if provider, ok := s.generator.(interface {
-					Ready() bool
-					ModelName() string
-				}); ok {
-					configured = provider.Ready()
-					model = provider.ModelName()
-				}
+			if provider, ok := s.generator.(interface {
+				MinimumWords() int
+				Ready() bool
+				ModelName() string
+			}); ok {
+				mode, words, configured, model = "openai", provider.MinimumWords(), provider.Ready(), provider.ModelName()
 			}
 			writeJSON(w, http.StatusOK, map[string]any{"mode": mode, "minimumWords": words, "configured": configured, "model": model})
 		})
@@ -49,6 +46,7 @@ func New(stories *story.Service, authToken string, generators ...story.ProseGene
 		r.Post("/stories/{storyID}/scenes", s.createScene)
 		r.Post("/stories/{storyID}/edges", s.createEdge)
 		r.Post("/stories/{storyID}/characters", s.createCharacter)
+		r.Put("/stories/{storyID}/characters/{characterID}", s.updateCharacter)
 		r.Get("/stories/{storyID}/characters", s.listCharacters)
 		r.Get("/stories/{storyID}/character-states", s.characterStates)
 		r.Post("/scenes/{sceneID}/generate", s.generate)
@@ -71,20 +69,30 @@ func authenticate(token string) func(http.Handler) http.Handler {
 	}
 }
 func (s *Server) createCharacter(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Name   string   `json:"name"`
-		Traits []string `json:"traits"`
-	}
+	var body story.CharacterInput
 	if !decode(w, r, &body) {
 		return
 	}
-	value, err := s.stories.CreateCharacter(r.Context(), chi.URLParam(r, "storyID"), body.Name, body.Traits)
+	value, err := s.stories.DefineCharacter(r.Context(), chi.URLParam(r, "storyID"), "", body)
 	if err != nil {
 		writeServiceError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, value)
 }
+func (s *Server) updateCharacter(w http.ResponseWriter, r *http.Request) {
+	var body story.CharacterInput
+	if !decode(w, r, &body) {
+		return
+	}
+	value, err := s.stories.DefineCharacter(r.Context(), chi.URLParam(r, "storyID"), chi.URLParam(r, "characterID"), body)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, value)
+}
+
 func (s *Server) listCharacters(w http.ResponseWriter, r *http.Request) {
 	values, err := s.stories.ListCharacters(r.Context(), chi.URLParam(r, "storyID"))
 	if err != nil {
@@ -190,14 +198,15 @@ func (s *Server) createScene(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) updateScene(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Title    *string         `json:"title"`
-		Brief    *string         `json:"brief"`
-		Position *story.Position `json:"position"`
+		ExpectedRevision *int64          `json:"expectedRevision"`
+		Title            *string         `json:"title"`
+		Brief            *string         `json:"brief"`
+		Position         *story.Position `json:"position"`
 	}
 	if !decode(w, r, &body) {
 		return
 	}
-	value, err := s.stories.UpdateScene(r.Context(), chi.URLParam(r, "sceneID"), body.Title, body.Brief, body.Position)
+	value, err := s.stories.UpdateSceneAtRevision(r.Context(), chi.URLParam(r, "sceneID"), body.Title, body.Brief, body.Position, body.ExpectedRevision)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -250,18 +259,20 @@ func writeServiceError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, story.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not_found", "The requested story item does not exist.")
-	case errors.Is(err, story.ErrInvalidTitle), errors.Is(err, story.ErrInvalidEdge):
+	case errors.Is(err, story.ErrInvalidCharacter), errors.Is(err, story.ErrInvalidTitle), errors.Is(err, story.ErrInvalidEdge):
 		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
 	case errors.Is(err, story.ErrCycle):
 		writeError(w, http.StatusUnprocessableEntity, "cycle_detected", "That connection would create a cycle.")
 	case errors.Is(err, story.ErrCrossStoryEdge), errors.Is(err, story.ErrDuplicateEdge):
 		writeError(w, http.StatusConflict, "invalid_edge", err.Error())
+	case errors.Is(err, story.ErrConflict):
+		writeError(w, http.StatusConflict, "revision_conflict", err.Error())
 	case errors.Is(err, story.ErrStaleDraft):
-		writeError(w, http.StatusConflict, "stale_draft", "The scene, characters, or canon changed, or the draft expired. Regenerate this draft.")
+		writeError(w, http.StatusConflict, "stale_draft", "Canon changed. Regenerate this draft.")
 	case errors.Is(err, story.ErrDraftNotReady):
 		writeError(w, http.StatusConflict, "draft_not_ready", err.Error())
 	case errors.Is(err, story.ErrSceneLocked):
-		writeError(w, http.StatusConflict, "scene_locked", "Accepted scenes cannot be regenerated or their drafts rejected.")
+		writeError(w, http.StatusConflict, "scene_locked", "Accepted scene content and incoming connections are locked.")
 	case errors.Is(err, story.ErrParentsPending):
 		writeError(w, http.StatusConflict, "parents_pending", "Accept all parent scenes first.")
 	case errors.Is(err, story.ErrDraftInProgress):

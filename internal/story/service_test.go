@@ -160,7 +160,8 @@ func (r *memoryRepo) AcceptDraft(_ context.Context, id string) (Scene, error) {
 	r.drafts[id] = d
 	return scene, nil
 }
-func (r *memoryRepo) CreateCharacter(_ context.Context, _ Character) error { return nil }
+func (r *memoryRepo) SaveCharacter(_ context.Context, _ Character, _ int) error { return nil }
+func (r *memoryRepo) CreateCharacter(_ context.Context, _ Character) error      { return nil }
 func (r *memoryRepo) ListCharacters(_ context.Context, _ string) ([]Character, error) {
 	return nil, nil
 }

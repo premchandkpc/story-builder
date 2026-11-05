@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,6 +20,12 @@ import (
 
 func main() {
 	ctx := context.Background()
+	address := env("PORT", "127.0.0.1:8080")
+	authToken := env("AUTH_TOKEN", "")
+	if err := validateListener(address, authToken); err != nil {
+		slog.Error("unsafe server configuration", "error", err)
+		os.Exit(1)
+	}
 	var repo story.Repository = memory.NewRepository()
 	var disconnect func(context.Context) error
 	if uri := os.Getenv("MONGO_URI"); uri != "" {
@@ -40,13 +48,22 @@ func main() {
 		slog.Error("SCENE_WORDS must be between 100 and 5000")
 		os.Exit(1)
 	}
-	generator := story.OpenAIGenerator{APIKey: os.Getenv("OPENAI_API_KEY"), Model: env("OPENAI_MODEL", "gpt-4.1"), TargetWords: words}
-	if !generator.Ready() {
-		slog.Warn("OpenAI generation unavailable; set OPENAI_API_KEY")
+	var generator story.ProseGenerator
+	switch env("GENERATION_PROVIDER", "openai") {
+	case "template":
+		generator = story.TemplateGenerator{}
+	case "openai":
+		provider := story.OpenAIGenerator{APIKey: os.Getenv("OPENAI_API_KEY"), Model: env("OPENAI_MODEL", "gpt-4.1"), TargetWords: words}
+		if !provider.Ready() {
+			slog.Warn("OpenAI generation unavailable; set OPENAI_API_KEY")
+		}
+		generator = provider
+		slog.Info("using OpenAI story generation", "model", provider.Model, "minimum_words", words)
+	default:
+		slog.Error("GENERATION_PROVIDER must be openai or template")
+		os.Exit(1)
 	}
-	slog.Info("using OpenAI story generation", "model", generator.Model, "minimum_words", words)
-
-	server := &http.Server{Addr: env("PORT", "127.0.0.1:8080"), Handler: httpapi.New(story.NewService(repo), env("AUTH_TOKEN", ""), generator).Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Minute, IdleTimeout: 60 * time.Second}
+	server := &http.Server{Addr: address, Handler: httpapi.New(story.NewService(repo), authToken, generator).Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 5 * time.Minute, IdleTimeout: 60 * time.Second}
 	go func() {
 		slog.Info("server listening", "addr", server.Addr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -66,4 +83,17 @@ func env(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+// Development without a token is allowed only on an explicit loopback listener.
+func validateListener(address, token string) error {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return fmt.Errorf("PORT must be host:port: %w", err)
+	}
+	ip := net.ParseIP(host)
+	if token == "" && host != "localhost" && (ip == nil || !ip.IsLoopback()) {
+		return fmt.Errorf("AUTH_TOKEN is required for a non-loopback listener")
+	}
+	return nil
 }

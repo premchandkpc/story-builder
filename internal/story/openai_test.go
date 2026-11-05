@@ -45,14 +45,14 @@ func TestOpenAILongScene(t *testing.T) {
 	defer server.Close()
 	g := OpenAIGenerator{BaseURL: server.URL, Model: "fiction", APIKey: "test-secret", TargetWords: 1000}
 	var prose strings.Builder
-	err := g.GenerateWithContext(context.Background(), Scene{Title: "Opening"}, GenerationContext{Characters: []Character{{Name: "Mira"}}, Parents: []Scene{{Prose: "accepted parent"}}}, func(s string) error { prose.WriteString(s); return nil })
+	err := g.Generate(context.Background(), GenerationContext{Scene: Scene{Title: "Opening"}, Characters: []Character{{Name: "Mira"}}, Parents: []Scene{{Prose: "accepted parent"}}}, func(s string) error { prose.WriteString(s); return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
 	if calls != 2 || len(strings.Fields(prose.String())) < 1000 {
 		t.Fatalf("incomplete scene: calls=%d words=%d", calls, len(strings.Fields(prose.String())))
 	}
-	if g.CacheKey() == (OpenAIGenerator{Model: "fiction", TargetWords: 500}).CacheKey() {
+	if g.Version() == (OpenAIGenerator{Model: "fiction", TargetWords: 500}).Version() {
 		t.Fatal("word count missing from cache key")
 	}
 }
@@ -95,7 +95,7 @@ func TestOpenAIFailures(t *testing.T) {
 				key = ""
 			}
 			g := OpenAIGenerator{BaseURL: server.URL, Model: "fiction", APIKey: key, TargetWords: 1000}
-			err := g.Generate(ctx, Scene{}, func(string) error {
+			err := g.Generate(ctx, GenerationContext{}, func(string) error {
 				if kind == "send_error" {
 					return fmt.Errorf("disconnected")
 				}
@@ -131,7 +131,7 @@ func TestOpenAIStreamErrorCodes(t *testing.T) {
 		fmt.Fprint(w, "data: {\"type\":\"response.failed\",\"response\":{\"error\":{\"code\":\"insufficient_quota\",\"message\":\"private details\"}}}\n\n")
 	}))
 	defer server.Close()
-	err := (OpenAIGenerator{BaseURL: server.URL, Model: "fiction", APIKey: "test-secret"}).Generate(context.Background(), Scene{}, func(string) error { return nil })
+	err := (OpenAIGenerator{BaseURL: server.URL, Model: "fiction", APIKey: "test-secret"}).Generate(context.Background(), GenerationContext{}, func(string) error { return nil })
 	if err == nil || !strings.Contains(err.Error(), "quota or credits") || strings.Contains(err.Error(), "private details") {
 		t.Fatalf("unsafe or unhelpful error: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestOpenAINestedCreditError(t *testing.T) {
 		fmt.Fprint(w, "data: {\"type\":\"error\",\"error\":{\"code\":\"credit_balance_exhausted\",\"message\":\"private details\"}}\n\n")
 	}))
 	defer server.Close()
-	err := (OpenAIGenerator{BaseURL: server.URL, Model: "fiction", APIKey: "test-secret"}).Generate(context.Background(), Scene{}, func(string) error { return nil })
+	err := (OpenAIGenerator{BaseURL: server.URL, Model: "fiction", APIKey: "test-secret"}).Generate(context.Background(), GenerationContext{}, func(string) error { return nil })
 	if err == nil || !strings.Contains(err.Error(), "quota or credits") || strings.Contains(err.Error(), "private details") {
 		t.Fatalf("unexpected provider diagnostic: %v", err)
 	}

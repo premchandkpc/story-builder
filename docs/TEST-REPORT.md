@@ -94,3 +94,15 @@ response failure events and shows a billing/credits diagnostic without relaying
 raw provider messages. New OpenAI-generated large stories remain blocked on
 available API credits; authentication success alone does not demonstrate
 successful generation.
+
+## Merge verification — 5 November 2026
+
+Integrated remote commit `3748cf6`, preserving versioned character editing,
+revision-aware scene updates, immutable canon, generation leases, pinned input
+snapshots, and listener authentication. Adapted OpenAI to the `Version()` and
+pinned `GenerationContext` provider interface. The model prompt distinguishes
+author secrets from character knowledge. The broad HTTP scenarios remain,
+alongside the upstream invariant suites. The merged Go race tests passed with
+real local MongoDB, as did vet/build, five frontend tests, TypeScript/Vite build,
+and whitespace checks. Browser E2E tests were not rerun for this push. No paid
+OpenAI call was retried: the earlier real request remained blocked by API credits.
